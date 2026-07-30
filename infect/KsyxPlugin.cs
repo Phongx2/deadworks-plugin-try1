@@ -6,7 +6,6 @@ public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
 
-    // ========== 必须添加的两个方法 ==========
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[{Name}] Loaded! (reload={isReload})");
@@ -16,7 +15,6 @@ public class KsyxPlugin : DeadworksPluginBase
     {
         Console.WriteLine($"[{Name}] Unloaded!");
     }
-    // ========== 添加结束 ==========
 
     [Command("ksyx", Description = "僵尸倒计时")]
     public void CmdKsyx(CCitadelPlayerController caller)
@@ -28,6 +26,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
         SendHUD(players, "🧟 僵尸还有", $"{seconds} 秒后出现");
 
+        // 直接用 Timer.Every，返回 IHandle
         var timer = Timer.Every(1.Seconds(), () =>
         {
             seconds--;
@@ -37,7 +36,7 @@ public class KsyxPlugin : DeadworksPluginBase
             }
             else
             {
-                timer.Cancel();
+                timer.Cancel();  // 用 timer.Cancel() 停止
                 SendHUD(players, "🧟", "僵尸来了！");
             }
         });
