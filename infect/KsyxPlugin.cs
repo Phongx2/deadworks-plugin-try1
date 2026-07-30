@@ -1,78 +1,20 @@
 using DeadworksManaged.Api;
 
-namespace KsyxCountdown;
+namespace MyPlugin;
 
-public class KsyxPlugin : DeadworksPluginBase
+public class HelloPlugin : DeadworksPluginBase
 {
-    public override string Name => "KSYX";
+    public override string Name => "Hello";
 
-    public override void OnLoad(bool isReload)
-    {
-        Console.WriteLine($"[{Name}] Loaded! (reload={isReload})");
-    }
-
-    public override void OnUnload()
-    {
-        Console.WriteLine($"[{Name}] Unloaded!");
-    }
-
-    [Command("ksyx", Description = "僵尸倒计时")]
-    public void CmdKsyx(CCitadelPlayerController caller)
-    {
-        // 获取所有玩家
-        var players = Players.GetAll().ToList();
-        if (players.Count == 0) return;
-
-        // 初始显示15秒
-        int seconds = 15;
-        SendCountdown(players, seconds);
-
-        // ===== 官方推荐用法 =====
-        // 使用 var 让编译器自动推断类型为 IHandle
-        var timer = Timer.Every(1.Seconds(), () =>
-        {
-            seconds--;
-
-            if (seconds >= 0)
-            {
-                SendCountdown(players, seconds);
-            }
-
-            if (seconds <= 0)
-            {
-                timer.Cancel();  // IHandle 的 Cancel() 方法
-                SendFinalMessage(players, "僵尸来了！");
-            }
-        });
-    }
-
-    // 发送倒计时公告
-    public void SendCountdown(List<CCitadelPlayerController> players, int seconds)
+    [Command("hello", Description = "Show a welcome message")]
+    public void CmdHello(CCitadelPlayerController caller)
     {
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
-            TitleLocstring = "🧟 僵尸还有",
-            DescriptionLocstring = $"{seconds} 秒后出现"
+            TitleLocstring = "HELLO",
+            DescriptionLocstring = "Welcome to Deadworks"
         };
 
-        foreach (var player in players)
-        {
-            NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
-        }
-    }
-
-    // 发送最终消息
-    public void SendFinalMessage(List<CCitadelPlayerController> players, string text)
-    {
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "🧟",
-            DescriptionLocstring = text
-        };
-
-        foreach (var player in players)
-        {
-            NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
-        }
+        NetMessages.Send(msg, RecipientFilter.Single(caller.EntityIndex - 1));
     }
 }
