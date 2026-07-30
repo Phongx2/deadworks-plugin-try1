@@ -26,7 +26,6 @@ public class KsyxPlugin : DeadworksPluginBase
 
         SendHUD(players, "🧟 僵尸还有", $"{seconds} 秒后出现");
 
-        // 直接用 Timer.Every，返回 IHandle
         var timer = Timer.Every(1.Seconds(), () =>
         {
             seconds--;
@@ -34,11 +33,12 @@ public class KsyxPlugin : DeadworksPluginBase
             {
                 SendHUD(players, "🧟 僵尸还有", $"{seconds} 秒后出现");
             }
-            else
-            {
-                timer.Cancel();  // 用 timer.Cancel() 停止
-                SendHUD(players, "🧟", "僵尸来了！");
-            }
+        });
+
+        Timer.Once(15.Seconds(), () =>
+        {
+            timer.Cancel();
+            SendHUD(players, "🧟", "僵尸来了！");
         });
     }
 
