@@ -6,13 +6,11 @@ public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
 
-    // ========== 已添加 OnLoad 方法 ==========
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[{Name}] Loaded! (reload={isReload})");
     }
 
-    // ========== 已添加 OnUnload 方法 ==========
     public override void OnUnload()
     {
         Console.WriteLine($"[{Name}] Unloaded!");
@@ -29,8 +27,11 @@ public class KsyxPlugin : DeadworksPluginBase
         int seconds = 15;
         SendCountdown(players, seconds);
 
+        // ========== 修复：先声明 timer 为 null ==========
+        ITimer timer = null;
+
         // 每秒更新一次
-        var timer = Timer.Every(1.Seconds(), () =>
+        timer = Timer.Every(1.Seconds(), () =>
         {
             seconds--;
 
@@ -41,7 +42,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
             if (seconds <= 0)
             {
-                timer.Cancel();
+                timer.Cancel();  // 现在 timer 已经被赋值，可以安全调用
                 SendFinalMessage(players, "僵尸来了！");
             }
         });
