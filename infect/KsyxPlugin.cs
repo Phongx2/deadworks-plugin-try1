@@ -1,12 +1,12 @@
 using DeadworksManaged.Api;
 
-namespace MyPlugin;
+namespace KsyxCountdown;
 
-public class HelloPlugin : DeadworksPluginBase
+public class KsyxPlugin : DeadworksPluginBase
 {
-    public override string Name => "Hello";
+    public override string Name => "KSYX";
 
-    // ========== 必须添加这两个方法 ==========
+    // ========== 必须添加的两个方法 ==========
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[{Name}] Loaded! (reload={isReload})");
@@ -18,15 +18,42 @@ public class HelloPlugin : DeadworksPluginBase
     }
     // ========== 添加结束 ==========
 
-    [Command("hello", Description = "Show a welcome message")]
-    public void CmdHello(CCitadelPlayerController caller)
+    [Command("ksyx", Description = "僵尸倒计时")]
+    public void CmdKsyx(CCitadelPlayerController caller)
+    {
+        var players = Players.GetAll().ToList();
+        if (players.Count == 0) return;
+
+        int seconds = 15;
+
+        SendHUD(players, "🧟 僵尸还有", $"{seconds} 秒后出现");
+
+        var timer = Timer.Every(1.Seconds(), () =>
+        {
+            seconds--;
+            if (seconds > 0)
+            {
+                SendHUD(players, "🧟 僵尸还有", $"{seconds} 秒后出现");
+            }
+            else
+            {
+                timer.Cancel();
+                SendHUD(players, "🧟", "僵尸来了！");
+            }
+        });
+    }
+
+    public void SendHUD(List<CCitadelPlayerController> players, string title, string desc)
     {
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
-            TitleLocstring = "HELLO",
-            DescriptionLocstring = "Welcome to Deadworks"
+            TitleLocstring = title,
+            DescriptionLocstring = desc
         };
 
-        NetMessages.Send(msg, RecipientFilter.Single(caller.EntityIndex - 1));
+        foreach (var player in players)
+        {
+            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
+        }
     }
 }
