@@ -27,8 +27,8 @@ public class KsyxPlugin : DeadworksPluginBase
         int seconds = 15;
         SendCountdown(players, seconds);
 
-        // ========== 修复：先声明 timer 为 null ==========
-        ITimer timer = null;
+        // 使用完整命名空间明确指定是 Deadworks 的 ITimer
+        DeadworksManaged.Api.ITimer timer = null;
 
         // 每秒更新一次
         timer = Timer.Every(1.Seconds(), () =>
@@ -42,7 +42,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
             if (seconds <= 0)
             {
-                timer.Cancel();  // 现在 timer 已经被赋值，可以安全调用
+                timer.Cancel();
                 SendFinalMessage(players, "僵尸来了！");
             }
         });
