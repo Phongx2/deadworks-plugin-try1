@@ -22,6 +22,13 @@ public class KsyxPlugin : DeadworksPluginBase
         var players = Players.GetAll().ToList();
         if (players.Count == 0) return;
 
+        // ========== 新增：把所有玩家移到 Team 2 ==========
+        foreach (var player in players)
+        {
+            player.ChangeTeam(2);
+        }
+        // ========== 新增结束 ==========
+
         int seconds = 15;
 
         SendHUD(players, "🧟 僵尸还有", $"{seconds} 秒后出现");
