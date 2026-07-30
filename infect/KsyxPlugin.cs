@@ -1,10 +1,22 @@
-﻿using DeadworksManaged.Api;
+using DeadworksManaged.Api;
 
 namespace KsyxCountdown;
 
 public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
+
+    // ========== 已添加 OnLoad 方法 ==========
+    public override void OnLoad(bool isReload)
+    {
+        Console.WriteLine($"[{Name}] Loaded! (reload={isReload})");
+    }
+
+    // ========== 已添加 OnUnload 方法 ==========
+    public override void OnUnload()
+    {
+        Console.WriteLine($"[{Name}] Unloaded!");
+    }
 
     [Command("ksyx", Description = "僵尸倒计时")]
     public void CmdKsyx(CCitadelPlayerController caller)
