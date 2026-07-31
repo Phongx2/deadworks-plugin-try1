@@ -6,7 +6,6 @@ public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
 
-    // 存储所有玩家，用于随机选择发送者
     public List<CCitadelPlayerController> allPlayers = new List<CCitadelPlayerController>();
 
     public override void OnLoad(bool isReload)
@@ -36,16 +35,25 @@ public class KsyxPlugin : DeadworksPluginBase
             return;
         }
 
+        // ========== 用 Pawn 来改队伍 ==========
         foreach (var player in allPlayers)
         {
-            player.ChangeTeam(2);
-            Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2");
+            var pawn = player.GetHeroPawn();
+            if (pawn != null)
+            {
+                pawn.ChangeTeam(2);
+                Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2 (通过 Pawn)");
+            }
+            else
+            {
+                Console.WriteLine($"[KSYX] {player.PlayerName} 没有 Pawn，无法改队伍");
+            }
         }
+        // ========== 改完 ==========
 
         int seconds = 15;
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
 
-        // 发送初始聊天消息（全局，带随机发送者）
         SendGlobalChatMessage($"母体还有 {seconds} 秒后出现");
         Console.WriteLine($"[KSYX] 已发送初始聊天消息");
 
@@ -86,13 +94,18 @@ public class KsyxPlugin : DeadworksPluginBase
             var selected = team2Players[random.Next(team2Players.Count)];
             Console.WriteLine($"[KSYX] 选中: {selected.PlayerName}");
 
-            selected.ChangeTeam(3);
-            Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
+            // ========== 用 Pawn 来改队伍 ==========
+            var selectedPawn = selected.GetHeroPawn();
+            if (selectedPawn != null)
+            {
+                selectedPawn.ChangeTeam(3);
+                Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3 (通过 Pawn)");
+            }
+            // ========== 改完 ==========
 
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
 
-            // HUD 广播最终结果
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "",
@@ -111,20 +124,19 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
     }
 
-    // ========== 发送全局聊天消息（带随机发送者） ==========
     public void SendGlobalChatMessage(string text)
     {
-        // 从所有在线玩家中随机选一个作为发送者
+        if (allPlayers.Count == 0) return;
+
         var random = new Random();
         var sender = allPlayers[random.Next(allPlayers.Count)];
 
         var msg = new CCitadelUserMsg_ChatMsg
         {
             Text = text,
-            PlayerSlot = sender.Slot  // 设置为随机玩家的槽位
+            PlayerSlot = sender.Slot
         };
 
-        // 发送给所有玩家（全局）
         NetMessages.Send(msg, RecipientFilter.All);
     }
 }
