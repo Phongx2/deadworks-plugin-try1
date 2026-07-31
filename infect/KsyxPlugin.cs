@@ -45,11 +45,11 @@ public class KsyxPlugin : DeadworksPluginBase
             var pawn = player.GetHeroPawn();
             if (pawn != null)
             {
-                var currentHero = GetHeroFromPawn(pawn);
-                if (currentHero.HasValue)
+                var hero = GetHeroFromPawn(pawn);
+                if (hero.HasValue)
                 {
-                    originalHeroes[player] = currentHero.Value;
-                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 当前英雄: {currentHero.Value}");
+                    originalHeroes[player] = hero.Value;
+                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 当前英雄: {hero.Value}");
                 }
                 else
                 {
@@ -64,13 +64,25 @@ public class KsyxPlugin : DeadworksPluginBase
             }
         }
 
-        // 所有玩家移到 Team 2
+        // ========== 修复：使用 citadel_change_team 修改器切换队伍 ==========
         Console.WriteLine($"[KSYX] 开始移动玩家到 Team 2...");
         foreach (var player in allPlayers)
         {
-            player.ChangeTeam(2);
-            Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2");
+            var pawn = player.GetHeroPawn();
+            if (pawn != null)
+            {
+                // 使用 modifier 切换队伍到 Team 2
+                using var kv = new KeyValues3();
+                kv.SetInt("team", 2);  // 设置目标队伍
+                pawn.AddModifier("citadel_change_team", kv);
+                Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2 (通过 modifier)");
+            }
+            else
+            {
+                Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体，无法切换队伍");
+            }
         }
+        // ========== 修复结束 ==========
 
         // 重新选择原始英雄
         Console.WriteLine($"[KSYX] 开始重新选择英雄...");
@@ -83,15 +95,13 @@ public class KsyxPlugin : DeadworksPluginBase
             }
         }
 
-        // ========== 给所有玩家发放 32000 金币 ==========
+        // 给所有玩家发放 32000 金币
         Console.WriteLine($"[KSYX] 开始发放金币...");
         foreach (var player in allPlayers)
         {
-            // 通过控制台命令给每个玩家发金币
-            ConVar.Find($"citadel_give_gold {player.Slot} 32000")?.SetInt(0);
+            Server.ExecuteCommand($"citadel_give_gold {player.Slot} 32000");
             Console.WriteLine($"[KSYX] {player.PlayerName} (槽位 {player.Slot}) -> +32000 金币");
         }
-        // ========== 发放结束 ==========
 
         int seconds = 15;
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
@@ -136,8 +146,16 @@ public class KsyxPlugin : DeadworksPluginBase
             var selected = team2Players[random.Next(team2Players.Count)];
             Console.WriteLine($"[KSYX] 选中: {selected.PlayerName}");
 
-            selected.ChangeTeam(3);
-            Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
+            // ========== 修复：使用 modifier 切换队伍到 Team 3 ==========
+            var selectedPawn = selected.GetHeroPawn();
+            if (selectedPawn != null)
+            {
+                using var kv = new KeyValues3();
+                kv.SetInt("team", 3);
+                selectedPawn.AddModifier("citadel_change_team", kv);
+                Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3 (通过 modifier)");
+            }
+            // ========== 修复结束 ==========
 
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
@@ -173,6 +191,14 @@ public class KsyxPlugin : DeadworksPluginBase
             if (name.Contains("inferno", StringComparison.OrdinalIgnoreCase))
                 return Heroes.Inferno;
         }
+
+        var designerName = pawn.DesignerName;
+        Console.WriteLine($"[KSYX] 英雄DesignerName: {designerName}");
+        if (designerName.Contains("necro", StringComparison.OrdinalIgnoreCase))
+            return Heroes.Necro;
+        if (designerName.Contains("inferno", StringComparison.OrdinalIgnoreCase))
+            return Heroes.Inferno;
+
         return null;
     }
 
