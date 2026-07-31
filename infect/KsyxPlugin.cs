@@ -6,9 +6,6 @@ public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
 
-    // 固定ID，用于更新同一条HUD
-    private const int ANNOUNCEMENT_ID = 9999;
-
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[KSYX] ========== 插件加载 ==========");
@@ -45,9 +42,9 @@ public class KsyxPlugin : DeadworksPluginBase
         int seconds = 15;
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
 
-        // 发送初始HUD（使用固定ID）
-        SendHUD(players, $"母体还有 {seconds} 秒后出现");
-        Console.WriteLine($"[KSYX] 已发送初始HUD");
+        // 发送初始聊天消息
+        SendChatMessage(players, $"母体还有 {seconds} 秒后出现");
+        Console.WriteLine($"[KSYX] 已发送初始聊天消息");
 
         var timer = Timer.Every(1.Seconds(), () =>
         {
@@ -56,8 +53,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
             if (seconds > 0)
             {
-                // 更新同一条HUD
-                SendHUD(players, $"母体还有 {seconds} 秒后出现");
+                SendChatMessage(players, $"母体还有 {seconds} 秒后出现");
             }
         });
 
@@ -67,9 +63,8 @@ public class KsyxPlugin : DeadworksPluginBase
             timer.Cancel();
             Console.WriteLine($"[KSYX] 计时器已取消");
 
-            // 显示最终消息
-            SendHUD(players, "母体来了！");
-            Console.WriteLine($"[KSYX] 已发送结束HUD");
+            SendChatMessage(players, "母体来了！");
+            Console.WriteLine($"[KSYX] 已发送结束消息");
 
             Console.WriteLine($"[KSYX] 开始选择母体...");
             var team2Players = Players.GetAll()
@@ -94,7 +89,8 @@ public class KsyxPlugin : DeadworksPluginBase
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
 
-            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            // ========== 广播最终结果用 HUD ==========
+            var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "",
                 DescriptionLocstring = $"{selected.PlayerName} 变成了母体！"
@@ -102,8 +98,9 @@ public class KsyxPlugin : DeadworksPluginBase
 
             foreach (var player in Players.GetAll())
             {
-                NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
+                NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
             }
+            // ========== 改完 ==========
 
             Console.WriteLine($"[KSYX] 已广播: {selected.PlayerName} 变成了母体！");
             Console.WriteLine($"[KSYX] ========== 流程结束 ==========");
@@ -112,30 +109,12 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
     }
 
-    // ========== 发送单行HUD（不带标题） ==========
-    public void SendHUD(List<CCitadelPlayerController> players, string text)
+    // ========== 发送聊天消息给所有玩家 ==========
+    public void SendChatMessage(List<CCitadelPlayerController> players, string text)
     {
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        var msg = new CCitadelUserMsg_ChatMsg
         {
-            TitleLocstring = "",           // 标题留空
-            DescriptionLocstring = text,   // 只显示描述文字
-            AnnouncementID = ANNOUNCEMENT_ID  // 固定ID，覆盖旧消息
-        };
-
-        foreach (var player in players)
-        {
-            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
-        }
-    }
-
-    // ========== 重载：发送两行HUD（用于最终消息） ==========
-    public void SendHUD(List<CCitadelPlayerController> players, string title, string desc)
-    {
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = title,
-            DescriptionLocstring = desc,
-            AnnouncementID = ANNOUNCEMENT_ID  // 固定ID，覆盖旧消息
+            Text = text
         };
 
         foreach (var player in players)
