@@ -48,7 +48,6 @@ public class KsyxPlugin : DeadworksPluginBase
             ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
             Console.WriteLine($"[KSYX] citadel_allow_purchasing_anywhere -> 1");
 
-            // 使用 SetCurrency 给所有玩家 32000 金币
             foreach (var player in allPlayers)
             {
                 var pawn = player.GetHeroPawn();
@@ -76,17 +75,17 @@ public class KsyxPlugin : DeadworksPluginBase
                 pawn.AddModifier("citadel_change_team", kv);
                 Console.WriteLine($"[KSYX] {player.PlayerName} (Team 3) -> Team 2");
 
-                // ========== 延迟 1 秒后关闭 citadel_change_team modifier 状态 ==========
-                var pawnRef = pawn; // 捕获当前 pawn
+                // ========== 延迟 1 秒后移除 citadel_change_team modifier ==========
+                var pawnRef = pawn;
                 Timer.Once(1.Seconds(), () =>
                 {
                     if (pawnRef != null && pawnRef.IsValid)
                     {
-                        pawnRef.ModifierProp?.SetModifierState(EModifierState.CitadelChangeTeam, false);
-                        Console.WriteLine($"[KSYX] {player.PlayerName} -> 关闭 citadel_change_team 状态");
+                        pawnRef.RemoveModifier("citadel_change_team");
+                        Console.WriteLine($"[KSYX] {player.PlayerName} -> 移除 citadel_change_team modifier");
                     }
                 });
-                // ========== 关闭结束 ==========
+                // ========== 移除结束 ==========
             }
             else
             {
@@ -168,17 +167,17 @@ public class KsyxPlugin : DeadworksPluginBase
                 selectedPawn.AddModifier("citadel_change_team", kv);
                 Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
 
-                // ========== 延迟 1 秒后关闭 citadel_change_team modifier 状态 ==========
+                // ========== 延迟 1 秒后移除 citadel_change_team modifier ==========
                 var pawnRef = selectedPawn;
                 Timer.Once(1.Seconds(), () =>
                 {
                     if (pawnRef != null && pawnRef.IsValid)
                     {
-                        pawnRef.ModifierProp?.SetModifierState(EModifierState.CitadelChangeTeam, false);
-                        Console.WriteLine($"[KSYX] {selected.PlayerName} -> 关闭 citadel_change_team 状态");
+                        pawnRef.RemoveModifier("citadel_change_team");
+                        Console.WriteLine($"[KSYX] {selected.PlayerName} -> 移除 citadel_change_team modifier");
                     }
                 });
-                // ========== 关闭结束 ==========
+                // ========== 移除结束 ==========
             }
 
             selected.SelectHero(Heroes.Necro);
