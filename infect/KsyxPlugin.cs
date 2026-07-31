@@ -7,6 +7,7 @@ public class KsyxPlugin : DeadworksPluginBase
     public override string Name => "KSYX";
 
     public List<CCitadelPlayerController> allPlayers = new List<CCitadelPlayerController>();
+    public Dictionary<CCitadelPlayerController, Heroes> originalHeroes = new Dictionary<CCitadelPlayerController, Heroes>();
 
     public override void OnLoad(bool isReload)
     {
@@ -35,21 +36,62 @@ public class KsyxPlugin : DeadworksPluginBase
             return;
         }
 
-        // ========== 用 Pawn 来改队伍 ==========
+        // 保存每个玩家的当前英雄
+        Console.WriteLine($"[KSYX] 开始保存玩家英雄...");
+        originalHeroes.Clear();
+
         foreach (var player in allPlayers)
         {
             var pawn = player.GetHeroPawn();
             if (pawn != null)
             {
-                pawn.ChangeTeam(2);
-                Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2 (通过 Pawn)");
+                var currentHero = GetHeroFromPawn(pawn);
+                if (currentHero.HasValue)
+                {
+                    originalHeroes[player] = currentHero.Value;
+                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 当前英雄: {currentHero.Value}");
+                }
+                else
+                {
+                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 无法获取英雄，使用默认 Inferno");
+                    originalHeroes[player] = Heroes.Inferno;
+                }
             }
             else
             {
-                Console.WriteLine($"[KSYX] {player.PlayerName} 没有 Pawn，无法改队伍");
+                Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体，使用默认 Inferno");
+                originalHeroes[player] = Heroes.Inferno;
             }
         }
-        // ========== 改完 ==========
+
+        // 所有玩家移到 Team 2
+        Console.WriteLine($"[KSYX] 开始移动玩家到 Team 2...");
+        foreach (var player in allPlayers)
+        {
+            player.ChangeTeam(2);
+            Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2");
+        }
+
+        // 重新选择原始英雄
+        Console.WriteLine($"[KSYX] 开始重新选择英雄...");
+        foreach (var player in allPlayers)
+        {
+            if (originalHeroes.TryGetValue(player, out var hero))
+            {
+                player.SelectHero(hero);
+                Console.WriteLine($"[KSYX] {player.PlayerName} -> 重新选择英雄: {hero}");
+            }
+        }
+
+        // ========== 给所有玩家发放 32000 金币 ==========
+        Console.WriteLine($"[KSYX] 开始发放金币...");
+        foreach (var player in allPlayers)
+        {
+            // 通过控制台命令给每个玩家发金币
+            ConVar.Find($"citadel_give_gold {player.Slot} 32000")?.SetInt(0);
+            Console.WriteLine($"[KSYX] {player.PlayerName} (槽位 {player.Slot}) -> +32000 金币");
+        }
+        // ========== 发放结束 ==========
 
         int seconds = 15;
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
@@ -94,14 +136,8 @@ public class KsyxPlugin : DeadworksPluginBase
             var selected = team2Players[random.Next(team2Players.Count)];
             Console.WriteLine($"[KSYX] 选中: {selected.PlayerName}");
 
-            // ========== 用 Pawn 来改队伍 ==========
-            var selectedPawn = selected.GetHeroPawn();
-            if (selectedPawn != null)
-            {
-                selectedPawn.ChangeTeam(3);
-                Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3 (通过 Pawn)");
-            }
-            // ========== 改完 ==========
+            selected.ChangeTeam(3);
+            Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
 
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
@@ -122,6 +158,22 @@ public class KsyxPlugin : DeadworksPluginBase
         });
 
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
+    }
+
+    public Heroes? GetHeroFromPawn(CCitadelPlayerPawn pawn)
+    {
+        var vdata = pawn.SubclassVData;
+        if (vdata != null)
+        {
+            var name = vdata.Name;
+            Console.WriteLine($"[KSYX] 英雄VData名称: {name}");
+            
+            if (name.Contains("necro", StringComparison.OrdinalIgnoreCase))
+                return Heroes.Necro;
+            if (name.Contains("inferno", StringComparison.OrdinalIgnoreCase))
+                return Heroes.Inferno;
+        }
+        return null;
     }
 
     public void SendGlobalChatMessage(string text)
