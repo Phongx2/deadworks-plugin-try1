@@ -6,6 +6,9 @@ public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
 
+    // 存储所有玩家，用于随机选择发送者
+    public List<CCitadelPlayerController> allPlayers = new List<CCitadelPlayerController>();
+
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[KSYX] ========== 插件加载 ==========");
@@ -24,16 +27,16 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] ========== 命令触发 ==========");
         Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
 
-        var players = Players.GetAll().ToList();
-        Console.WriteLine($"[KSYX] 在线玩家数: {players.Count}");
+        allPlayers = Players.GetAll().ToList();
+        Console.WriteLine($"[KSYX] 在线玩家数: {allPlayers.Count}");
 
-        if (players.Count == 0)
+        if (allPlayers.Count == 0)
         {
             Console.WriteLine($"[KSYX] 没有玩家，命令终止");
             return;
         }
 
-        foreach (var player in players)
+        foreach (var player in allPlayers)
         {
             player.ChangeTeam(2);
             Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2");
@@ -42,8 +45,8 @@ public class KsyxPlugin : DeadworksPluginBase
         int seconds = 15;
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
 
-        // 发送初始聊天消息
-        SendChatMessage(players, $"母体还有 {seconds} 秒后出现");
+        // 发送初始聊天消息（全局，带随机发送者）
+        SendGlobalChatMessage($"母体还有 {seconds} 秒后出现");
         Console.WriteLine($"[KSYX] 已发送初始聊天消息");
 
         var timer = Timer.Every(1.Seconds(), () =>
@@ -53,7 +56,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
             if (seconds > 0)
             {
-                SendChatMessage(players, $"母体还有 {seconds} 秒后出现");
+                SendGlobalChatMessage($"母体还有 {seconds} 秒后出现");
             }
         });
 
@@ -63,11 +66,11 @@ public class KsyxPlugin : DeadworksPluginBase
             timer.Cancel();
             Console.WriteLine($"[KSYX] 计时器已取消");
 
-            SendChatMessage(players, "母体来了！");
+            SendGlobalChatMessage("母体来了！");
             Console.WriteLine($"[KSYX] 已发送结束消息");
 
             Console.WriteLine($"[KSYX] 开始选择母体...");
-            var team2Players = Players.GetAll()
+            var team2Players = allPlayers
                 .Where(p => p.GetHeroPawn() != null && p.GetHeroPawn()?.TeamNum == 2)
                 .ToList();
 
@@ -89,18 +92,17 @@ public class KsyxPlugin : DeadworksPluginBase
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
 
-            // ========== 广播最终结果用 HUD ==========
+            // HUD 广播最终结果
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "",
                 DescriptionLocstring = $"{selected.PlayerName} 变成了母体！"
             };
 
-            foreach (var player in Players.GetAll())
+            foreach (var player in allPlayers)
             {
                 NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
             }
-            // ========== 改完 ==========
 
             Console.WriteLine($"[KSYX] 已广播: {selected.PlayerName} 变成了母体！");
             Console.WriteLine($"[KSYX] ========== 流程结束 ==========");
@@ -109,17 +111,20 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
     }
 
-    // ========== 发送聊天消息给所有玩家 ==========
-    public void SendChatMessage(List<CCitadelPlayerController> players, string text)
+    // ========== 发送全局聊天消息（带随机发送者） ==========
+    public void SendGlobalChatMessage(string text)
     {
+        // 从所有在线玩家中随机选一个作为发送者
+        var random = new Random();
+        var sender = allPlayers[random.Next(allPlayers.Count)];
+
         var msg = new CCitadelUserMsg_ChatMsg
         {
-            Text = text
+            Text = text,
+            PlayerSlot = sender.Slot  // 设置为随机玩家的槽位
         };
 
-        foreach (var player in players)
-        {
-            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
-        }
+        // 发送给所有玩家（全局）
+        NetMessages.Send(msg, RecipientFilter.All);
     }
 }
