@@ -48,7 +48,7 @@ public class KsyxPlugin : DeadworksPluginBase
             ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
             Console.WriteLine($"[KSYX] citadel_allow_purchasing_anywhere -> 1");
 
-            // ========== 使用 SetCurrency 给所有玩家 32000 金币 ==========
+            // 使用 SetCurrency 给所有玩家 32000 金币
             foreach (var player in allPlayers)
             {
                 var pawn = player.GetHeroPawn();
@@ -62,24 +62,35 @@ public class KsyxPlugin : DeadworksPluginBase
                     Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体，无法设置金币");
                 }
             }
-            // ========== 设置结束 ==========
         });
 
-        // 所有玩家移到 Team 2（使用 modifier）
-        Console.WriteLine($"[KSYX] 开始移动玩家到 Team 2...");
+        // 只把 Team 3 的玩家移到 Team 2
+        Console.WriteLine($"[KSYX] 开始将 Team 3 玩家移到 Team 2...");
         foreach (var player in allPlayers)
         {
             var pawn = player.GetHeroPawn();
-            if (pawn != null)
+            if (pawn != null && pawn.TeamNum == 3)
             {
                 using var kv = new KeyValues3();
                 kv.SetInt("team", 2);
                 pawn.AddModifier("citadel_change_team", kv);
-                Console.WriteLine($"[KSYX] {player.PlayerName} -> Team 2");
+                Console.WriteLine($"[KSYX] {player.PlayerName} (Team 3) -> Team 2");
+
+                // ========== 延迟 1 秒后关闭 citadel_change_team modifier 状态 ==========
+                var pawnRef = pawn; // 捕获当前 pawn
+                Timer.Once(1.Seconds(), () =>
+                {
+                    if (pawnRef != null && pawnRef.IsValid)
+                    {
+                        pawnRef.ModifierProp?.SetModifierState(EModifierState.CitadelChangeTeam, false);
+                        Console.WriteLine($"[KSYX] {player.PlayerName} -> 关闭 citadel_change_team 状态");
+                    }
+                });
+                // ========== 关闭结束 ==========
             }
             else
             {
-                Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体");
+                Console.WriteLine($"[KSYX] {player.PlayerName} 不是 Team 3，跳过");
             }
         }
 
@@ -156,6 +167,18 @@ public class KsyxPlugin : DeadworksPluginBase
                 kv.SetInt("team", 3);
                 selectedPawn.AddModifier("citadel_change_team", kv);
                 Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
+
+                // ========== 延迟 1 秒后关闭 citadel_change_team modifier 状态 ==========
+                var pawnRef = selectedPawn;
+                Timer.Once(1.Seconds(), () =>
+                {
+                    if (pawnRef != null && pawnRef.IsValid)
+                    {
+                        pawnRef.ModifierProp?.SetModifierState(EModifierState.CitadelChangeTeam, false);
+                        Console.WriteLine($"[KSYX] {selected.PlayerName} -> 关闭 citadel_change_team 状态");
+                    }
+                });
+                // ========== 关闭结束 ==========
             }
 
             selected.SelectHero(Heroes.Necro);
