@@ -13,6 +13,7 @@ public class KsyxPlugin : DeadworksPluginBase
     public IHandle? team3BuffTimer = null;
     public bool isGameRunning = false;
     public bool isTeam2CheckEnabled = false;
+    public bool isMeleeInfectionEnabled = true;  // 新增：近战感染开关
 
     public override void OnStartupServer()
     {
@@ -92,6 +93,7 @@ public class KsyxPlugin : DeadworksPluginBase
         team3BuffTimer = null;
         isGameRunning = false;
         isTeam2CheckEnabled = false;
+        isMeleeInfectionEnabled = true;  // 重置为启用
     }
 
     public override void OnUnload()
@@ -101,6 +103,7 @@ public class KsyxPlugin : DeadworksPluginBase
         team3BuffTimer = null;
         isGameRunning = false;
         isTeam2CheckEnabled = false;
+        isMeleeInfectionEnabled = true;
     }
 
     // ========== 辅助：从 Pawn 获取 Controller ==========
@@ -132,6 +135,14 @@ public class KsyxPlugin : DeadworksPluginBase
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(GameEvent ev)
     {
+        // ========== 检查近战感染是否被禁用 ==========
+        if (!isMeleeInfectionEnabled)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 近战感染已禁用，跳过");
+            return HookResult.Continue;
+        }
+        // ========== 检查结束 ==========
+
         var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
         if (pawn == null)
         {
@@ -167,6 +178,14 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 检测近战命中的目标并感染 ==========
     private void DetectMeleeHitAndInfect(CCitadelPlayerPawn attacker)
     {
+        // ========== 额外检查 ==========
+        if (!isMeleeInfectionEnabled)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 近战感染已禁用，跳过检测");
+            return;
+        }
+        // ========== 检查结束 ==========
+
         if (attacker == null || !attacker.IsValid) return;
 
         Console.WriteLine($"[KSYX][DEBUG] 检测近战命中目标...");
@@ -434,11 +453,16 @@ public class KsyxPlugin : DeadworksPluginBase
                     Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
                 }
 
-                // 3. 将最后一位 Team 2 玩家英雄替换为 Priest
+                // ========== 3. 禁用近战感染 ==========
+                isMeleeInfectionEnabled = false;
+                Console.WriteLine($"[KSYX][检查] 近战感染已禁用");
+                // ========== 禁用结束 ==========
+
+                // 4. 将最后一位 Team 2 玩家英雄替换为 Priest
                 Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 Priest...");
                 lastTeam2Player.SelectHero(Heroes.Priest);
 
-                // 4. 延迟 2 秒后恢复装备
+                // 5. 延迟 2 秒后恢复装备
                 var slot = lastTeam2Player.Slot;
                 Timer.Once(2.Seconds(), () =>
                 {
@@ -458,42 +482,6 @@ public class KsyxPlugin : DeadworksPluginBase
                         Console.WriteLine($"[KSYX][检查] 没有找到保存的装备");
                     }
                 });
-
-                // ========== 5. 设置 ability_priest_weaponswap 冷却为 0 ==========
-                Timer.Once(500.Milliseconds(), () =>
-                {
-                    Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
-                    var pawnForAbility = lastTeam2Player.GetHeroPawn();
-                    if (pawnForAbility != null && pawnForAbility.IsValid)
-                    {
-                        var abilityComponent2 = pawnForAbility.AbilityComponent;
-                        if (abilityComponent2 != null)
-                        {
-                            Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
-                            bool found = false;
-                            foreach (var ability in abilityComponent2.Abilities)
-                            {
-                                if (ability == null) continue;
-                                Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
-                                if (ability.AbilityName == "ability_priest_weaponswap")
-                                {
-                                    Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                    ability.CooldownStart = 0;
-                                    ability.CooldownEnd = 0;
-                                    Console.WriteLine($"[KSYX][检查] 已将 ability_priest_weaponswap 冷却设为 0");
-                                    Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                    found = true;
-                                    break;
-                                }
-                            }
-                            if (!found)
-                            {
-                                Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
-                            }
-                        }
-                    }
-                });
-                // ========== 冷却设置结束 ==========
 
                 // 广播消息
                 var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
@@ -527,6 +515,7 @@ public class KsyxPlugin : DeadworksPluginBase
         fixedSender = null;
         isGameRunning = true;
         isTeam2CheckEnabled = false;
+        isMeleeInfectionEnabled = true;  // 重置为启用
         Console.WriteLine($"[KSYX] 重置固定发送者，游戏开始");
 
         Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
@@ -755,63 +744,6 @@ public class KsyxPlugin : DeadworksPluginBase
         }
 
         Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
-    }
-
-    // ========== /tt 命令：测试设置 ability_priest_weaponswap 冷却为 0 ==========
-    [Command("tt", Description = "测试设置 ability_priest_weaponswap 冷却为 0")]
-    public void CmdTestCooldown(CCitadelPlayerController caller)
-    {
-        Console.WriteLine($"[KSYX] ========== 测试冷却命令触发 ==========");
-        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
-
-        if (caller == null)
-        {
-            Console.WriteLine($"[KSYX] 执行者为空，无法执行");
-            return;
-        }
-
-        var pawn = caller.GetHeroPawn();
-        if (pawn == null || !pawn.IsValid)
-        {
-            Console.WriteLine($"[KSYX] 无法获取执行者的英雄实体");
-            caller.PrintToConsole("无法获取英雄实体");
-            return;
-        }
-
-        Console.WriteLine($"[KSYX] 开始查找 ability_priest_weaponswap...");
-        var abilityComponent = pawn.AbilityComponent;
-        if (abilityComponent == null)
-        {
-            Console.WriteLine($"[KSYX] 无法获取 AbilityComponent");
-            caller.PrintToConsole("无法获取 AbilityComponent");
-            return;
-        }
-
-        bool found = false;
-        foreach (var ability in abilityComponent.Abilities)
-        {
-            if (ability == null) continue;
-            Console.WriteLine($"[KSYX] 找到技能: {ability.AbilityName}");
-            if (ability.AbilityName == "ability_priest_weaponswap")
-            {
-                Console.WriteLine($"[KSYX] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                ability.CooldownStart = 0;
-                ability.CooldownEnd = 0;
-                Console.WriteLine($"[KSYX] 已将 ability_priest_weaponswap 冷却设为 0");
-                Console.WriteLine($"[KSYX] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                found = true;
-                caller.PrintToConsole("ability_priest_weaponswap 冷却已设为 0");
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            Console.WriteLine($"[KSYX] 未找到 ability_priest_weaponswap 技能");
-            caller.PrintToConsole("未找到 ability_priest_weaponswap 技能");
-        }
-
-        Console.WriteLine($"[KSYX] ========== 测试冷却命令结束 ==========");
     }
 
     public void SendGlobalChatMessage(string text)
