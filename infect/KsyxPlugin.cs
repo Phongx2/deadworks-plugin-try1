@@ -113,74 +113,99 @@ public class KsyxPlugin : DeadworksPluginBase
 
     // ========== 近战攻击监听（使用 OnTakeDamage） ==========
     public override HookResult OnTakeDamage(TakeDamageEvent ev)
+{
+    Console.WriteLine($"[KSYX][DEBUG] OnTakeDamage 被触发");
+
+    var attackerEntity = ev.Info.Attacker;
+    var victim = ev.Entity as CCitadelPlayerPawn;
+
+    // 打印原始攻击者类型
+    Console.WriteLine($"[KSYX][DEBUG] 原始攻击者类型: {attackerEntity?.GetType().Name ?? "null"}");
+
+    if (attackerEntity == null)
     {
-        Console.WriteLine($"[KSYX][DEBUG] OnTakeDamage 被触发");
-
-        // 获取攻击者和受害者
-        var attacker = ev.Info.Attacker as CCitadelPlayerPawn;
-        var victim = ev.Entity as CCitadelPlayerPawn;
-
-        if (attacker == null)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 攻击者为 null，跳过");
-            return HookResult.Continue;
-        }
-        if (victim == null)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 受害者（受伤实体）为 null，跳过");
-            return HookResult.Continue;
-        }
-
-        // 打印基础信息
-        var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
-        var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
-        Console.WriteLine($"[KSYX][DEBUG] 攻击者: {attackerName} (Team {attacker.TeamNum}), 受害者: {victimName} (Team {victim.TeamNum})");
-
-        // 检查条件：攻击者必须是 Team 3，受害者必须是 Team 2
-        if (attacker.TeamNum != 3)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 攻击者不是 Team 3 (当前 Team {attacker.TeamNum})，跳过");
-            return HookResult.Continue;
-        }
-        if (victim.TeamNum != 2)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 受害者不是 Team 2 (当前 Team {victim.TeamNum})，跳过");
-            return HookResult.Continue;
-        }
-
-        // 检查是否是近战伤害
-        var flags = ev.Info.DamageFlags;
-        bool isMelee = (flags & TakeDamageFlags.LightMelee) != 0 || 
-                       (flags & TakeDamageFlags.HeavyMelee) != 0;
-
-        Console.WriteLine($"[KSYX][DEBUG] DamageFlags: {flags}, 是否为近战: {isMelee}");
-
-        if (!isMelee)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 不是近战伤害，跳过");
-            return HookResult.Continue;
-        }
-
-        Console.WriteLine($"[KSYX][重要] Team 3 玩家 {attackerName} 用近战攻击了 Team 2 玩家 {victimName}，造成 {ev.Info.Damage} 点伤害！");
-
-        // 执行感染转化（延迟一帧，确保伤害结算完成）
-        var victimRef = victim;
-        Timer.NextTick(() =>
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 延迟帧执行感染转化...");
-            if (victimRef != null && victimRef.IsValid)
-            {
-                InfectPlayer(victimRef);
-            }
-            else
-            {
-                Console.WriteLine($"[KSYX][DEBUG] victimRef 无效或为 null，无法执行感染");
-            }
-        });
-
+        Console.WriteLine($"[KSYX][DEBUG] 攻击者为 null，跳过");
         return HookResult.Continue;
     }
 
+    // 从攻击者实体获取 CCitadelPlayerPawn
+    CCitadelPlayerPawn? attacker = null;
+
+    // 尝试直接转换
+    attacker = attackerEntity as CCitadelPlayerPawn;
+    if (attacker == null)
+    {
+        // 如果攻击者是 Controller，通过 Controller 获取 Pawn
+        var controller = attackerEntity as CCitadelPlayerController;
+        if (controller != null)
+        {
+            attacker = controller.GetHeroPawn();
+            Console.WriteLine($"[KSYX][DEBUG] 从 Controller 获取 Pawn: {(attacker != null ? "成功" : "失败")}");
+        }
+        else
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 攻击者类型不是 Controller: {attackerEntity.GetType().Name}");
+        }
+    }
+
+    if (attacker == null)
+    {
+        Console.WriteLine($"[KSYX][DEBUG] 无法获取有效的 CCitadelPlayerPawn 攻击者，跳过");
+        return HookResult.Continue;
+    }
+
+    if (victim == null)
+    {
+        Console.WriteLine($"[KSYX][DEBUG] 受害者（受伤实体）为 null，跳过");
+        return HookResult.Continue;
+    }
+
+    // 打印基础信息
+    var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
+    var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
+    Console.WriteLine($"[KSYX][DEBUG] 攻击者: {attackerName} (Team {attacker.TeamNum}), 受害者: {victimName} (Team {victim.TeamNum})");
+
+    if (attacker.TeamNum != 3)
+    {
+        Console.WriteLine($"[KSYX][DEBUG] 攻击者不是 Team 3 (当前 Team {attacker.TeamNum})，跳过");
+        return HookResult.Continue;
+    }
+    if (victim.TeamNum != 2)
+    {
+        Console.WriteLine($"[KSYX][DEBUG] 受害者不是 Team 2 (当前 Team {victim.TeamNum})，跳过");
+        return HookResult.Continue;
+    }
+
+    var flags = ev.Info.DamageFlags;
+    bool isMelee = (flags & TakeDamageFlags.LightMelee) != 0 || 
+                   (flags & TakeDamageFlags.HeavyMelee) != 0;
+
+    Console.WriteLine($"[KSYX][DEBUG] DamageFlags: {flags}, 是否为近战: {isMelee}");
+
+    if (!isMelee)
+    {
+        Console.WriteLine($"[KSYX][DEBUG] 不是近战伤害，跳过");
+        return HookResult.Continue;
+    }
+
+    Console.WriteLine($"[KSYX][重要] Team 3 玩家 {attackerName} 用近战攻击了 Team 2 玩家 {victimName}，造成 {ev.Info.Damage} 点伤害！");
+
+    var victimRef = victim;
+    Timer.NextTick(() =>
+    {
+        Console.WriteLine($"[KSYX][DEBUG] 延迟帧执行感染转化...");
+        if (victimRef != null && victimRef.IsValid)
+        {
+            InfectPlayer(victimRef);
+        }
+        else
+        {
+            Console.WriteLine($"[KSYX][DEBUG] victimRef 无效或为 null，无法执行感染");
+        }
+    });
+
+    return HookResult.Continue;
+}
     // ========== 感染转化玩家（和母体生成流程一样） ==========
     private void InfectPlayer(CCitadelPlayerPawn victim)
     {
