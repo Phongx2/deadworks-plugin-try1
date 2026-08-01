@@ -12,7 +12,7 @@ public class KsyxPlugin : DeadworksPluginBase
     public CCitadelPlayerController? fixedSender = null;
     public IHandle? team3BuffTimer = null;
     public bool isGameRunning = false;
-    public bool isTeam2CheckEnabled = false;  // 新增：母体生成后才启用检测
+    public bool isTeam2CheckEnabled = false;
 
     public override void OnStartupServer()
     {
@@ -459,7 +459,7 @@ public class KsyxPlugin : DeadworksPluginBase
                     }
                 });
 
-                // 5. 将 ability_priest_weaponswap 的冷却设为无冷却
+                // 5. 将 ability_priest_weaponswap 的冷却设为无冷却（增加详细日志）
                 Timer.Once(500.Milliseconds(), () =>
                 {
                     Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
@@ -469,15 +469,26 @@ public class KsyxPlugin : DeadworksPluginBase
                         var abilityComponent2 = pawnForAbility.AbilityComponent;
                         if (abilityComponent2 != null)
                         {
+                            Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
+                            bool found = false;
                             foreach (var ability in abilityComponent2.Abilities)
                             {
+                                if (ability == null) continue;
+                                Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
                                 if (ability.AbilityName == "ability_priest_weaponswap")
                                 {
+                                    Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
                                     ability.CooldownStart = 0;
                                     ability.CooldownEnd = 0;
-                                    Console.WriteLine($"[KSYX][检查] ability_priest_weaponswap 冷却已设为无冷却");
+                                    Console.WriteLine($"[KSYX][检查] ability_priest_weaponswap 冷却已设为 0");
+                                    Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                                    found = true;
                                     break;
                                 }
+                            }
+                            if (!found)
+                            {
+                                Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
                             }
                         }
                     }
@@ -514,7 +525,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
         fixedSender = null;
         isGameRunning = true;
-        isTeam2CheckEnabled = false;  // 重置检测标志
+        isTeam2CheckEnabled = false;
         Console.WriteLine($"[KSYX] 重置固定发送者，游戏开始");
 
         Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
@@ -743,6 +754,63 @@ public class KsyxPlugin : DeadworksPluginBase
         }
 
         Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
+    }
+
+    // ========== /tt 命令：测试设置 ability_priest_weaponswap 冷却为 0 ==========
+    [Command("tt", Description = "测试设置 ability_priest_weaponswap 冷却为 0")]
+    public void CmdTestCooldown(CCitadelPlayerController caller)
+    {
+        Console.WriteLine($"[KSYX] ========== 测试冷却命令触发 ==========");
+        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
+
+        if (caller == null)
+        {
+            Console.WriteLine($"[KSYX] 执行者为空，无法执行");
+            return;
+        }
+
+        var pawn = caller.GetHeroPawn();
+        if (pawn == null || !pawn.IsValid)
+        {
+            Console.WriteLine($"[KSYX] 无法获取执行者的英雄实体");
+            caller.PrintToConsole("无法获取英雄实体");
+            return;
+        }
+
+        Console.WriteLine($"[KSYX] 开始查找 ability_priest_weaponswap...");
+        var abilityComponent = pawn.AbilityComponent;
+        if (abilityComponent == null)
+        {
+            Console.WriteLine($"[KSYX] 无法获取 AbilityComponent");
+            caller.PrintToConsole("无法获取 AbilityComponent");
+            return;
+        }
+
+        bool found = false;
+        foreach (var ability in abilityComponent.Abilities)
+        {
+            if (ability == null) continue;
+            Console.WriteLine($"[KSYX] 找到技能: {ability.AbilityName}");
+            if (ability.AbilityName == "ability_priest_weaponswap")
+            {
+                Console.WriteLine($"[KSYX] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                ability.CooldownStart = 0;
+                ability.CooldownEnd = 0;
+                Console.WriteLine($"[KSYX] 已将 ability_priest_weaponswap 冷却设为 0");
+                Console.WriteLine($"[KSYX] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                found = true;
+                caller.PrintToConsole("ability_priest_weaponswap 冷却已设为 0");
+                break;
+            }
+        }
+
+        if (!found)
+        {
+            Console.WriteLine($"[KSYX] 未找到 ability_priest_weaponswap 技能");
+            caller.PrintToConsole("未找到 ability_priest_weaponswap 技能");
+        }
+
+        Console.WriteLine($"[KSYX] ========== 测试冷却命令结束 ==========");
     }
 
     public void SendGlobalChatMessage(string text)
