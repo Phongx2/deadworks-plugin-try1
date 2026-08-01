@@ -479,39 +479,48 @@ private void CheckTeam2AndProcess()
             });
 
            // ========== 5. 设置 ability_priest_weaponswap 冷却为 0 ==========
-            Timer.Every(500.Milliseconds(), () =>
+            // 先查找并保存技能引用
+var pawnForAbility = lastTeam2Player.GetHeroPawn();
+CBaseEntity? targetAbility = null;
+if (pawnForAbility != null && pawnForAbility.IsValid)
+{
+    var abilityComponent2 = pawnForAbility.AbilityComponent;
+    if (abilityComponent2 != null)
+    {
+        foreach (var ability in abilityComponent2.Abilities)
+        {
+            if (ability == null) continue;
+            if (ability.AbilityName == "ability_priest_weaponswap")
             {
-                Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
-                var pawnForAbility = lastTeam2Player.GetHeroPawn();
-                if (pawnForAbility != null && pawnForAbility.IsValid)
-                {
-                    var abilityComponent2 = pawnForAbility.AbilityComponent;
-                    if (abilityComponent2 != null)
-                    {
-                        Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
-                        bool found = false;
-                        foreach (var ability in abilityComponent2.Abilities)
-                        {
-                            if (ability == null) continue;
-                            Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
-                            if (ability.AbilityName == "ability_priest_weaponswap")
-                            {
-                                Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                ability.CooldownStart = 0;
-                                ability.CooldownEnd = 0;
-                                Console.WriteLine($"[KSYX][检查] 已将 ability_priest_weaponswap 冷却设为 0");
-                                Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (!found)
-                        {
-                            Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
-                        }
-                    }
-                }
-            });
+                targetAbility = ability;
+                Console.WriteLine($"[KSYX][检查] 找到目标技能！");
+                break;
+            }
+        }
+    }
+}
+
+if (targetAbility != null)
+{
+    var abilityRef = targetAbility;
+    var refreshTimer = Timer.Every(500.Milliseconds(), () =>
+    {
+        if (abilityRef == null || !abilityRef.IsValid)
+        {
+            Console.WriteLine($"[KSYX][检查] 技能已失效，停止冷却刷新");
+            refreshTimer.Cancel();
+            return;
+        }
+        abilityRef.CooldownStart = 0;
+        abilityRef.CooldownEnd = 0;
+        Console.WriteLine($"[KSYX][检查] 刷新冷却: CooldownStart=0, CooldownEnd=0");
+    });
+    Console.WriteLine($"[KSYX][检查] 已启动每0.5秒冷却刷新计时器");
+}
+else
+{
+    Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
+}
             // ========== 冷却设置结束 ==========
 
             // 广播消息
