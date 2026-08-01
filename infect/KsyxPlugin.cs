@@ -111,101 +111,128 @@ public class KsyxPlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 近战攻击监听（使用 OnTakeDamage） ==========
-    public override HookResult OnTakeDamage(TakeDamageEvent ev)
-{
-    Console.WriteLine($"[KSYX][DEBUG] OnTakeDamage 被触发");
-
-    var attackerEntity = ev.Info.Attacker;
-    var victim = ev.Entity as CCitadelPlayerPawn;
-
-    // 打印原始攻击者类型
-    Console.WriteLine($"[KSYX][DEBUG] 原始攻击者类型: {attackerEntity?.GetType().Name ?? "null"}");
-
-    if (attackerEntity == null)
+    // ========== 获取前方向量 ==========
+    private Vector3 GetForwardVector(Vector3 angles)
     {
-        Console.WriteLine($"[KSYX][DEBUG] 攻击者为 null，跳过");
-        return HookResult.Continue;
+        float pitch = angles.X * MathF.PI / 180f;
+        float yaw = angles.Y * MathF.PI / 180f;
+        
+        return new Vector3(
+            MathF.Cos(pitch) * MathF.Cos(yaw),
+            MathF.Cos(pitch) * MathF.Sin(yaw),
+            -MathF.Sin(pitch)
+        );
     }
 
-    // 从攻击者实体获取 CCitadelPlayerPawn
-    CCitadelPlayerPawn? attacker = null;
-
-    // 尝试直接转换
-    attacker = attackerEntity as CCitadelPlayerPawn;
-    if (attacker == null)
+    // ========== 监听近战攻击（使用 GameEventHandler） ==========
+    [GameEventHandler("player_used_ability")]
+    public HookResult OnPlayerUsedAbility(GameEvent ev)
     {
-        // 如果攻击者是 Controller，通过 Controller 获取 Pawn
-        var controller = attackerEntity as CCitadelPlayerController;
-        if (controller != null)
+        // 获取施法者
+        var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
+        if (pawn == null)
         {
-            attacker = controller.GetHeroPawn();
-            Console.WriteLine($"[KSYX][DEBUG] 从 Controller 获取 Pawn: {(attacker != null ? "成功" : "失败")}");
+            Console.WriteLine($"[KSYX][DEBUG] OnPlayerUsedAbility: 无法获取施法者 Pawn");
+            return HookResult.Continue;
         }
-        else
+
+        // 获取技能名称
+        string abilityName = ev.GetString("abilityname", "");
+        Console.WriteLine($"[KSYX][DEBUG] OnPlayerUsedAbility: {abilityName}");
+
+        // 只处理近战攻击（ability_melee 开头）
+        if (!abilityName.StartsWith("ability_melee"))
+            return HookResult.Continue;
+
+        // 检查是否是 Team 3 玩家
+        if (pawn.TeamNum != 3)
         {
-            Console.WriteLine($"[KSYX][DEBUG] 攻击者类型不是 Controller: {attackerEntity.GetType().Name}");
+            Console.WriteLine($"[KSYX][DEBUG] 施法者不是 Team 3 (当前 Team {pawn.TeamNum})，跳过");
+            return HookResult.Continue;
         }
-    }
 
-    if (attacker == null)
-    {
-        Console.WriteLine($"[KSYX][DEBUG] 无法获取有效的 CCitadelPlayerPawn 攻击者，跳过");
-        return HookResult.Continue;
-    }
+        // 获取近战类型（轻击/重击）
+        string annotation = ev.GetString("annotation", "");
+        Console.WriteLine($"[KSYX][DEBUG] 近战类型: {annotation}");
 
-    if (victim == null)
-    {
-        Console.WriteLine($"[KSYX][DEBUG] 受害者（受伤实体）为 null，跳过");
-        return HookResult.Continue;
-    }
-
-    // 打印基础信息
-    var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
-    var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
-    Console.WriteLine($"[KSYX][DEBUG] 攻击者: {attackerName} (Team {attacker.TeamNum}), 受害者: {victimName} (Team {victim.TeamNum})");
-
-    if (attacker.TeamNum != 3)
-    {
-        Console.WriteLine($"[KSYX][DEBUG] 攻击者不是 Team 3 (当前 Team {attacker.TeamNum})，跳过");
-        return HookResult.Continue;
-    }
-    if (victim.TeamNum != 2)
-    {
-        Console.WriteLine($"[KSYX][DEBUG] 受害者不是 Team 2 (当前 Team {victim.TeamNum})，跳过");
-        return HookResult.Continue;
-    }
-
-    var flags = ev.Info.DamageFlags;
-    bool isMelee = (flags & TakeDamageFlags.LightMelee) != 0 || 
-                   (flags & TakeDamageFlags.HeavyMelee) != 0;
-
-    Console.WriteLine($"[KSYX][DEBUG] DamageFlags: {flags}, 是否为近战: {isMelee}");
-
-    if (!isMelee)
-    {
-        Console.WriteLine($"[KSYX][DEBUG] 不是近战伤害，跳过");
-        return HookResult.Continue;
-    }
-
-    Console.WriteLine($"[KSYX][重要] Team 3 玩家 {attackerName} 用近战攻击了 Team 2 玩家 {victimName}，造成 {ev.Info.Damage} 点伤害！");
-
-    var victimRef = victim;
-    Timer.NextTick(() =>
-    {
-        Console.WriteLine($"[KSYX][DEBUG] 延迟帧执行感染转化...");
-        if (victimRef != null && victimRef.IsValid)
+        // 延迟一帧检测命中的目标（伤害已经结算）
+        var attacker = pawn;
+        Timer.NextTick(() =>
         {
-            InfectPlayer(victimRef);
-        }
-        else
-        {
-            Console.WriteLine($"[KSYX][DEBUG] victimRef 无效或为 null，无法执行感染");
-        }
-    });
+            if (attacker == null || !attacker.IsValid) return;
+            
+            // 检测攻击者附近是否有 Team 2 玩家被命中
+            DetectMeleeHitAndInfect(attacker);
+        });
 
-    return HookResult.Continue;
-}
+        return HookResult.Continue;
+    }
+
+    // ========== 检测近战命中的目标并感染 ==========
+    private void DetectMeleeHitAndInfect(CCitadelPlayerPawn attacker)
+    {
+        if (attacker == null || !attacker.IsValid) return;
+
+        Console.WriteLine($"[KSYX][DEBUG] 检测近战命中目标...");
+
+        // 获取所有 Team 2 的玩家 Pawn
+        var team2Pawns = Players.GetAllPawns()
+            .Where(p => p != null && p.IsValid && p.TeamNum == 2)
+            .ToList();
+
+        if (team2Pawns.Count == 0)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 没有 Team 2 玩家");
+            return;
+        }
+
+        // 获取攻击者的位置和朝向
+        Vector3 attackerPos = attacker.Position;
+        Vector3 forward = GetForwardVector(attacker.EyeAngles);
+        float meleeRange = 250f;  // 近战攻击范围
+        float angleThreshold = 0.3f;  // 角度阈值（约 72 度扇形）
+
+        foreach (var victim in team2Pawns)
+        {
+            if (victim == null || !victim.IsValid) continue;
+
+            // 计算距离
+            float distance = Vector3.Distance(attackerPos, victim.Position);
+            if (distance > meleeRange)
+            {
+                Console.WriteLine($"[KSYX][DEBUG] 目标 {GetControllerFromPawn(victim)?.PlayerName} 距离 {distance}，超出范围");
+                continue;
+            }
+
+            // 计算方向夹角
+            Vector3 toTarget = victim.Position - attackerPos;
+            Vector3 normalizedToTarget = Vector3.Normalize(toTarget);
+            float dotProduct = Vector3.Dot(forward, normalizedToTarget);
+            
+            Console.WriteLine($"[KSYX][DEBUG] 目标 {GetControllerFromPawn(victim)?.PlayerName} 夹角值: {dotProduct}");
+
+            if (dotProduct < angleThreshold)
+            {
+                Console.WriteLine($"[KSYX][DEBUG] 目标不在攻击扇形内，跳过");
+                continue;
+            }
+
+            // ========== 命中！执行感染 ==========
+            Console.WriteLine($"[KSYX][重要] Team 3 玩家 {GetControllerFromPawn(attacker)?.PlayerName} 近战命中了 Team 2 玩家 {GetControllerFromPawn(victim)?.PlayerName}！");
+            
+            var victimRef = victim;
+            Timer.NextTick(() =>
+            {
+                if (victimRef != null && victimRef.IsValid)
+                {
+                    InfectPlayer(victimRef);
+                }
+            });
+
+            break;  // 一次近战只感染一个目标
+        }
+    }
+
     // ========== 感染转化玩家（和母体生成流程一样） ==========
     private void InfectPlayer(CCitadelPlayerPawn victim)
     {
