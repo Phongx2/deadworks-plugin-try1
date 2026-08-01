@@ -13,7 +13,7 @@ public class KsyxPlugin : DeadworksPluginBase
     public IHandle? team3BuffTimer = null;
     public bool isGameRunning = false;
 
-    // 存储每个被减速玩家的原始速度，用于恢复
+    // 存储每个被减速玩家的原始速度
     public Dictionary<CCitadelPlayerPawn, Vector3> originalVelocities = new Dictionary<CCitadelPlayerPawn, Vector3>();
 
     public override void OnStartupServer()
@@ -130,57 +130,72 @@ public class KsyxPlugin : DeadworksPluginBase
         );
     }
 
-    // ========== 监听伤害并给 Team 3 玩家减速 ==========
+    // ========== 监听伤害：近战感染 + 减速 ==========
     public override HookResult OnTakeDamage(TakeDamageEvent ev)
     {
-        // 获取受伤者
         var victim = ev.Entity as CCitadelPlayerPawn;
         if (victim == null || !victim.IsValid)
             return HookResult.Continue;
 
-        // 只处理 Team 3 玩家
-        if (victim.TeamNum != 3)
-            return HookResult.Continue;
+        var attacker = ev.Info.Attacker as CCitadelPlayerPawn;
 
-        var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
-        Console.WriteLine($"[KSYX][减速] Team 3 玩家 {victimName} 受到伤害，触发减速 50%");
-
-        // ========== 减速逻辑 ==========
-        // 保存原始速度（如果还没保存）
-        if (!originalVelocities.ContainsKey(victim))
+        // ========== 功能1：近战感染（Team 3 攻击 Team 2） ==========
+        if (attacker != null && attacker.IsValid && attacker.TeamNum == 3 && victim.TeamNum == 2)
         {
-            originalVelocities[victim] = victim.AbsVelocity;
-        }
-
-        // 计算减速后的速度（50% 减速）
-        Vector3 originalVelocity = originalVelocities[victim];
-        Vector3 slowedVelocity = originalVelocity * 0.5f;
-        
-        // 应用减速
-        victim.Teleport(null, null, slowedVelocity);
-
-        // 取消之前的恢复计时器（如果有）
-        // 使用 EntityData 存储每个玩家的计时器句柄
-        
-        // 1秒后恢复速度
-        var victimRef = victim;
-        var victimNameRef = victimName;
-        Timer.Once(1.Seconds(), () =>
-        {
-            if (victimRef != null && victimRef.IsValid)
+            var flags = ev.Info.DamageFlags;
+            bool isMelee = (flags & TakeDamageFlags.LightMelee) != 0 || 
+                           (flags & TakeDamageFlags.HeavyMelee) != 0;
+            if (isMelee)
             {
-                // 恢复原始速度
-                if (originalVelocities.TryGetValue(victimRef, out Vector3 origVel))
-                {
-                    victimRef.Teleport(null, null, origVel);
-                    Console.WriteLine($"[KSYX][减速] {victimNameRef} 速度已恢复");
-                }
+                var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
+                var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
+                Console.WriteLine($"[KSYX][感染] Team 3 玩家 {attackerName} 近战命中 Team 2 玩家 {victimName}！");
                 
-                // 从字典中移除
-                originalVelocities.Remove(victimRef);
+                var victimRef = victim;
+                Timer.NextTick(() =>
+                {
+                    if (victimRef != null && victimRef.IsValid)
+                    {
+                        InfectPlayer(victimRef);
+                    }
+                });
             }
-        });
-        // ========== 减速逻辑结束 ==========
+        }
+        // ========== 近战感染结束 ==========
+
+        // ========== 功能2：Team 2 攻击 Team 3 时，被攻击的 Team 3 玩家减速 ==========
+        if (attacker != null && attacker.IsValid && attacker.TeamNum == 2 && victim.TeamNum == 3)
+        {
+            var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
+            var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
+            Console.WriteLine($"[KSYX][减速] Team 2 玩家 {attackerName} 攻击 Team 3 玩家 {victimName}，触发减速 50%");
+
+            // 保存原始速度
+            if (!originalVelocities.ContainsKey(victim))
+            {
+                originalVelocities[victim] = victim.AbsVelocity;
+            }
+
+            Vector3 originalVelocity = originalVelocities[victim];
+            Vector3 slowedVelocity = originalVelocity * 0.5f;
+            victim.Teleport(null, null, slowedVelocity);
+
+            var victimRef = victim;
+            var victimNameRef = victimName;
+            Timer.Once(1.Seconds(), () =>
+            {
+                if (victimRef != null && victimRef.IsValid)
+                {
+                    if (originalVelocities.TryGetValue(victimRef, out Vector3 origVel))
+                    {
+                        victimRef.Teleport(null, null, origVel);
+                        Console.WriteLine($"[KSYX][减速] {victimNameRef} 速度已恢复");
+                    }
+                    originalVelocities.Remove(victimRef);
+                }
+            });
+        }
+        // ========== 减速结束 ==========
 
         return HookResult.Continue;
     }
@@ -250,14 +265,13 @@ public class KsyxPlugin : DeadworksPluginBase
         // 获取攻击者的位置和朝向
         Vector3 attackerPos = attacker.Position;
         Vector3 forward = GetForwardVector(attacker.EyeAngles);
-        float meleeRange = 250f;  // 近战攻击范围
-        float angleThreshold = 0.3f;  // 角度阈值（约 72 度扇形）
+        float meleeRange = 250f;
+        float angleThreshold = 0.3f;
 
         foreach (var victim in team2Pawns)
         {
             if (victim == null || !victim.IsValid) continue;
 
-            // 计算距离
             float distance = Vector3.Distance(attackerPos, victim.Position);
             if (distance > meleeRange)
             {
@@ -265,7 +279,6 @@ public class KsyxPlugin : DeadworksPluginBase
                 continue;
             }
 
-            // 计算方向夹角
             Vector3 toTarget = victim.Position - attackerPos;
             Vector3 normalizedToTarget = Vector3.Normalize(toTarget);
             float dotProduct = Vector3.Dot(forward, normalizedToTarget);
@@ -278,7 +291,6 @@ public class KsyxPlugin : DeadworksPluginBase
                 continue;
             }
 
-            // ========== 命中！执行感染 ==========
             Console.WriteLine($"[KSYX][重要] Team 3 玩家 {GetControllerFromPawn(attacker)?.PlayerName} 近战命中了 Team 2 玩家 {GetControllerFromPawn(victim)?.PlayerName}！");
             
             var victimRef = victim;
@@ -290,11 +302,11 @@ public class KsyxPlugin : DeadworksPluginBase
                 }
             });
 
-            break;  // 一次近战只感染一个目标
+            break;
         }
     }
 
-    // ========== 感染转化玩家（和母体生成流程一样） ==========
+    // ========== 感染转化玩家 ==========
     private void InfectPlayer(CCitadelPlayerPawn victim)
     {
         Console.WriteLine($"[KSYX][DEBUG] InfectPlayer 被调用");
@@ -650,46 +662,6 @@ public class KsyxPlugin : DeadworksPluginBase
         });
 
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
-    }
-
-    // ========== /r 命令：取消 Team 3 周期性 Buff ==========
-    [Command("r", Description = "取消Team 3周期性Buff")]
-    public void CmdCancelBuff(CCitadelPlayerController caller)
-    {
-        Console.WriteLine($"[KSYX] ========== 取消Buff命令触发 ==========");
-        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
-
-        if (team3BuffTimer == null)
-        {
-            Console.WriteLine($"[KSYX] 没有正在运行的Buff计时器");
-            if (caller != null)
-            {
-                caller.PrintToConsole("没有正在运行的Buff计时器");
-            }
-            return;
-        }
-
-        // 取消计时器
-        team3BuffTimer.Cancel();
-        team3BuffTimer = null;
-        Console.WriteLine($"[KSYX] Team 3 周期性Buff已取消");
-
-        if (caller != null)
-        {
-            caller.PrintToConsole("Team 3 周期性Buff已取消");
-        }
-
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "⛔",
-            DescriptionLocstring = "僵尸 Buff 已被取消！"
-        };
-        foreach (var player in allPlayers)
-        {
-            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
-        }
-
-        Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
     }
 
     public void SendGlobalChatMessage(string text)
