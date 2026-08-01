@@ -1,5 +1,5 @@
 using DeadworksManaged.Api;
-using System.Numerics;  // ← 添加这一行
+using System.Numerics;
 
 namespace KsyxCountdown;
 
@@ -12,6 +12,9 @@ public class KsyxPlugin : DeadworksPluginBase
     public CCitadelPlayerController? fixedSender = null;
     public IHandle? team3BuffTimer = null;
     public bool isGameRunning = false;
+
+    // 存储每个被减速玩家的原始速度，用于恢复
+    public Dictionary<CCitadelPlayerPawn, Vector3> originalVelocities = new Dictionary<CCitadelPlayerPawn, Vector3>();
 
     public override void OnStartupServer()
     {
@@ -90,6 +93,7 @@ public class KsyxPlugin : DeadworksPluginBase
         fixedSender = null;
         team3BuffTimer = null;
         isGameRunning = false;
+        originalVelocities.Clear();
     }
 
     public override void OnUnload()
@@ -98,6 +102,7 @@ public class KsyxPlugin : DeadworksPluginBase
         team3BuffTimer?.Cancel();
         team3BuffTimer = null;
         isGameRunning = false;
+        originalVelocities.Clear();
     }
 
     // ========== 辅助：从 Pawn 获取 Controller ==========
@@ -123,6 +128,66 @@ public class KsyxPlugin : DeadworksPluginBase
             MathF.Cos(pitch) * MathF.Sin(yaw),
             -MathF.Sin(pitch)
         );
+    }
+
+    // ========== 监听伤害并给 Team 3 玩家减速 ==========
+    public override HookResult OnTakeDamage(TakeDamageEvent ev)
+    {
+        // 获取受伤者
+        var victim = ev.Entity as CCitadelPlayerPawn;
+        if (victim == null || !victim.IsValid)
+            return HookResult.Continue;
+
+        // 只处理 Team 3 玩家
+        if (victim.TeamNum != 3)
+            return HookResult.Continue;
+
+        var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
+        Console.WriteLine($"[KSYX][减速] Team 3 玩家 {victimName} 受到伤害，触发减速 50%");
+
+        // ========== 减速逻辑 ==========
+        // 保存原始速度（如果还没保存）
+        if (!originalVelocities.ContainsKey(victim))
+        {
+            originalVelocities[victim] = victim.AbsVelocity;
+        }
+
+        // 计算减速后的速度（50% 减速）
+        Vector3 originalVelocity = originalVelocities[victim];
+        Vector3 slowedVelocity = originalVelocity * 0.5f;
+        
+        // 应用减速
+        victim.Teleport(null, null, slowedVelocity);
+        
+        // 同时用 ModifierProp 开启减速状态（视觉反馈）
+        victim.ModifierProp?.SetModifierState(EModifierState.SlowMovement, true);
+
+        // 取消之前的恢复计时器（如果有）
+        // 使用 EntityData 存储每个玩家的计时器句柄
+        
+        // 1秒后恢复速度
+        var victimRef = victim;
+        Timer.Once(1.Seconds(), () =>
+        {
+            if (victimRef != null && victimRef.IsValid)
+            {
+                // 恢复原始速度
+                if (originalVelocities.TryGetValue(victimRef, out Vector3 origVel))
+                {
+                    victimRef.Teleport(null, null, origVel);
+                    Console.WriteLine($"[KSYX][减速] {victimName} 速度已恢复");
+                }
+                
+                // 关闭减速状态
+                victimRef.ModifierProp?.SetModifierState(EModifierState.SlowMovement, false);
+                
+                // 从字典中移除
+                originalVelocities.Remove(victimRef);
+            }
+        });
+        // ========== 减速逻辑结束 ==========
+
+        return HookResult.Continue;
     }
 
     // ========== 监听近战攻击（使用 GameEventHandler） ==========
@@ -590,6 +655,48 @@ public class KsyxPlugin : DeadworksPluginBase
         });
 
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
+    }
+
+    // ========== /r 命令：取消 Team 3 周期性 Buff ==========
+    [Command("r", Description = "取消Team 3周期性Buff")]
+    public void CmdCancelBuff(CCitadelPlayerController caller)
+    {
+        Console.WriteLine($"[KSYX] ========== 取消Buff命令触发 ==========");
+        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
+
+        if (team3BuffTimer == null)
+        {
+            Console.WriteLine($"[KSYX] 没有正在运行的Buff计时器");
+            if (caller != null)
+            {
+                caller.PrintToConsole("没有正在运行的Buff计时器");
+            }
+            return;
+        }
+
+        // 取消计时器
+        team3BuffTimer.Cancel();
+        team3BuffTimer = null;
+        Console.WriteLine($"[KSYX] Team 3 周期性Buff已取消");
+
+        // 通知执行者
+        if (caller != null)
+        {
+            caller.PrintToConsole("Team 3 周期性Buff已取消");
+        }
+
+        // 广播给所有玩家
+        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "⛔",
+            DescriptionLocstring = "僵尸 Buff 已被取消！"
+        };
+        foreach (var player in allPlayers)
+        {
+            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
+        }
+
+        Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
     }
 
     public void SendGlobalChatMessage(string text)
