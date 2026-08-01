@@ -123,8 +123,10 @@ public class KsyxPlugin : DeadworksPluginBase
         if (attacker.TeamNum != 3 || victim.TeamNum != 2)
             return HookResult.Continue;
 
-        // 检查是否是近战伤害（轻击或重击）
-        bool isMelee = ev.Info.DamageFlags.HasAnyFlag(TakeDamageFlags.LightMelee, TakeDamageFlags.HeavyMelee);
+        // 使用位运算检查近战标志
+        var flags = ev.Info.DamageFlags;
+        bool isMelee = (flags & TakeDamageFlags.LightMelee) != 0 || 
+                       (flags & TakeDamageFlags.HeavyMelee) != 0;
 
         if (!isMelee)
             return HookResult.Continue;
