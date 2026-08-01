@@ -11,6 +11,7 @@ public class KsyxPlugin : DeadworksPluginBase
     public Dictionary<int, List<string>> playerItems = new Dictionary<int, List<string>>();
     public CCitadelPlayerController? fixedSender = null;
     public IHandle? team3BuffTimer = null;
+    public IHandle? deathDetectionTimer = null; // 新增：死亡检测计时器
     public bool isGameRunning = false;
     public bool isTeam2CheckEnabled = false;
     public bool isMeleeInfectionEnabled = true;
@@ -19,6 +20,7 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 死亡检测相关 ==========
     private HashSet<CCitadelPlayerController> _deadPlayers = new HashSet<CCitadelPlayerController>();
     private bool _deathLogging = true;
+    private bool _isDeathDetectionEnabled = false;
 
     public override void OnStartupServer()
     {
@@ -96,10 +98,12 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] ===============================");
         fixedSender = null;
         team3BuffTimer = null;
+        deathDetectionTimer = null;
         isGameRunning = false;
         isTeam2CheckEnabled = false;
         isMeleeInfectionEnabled = true;
         isLastOne = false;
+        _isDeathDetectionEnabled = false;
         _deadPlayers.Clear();
     }
 
@@ -108,18 +112,20 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] 插件卸载");
         team3BuffTimer?.Cancel();
         team3BuffTimer = null;
+        deathDetectionTimer?.Cancel();
+        deathDetectionTimer = null;
         isGameRunning = false;
         isTeam2CheckEnabled = false;
         isMeleeInfectionEnabled = true;
         isLastOne = false;
+        _isDeathDetectionEnabled = false;
         _deadPlayers.Clear();
     }
 
-    // ========== 死亡检测 Tick 事件 ==========
-    [GameEvent.Tick.Server]
-    public void OnServerTick()
+    // ========== 死亡检测方法 ==========
+    private void CheckPlayerDeath()
     {
-        if (!isGameRunning) return;
+        if (!isGameRunning || !_isDeathDetectionEnabled) return;
 
         var allControllers = Players.GetAll();
         if (allControllers == null) return;
@@ -128,23 +134,19 @@ public class KsyxPlugin : DeadworksPluginBase
         {
             if (controller == null || !controller.IsValid) continue;
 
-            // 如果已经在死亡列表中，跳过
             if (_deadPlayers.Contains(controller)) continue;
 
             var pawn = controller.GetHeroPawn();
             if (pawn == null || !pawn.IsValid) continue;
 
-            // 判断是否死亡
             bool isDead = pawn.LifeState == LifeState.Dead || pawn.LifeState == LifeState.Dying;
             if (!isDead && pawn.Health <= 0)
             {
                 isDead = true;
             }
 
-            // 处理死亡玩家 -> 移至观战队伍 (Team 1)，永久不移除
             if (isDead)
             {
-                // 观战队伍 ID 通常是 1，如果不对请测试调整为 0 或 4
                 controller.ChangeTeam(1);
                 
                 _deadPlayers.Add(controller);
@@ -154,7 +156,6 @@ public class KsyxPlugin : DeadworksPluginBase
                     Console.WriteLine($"[KSYX][死亡] 玩家 {controller.PlayerName} 已死亡，永久移至观战队伍 (Team 1)");
                 }
 
-                // 广播死亡消息
                 var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
                 {
                     TitleLocstring = "💀",
@@ -166,6 +167,33 @@ public class KsyxPlugin : DeadworksPluginBase
                 }
             }
         }
+    }
+
+    // ========== 启动死亡检测计时器 ==========
+    private void StartDeathDetection()
+    {
+        if (deathDetectionTimer != null)
+        {
+            deathDetectionTimer.Cancel();
+            deathDetectionTimer = null;
+        }
+
+        _isDeathDetectionEnabled = true;
+        Console.WriteLine($"[KSYX][死亡检测] 已启用");
+
+        deathDetectionTimer = Timer.Every(500.Milliseconds(), () =>
+        {
+            CheckPlayerDeath();
+        });
+    }
+
+    // ========== 停止死亡检测计时器 ==========
+    private void StopDeathDetection()
+    {
+        _isDeathDetectionEnabled = false;
+        deathDetectionTimer?.Cancel();
+        deathDetectionTimer = null;
+        Console.WriteLine($"[KSYX][死亡检测] 已停止");
     }
 
     // ========== 辅助：从 Pawn 获取 Controller ==========
@@ -193,37 +221,30 @@ public class KsyxPlugin : DeadworksPluginBase
         );
     }
 
-    // ========== 监听近战攻击（使用 GameEventHandler） ==========
+    // ========== 监听近战攻击 ==========
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(GameEvent ev)
     {
         if (!isMeleeInfectionEnabled)
         {
-            Console.WriteLine($"[KSYX][DEBUG] 近战感染已禁用，跳过");
             return HookResult.Continue;
         }
 
         var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
         if (pawn == null)
         {
-            Console.WriteLine($"[KSYX][DEBUG] OnPlayerUsedAbility: 无法获取施法者 Pawn");
             return HookResult.Continue;
         }
 
         string abilityName = ev.GetString("abilityname", "");
-        Console.WriteLine($"[KSYX][DEBUG] OnPlayerUsedAbility: {abilityName}");
 
         if (!abilityName.StartsWith("ability_melee"))
             return HookResult.Continue;
 
         if (pawn.TeamNum != 3)
         {
-            Console.WriteLine($"[KSYX][DEBUG] 施法者不是 Team 3 (当前 Team {pawn.TeamNum})，跳过");
             return HookResult.Continue;
         }
-
-        string annotation = ev.GetString("annotation", "");
-        Console.WriteLine($"[KSYX][DEBUG] 近战类型: {annotation}");
 
         var attacker = pawn;
         Timer.NextTick(() =>
@@ -240,13 +261,10 @@ public class KsyxPlugin : DeadworksPluginBase
     {
         if (!isMeleeInfectionEnabled)
         {
-            Console.WriteLine($"[KSYX][DEBUG] 近战感染已禁用，跳过检测");
             return;
         }
 
         if (attacker == null || !attacker.IsValid) return;
-
-        Console.WriteLine($"[KSYX][DEBUG] 检测近战命中目标...");
 
         var team2Pawns = Players.GetAllPawns()
             .Where(p => p != null && p.IsValid && p.TeamNum == 2)
@@ -254,7 +272,6 @@ public class KsyxPlugin : DeadworksPluginBase
 
         if (team2Pawns.Count == 0)
         {
-            Console.WriteLine($"[KSYX][DEBUG] 没有 Team 2 玩家");
             return;
         }
 
@@ -270,19 +287,15 @@ public class KsyxPlugin : DeadworksPluginBase
             float distance = Vector3.Distance(attackerPos, victim.Position);
             if (distance > meleeRange)
             {
-                Console.WriteLine($"[KSYX][DEBUG] 目标 {GetControllerFromPawn(victim)?.PlayerName} 距离 {distance}，超出范围");
                 continue;
             }
 
             Vector3 toTarget = victim.Position - attackerPos;
             Vector3 normalizedToTarget = Vector3.Normalize(toTarget);
             float dotProduct = Vector3.Dot(forward, normalizedToTarget);
-            
-            Console.WriteLine($"[KSYX][DEBUG] 目标 {GetControllerFromPawn(victim)?.PlayerName} 夹角值: {dotProduct}");
 
             if (dotProduct < angleThreshold)
             {
-                Console.WriteLine($"[KSYX][DEBUG] 目标不在攻击扇形内，跳过");
                 continue;
             }
 
@@ -304,29 +317,13 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 感染转化玩家 ==========
     private void InfectPlayer(CCitadelPlayerPawn victim)
     {
-        Console.WriteLine($"[KSYX][DEBUG] InfectPlayer 被调用");
-
-        if (victim == null)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] victim 为 null，退出 InfectPlayer");
-            return;
-        }
-        if (!victim.IsValid)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] victim 无效，退出 InfectPlayer");
-            return;
-        }
+        if (victim == null || !victim.IsValid) return;
 
         var victimController = GetControllerFromPawn(victim);
-        if (victimController == null)
-        {
-            Console.WriteLine($"[KSYX][DEBUG] 无法获取 victimController，退出 InfectPlayer");
-            return;
-        }
+        if (victimController == null) return;
 
         Console.WriteLine($"[KSYX][重要] 开始感染 {victimController.PlayerName}...");
 
-        Console.WriteLine($"[KSYX][DEBUG] 保存 {victimController.PlayerName} 的装备...");
         var items = new List<string>();
         var abilityComponent = victim.AbilityComponent;
         if (abilityComponent != null)
@@ -339,61 +336,40 @@ public class KsyxPlugin : DeadworksPluginBase
                     if (!string.IsNullOrEmpty(itemName))
                     {
                         items.Add(itemName);
-                        Console.WriteLine($"[KSYX][DEBUG] 找到装备: {itemName}");
                     }
                 }
             }
         }
         playerItems[victimController.Slot] = items;
-        Console.WriteLine($"[KSYX][DEBUG] 共保存 {items.Count} 件装备");
 
-        Console.WriteLine($"[KSYX][DEBUG] 切换队伍到 Team 3...");
         using var kv = new KeyValues3();
         kv.SetInt("team", 3);
         victim.AddModifier("citadel_change_team", kv);
-        Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> Team 3");
 
         var pawnRef = victim;
         Timer.Once(1.Seconds(), () =>
         {
-            Console.WriteLine($"[KSYX][DEBUG] 1秒延迟后移除 citadel_change_team modifier...");
             if (pawnRef != null && pawnRef.IsValid)
             {
                 pawnRef.RemoveModifier("citadel_change_team");
-                Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> 移除 citadel_change_team modifier");
-            }
-            else
-            {
-                Console.WriteLine($"[KSYX][DEBUG] pawnRef 无效，无法移除 modifier");
             }
         });
 
-        Console.WriteLine($"[KSYX][DEBUG] 切换英雄为 Necro...");
         victimController.SelectHero(Heroes.Necro);
-        Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> Necro");
 
         var selectedSlot = victimController.Slot;
         Timer.Once(3.Seconds(), () =>
         {
-            Console.WriteLine($"[KSYX][DEBUG] 3秒延迟后恢复装备...");
             var pawn = victimController.GetHeroPawn();
             if (pawn != null && pawn.IsValid && playerItems.TryGetValue(selectedSlot, out var savedItems))
             {
-                Console.WriteLine($"[KSYX][DEBUG] 开始重新给 {victimController.PlayerName} 装备...");
                 foreach (var itemName in savedItems)
                 {
                     pawn.AddItem(itemName);
-                    Console.WriteLine($"[KSYX][DEBUG] 重新给予装备: {itemName}");
                 }
-                Console.WriteLine($"[KSYX][DEBUG] 共重新给予 {savedItems.Count} 件装备");
-            }
-            else
-            {
-                Console.WriteLine($"[KSYX][DEBUG] 没有找到保存的装备");
             }
         });
 
-        Console.WriteLine($"[KSYX][DEBUG] 广播感染消息...");
         var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "",
@@ -405,15 +381,10 @@ public class KsyxPlugin : DeadworksPluginBase
             NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
         }
 
-        Console.WriteLine($"[KSYX][重要] 已广播: {victimController.PlayerName} 被感染成了僵尸！");
-        Console.WriteLine($"[KSYX][DEBUG] InfectPlayer 执行完毕");
-
-        // ========== 只有在母体生成后才检测 Team 2 人数 ==========
         if (isTeam2CheckEnabled)
         {
             Timer.NextTick(() => CheckTeam2AndProcess());
         }
-        // ========== 检测结束 ==========
     }
 
     // ========== 周期性给 Team 3 添加 Buff ==========
@@ -421,7 +392,6 @@ public class KsyxPlugin : DeadworksPluginBase
     {
         Console.WriteLine($"[KSYX][DEBUG] StartTeam3BuffTimer 被调用");
         team3BuffTimer?.Cancel();
-        Console.WriteLine($"[KSYX][DEBUG] 已取消旧计时器");
 
         team3BuffTimer = Timer.Every(1.Seconds(), () =>
         {
@@ -439,25 +409,19 @@ public class KsyxPlugin : DeadworksPluginBase
 
             if (team3Pawns.Count == 0)
             {
-                Console.WriteLine($"[KSYX][DEBUG] 没有 Team 3 玩家，跳过本次 Buff 添加");
                 return;
             }
-
-            Console.WriteLine($"[KSYX][DEBUG] 为 {team3Pawns.Count} 名 Team 3 玩家添加 Buff...");
 
             foreach (var pawn in team3Pawns)
             {
                 using var kv = new KeyValues3();
                 kv.SetFloat("duration", 1.1f);
                 
-                // ========== 只有不是最后一人时才添加 modifier_citadel_in_fountain ==========
                 if (!isLastOne)
                 {
                     pawn.AddModifier("modifier_citadel_in_fountain", kv);
                 }
-                // ========== 判断结束 ==========
                 
-                // 这两个不受影响，一直添加
                 pawn.AddModifier("modifier_citadel_disarmed", kv);
                 pawn.AddModifier("modifier_citadel_silenced", kv);
             }
@@ -469,24 +433,17 @@ public class KsyxPlugin : DeadworksPluginBase
     {
         if (!isGameRunning || !isTeam2CheckEnabled) return;
 
-        Console.WriteLine($"[KSYX][检查] 开始检测 Team 2 玩家数量...");
-
         var team2Players = allPlayers
             .Where(p => p.GetHeroPawn() != null && p.GetHeroPawn()?.TeamNum == 2)
             .ToList();
 
-        Console.WriteLine($"[KSYX][检查] Team 2 玩家数: {team2Players.Count}");
-
         if (team2Players.Count == 1)
         {
             var lastTeam2Player = team2Players[0];
-            Console.WriteLine($"[KSYX][检查] Team 2 只剩最后一名玩家: {lastTeam2Player.PlayerName}");
 
             var pawn = lastTeam2Player.GetHeroPawn();
             if (pawn != null && pawn.IsValid)
             {
-                // 1. 存储最后一位 Team 2 玩家的装备
-                Console.WriteLine($"[KSYX][检查] 保存 {lastTeam2Player.PlayerName} 的装备...");
                 var items = new List<string>();
                 var abilityComponent = pawn.AbilityComponent;
                 if (abilityComponent != null)
@@ -499,20 +456,14 @@ public class KsyxPlugin : DeadworksPluginBase
                             if (!string.IsNullOrEmpty(itemName))
                             {
                                 items.Add(itemName);
-                                Console.WriteLine($"[KSYX][检查] 找到装备: {itemName}");
                             }
                         }
                     }
                 }
                 playerItems[lastTeam2Player.Slot] = items;
-                Console.WriteLine($"[KSYX][检查] 共保存 {items.Count} 件装备");
 
-                // ========== 设置标记 ==========
                 isLastOne = true;
-                Console.WriteLine($"[KSYX][检查] isLastOne 已设为 true");
 
-                // ========== 移除 modifier_citadel_in_fountain ==========
-                Console.WriteLine($"[KSYX][检查] 移除所有 Team 3 玩家的 modifier_citadel_in_fountain...");
                 var team3Pawns = Players.GetAllPawns()
                     .Where(p => p != null && p.IsValid && p.TeamNum == 3)
                     .ToList();
@@ -520,73 +471,47 @@ public class KsyxPlugin : DeadworksPluginBase
                 foreach (var team3Pawn in team3Pawns)
                 {
                     team3Pawn.RemoveModifier("modifier_citadel_in_fountain");
-                    Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
                 }
-                // ========== 移除结束 ==========
 
-                // 3. 禁用近战感染
                 isMeleeInfectionEnabled = false;
-                Console.WriteLine($"[KSYX][检查] 近战感染已禁用");
 
-                // 4. 将最后一位 Team 2 玩家英雄替换为 Priest
-                Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 Priest...");
                 lastTeam2Player.SelectHero(Heroes.Priest);
 
-                // 5. 延迟 2 秒后恢复装备
                 var slot = lastTeam2Player.Slot;
                 Timer.Once(2.Seconds(), () =>
                 {
-                    Console.WriteLine($"[KSYX][检查] 2秒延迟后恢复 {lastTeam2Player.PlayerName} 的装备...");
                     var pawnToRestore = lastTeam2Player.GetHeroPawn();
                     if (pawnToRestore != null && pawnToRestore.IsValid && playerItems.TryGetValue(slot, out var savedItems))
                     {
                         foreach (var itemName in savedItems)
                         {
                             pawnToRestore.AddItem(itemName);
-                            Console.WriteLine($"[KSYX][检查] 重新给予装备: {itemName}");
                         }
-                        Console.WriteLine($"[KSYX][检查] 共重新给予 {savedItems.Count} 件装备");
-                    }
-                    else
-                    {
-                        Console.WriteLine($"[KSYX][检查] 没有找到保存的装备");
                     }
                 });
 
-                // ========== 6. 设置 ability_priest_weaponswap 冷却为 0（每0.5秒持续刷新） ==========
-                Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却（每0.5秒刷新）...");
                 var pawnForAbility = lastTeam2Player.GetHeroPawn();
                 if (pawnForAbility != null && pawnForAbility.IsValid)
                 {
                     var abilityComponent2 = pawnForAbility.AbilityComponent;
                     if (abilityComponent2 != null)
                     {
-                        Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
-                        bool found = false;
                         foreach (var ability in abilityComponent2.Abilities)
                         {
                             if (ability == null) continue;
-                            Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
                             if (ability.AbilityName == "ability_priest_weaponswap")
                             {
-                                Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
                                 ability.CooldownStart = 0;
                                 ability.CooldownEnd = 0;
-                                Console.WriteLine($"[KSYX][检查] 已将 ability_priest_weaponswap 冷却设为 0");
-                                Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                found = true;
                                 break;
                             }
                         }
-                        if (!found)
-                        {
-                            Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
-                        }
                     }
                 }
-                // ========== 冷却设置结束 ==========
 
-                // 广播消息
+                // ========== 启动死亡检测 ==========
+                StartDeathDetection();
+
                 var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
                 {
                     TitleLocstring = "⚔️",
@@ -603,11 +528,7 @@ public class KsyxPlugin : DeadworksPluginBase
     [Command("ksyx", Description = "僵尸倒计时")]
     public void CmdKsyx(CCitadelPlayerController caller)
     {
-        Console.WriteLine($"[KSYX] ========== 命令触发 ==========");
-        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
-
         allPlayers = Players.GetAll().ToList();
-        Console.WriteLine($"[KSYX] 在线玩家数: {allPlayers.Count}");
 
         if (allPlayers.Count == 0)
         {
@@ -620,18 +541,15 @@ public class KsyxPlugin : DeadworksPluginBase
         isTeam2CheckEnabled = false;
         isMeleeInfectionEnabled = true;
         isLastOne = false;
-        _deadPlayers.Clear(); // 清理死亡列表
-        Console.WriteLine($"[KSYX] 重置固定发送者，游戏开始，近战感染已启用，死亡列表已清空");
+        _isDeathDetectionEnabled = false;
+        _deadPlayers.Clear();
+        StopDeathDetection();
 
-        Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
         ConVar.Find("sv_cheats")?.SetInt(1);
 
         Timer.Once(500.Milliseconds(), () =>
         {
-            Console.WriteLine($"[KSYX] 开始发放金币...");
-            
             ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
-            Console.WriteLine($"[KSYX] citadel_allow_purchasing_anywhere -> 1");
 
             foreach (var player in allPlayers)
             {
@@ -639,16 +557,10 @@ public class KsyxPlugin : DeadworksPluginBase
                 if (pawn != null)
                 {
                     pawn.SetCurrency(ECurrencyType.EGold, 32000);
-                    Console.WriteLine($"[KSYX] {player.PlayerName} (槽位 {player.Slot}) -> 设置金币为 32000");
-                }
-                else
-                {
-                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体，无法设置金币");
                 }
             }
         });
 
-        Console.WriteLine($"[KSYX] 开始移动玩家到 Team 2...");
         foreach (var player in allPlayers)
         {
             var pawn = player.GetHeroPawn();
@@ -657,7 +569,6 @@ public class KsyxPlugin : DeadworksPluginBase
                 using var kv = new KeyValues3();
                 kv.SetInt("team", 2);
                 pawn.AddModifier("citadel_change_team", kv);
-                Console.WriteLine($"[KSYX] {player.PlayerName} (Team 3) -> Team 2");
 
                 var pawnRef = pawn;
                 Timer.Once(1.Seconds(), () =>
@@ -665,30 +576,18 @@ public class KsyxPlugin : DeadworksPluginBase
                     if (pawnRef != null && pawnRef.IsValid)
                     {
                         pawnRef.RemoveModifier("citadel_change_team");
-                        Console.WriteLine($"[KSYX] {player.PlayerName} -> 移除 citadel_change_team modifier");
                     }
                 });
-            }
-            else if (pawn != null && pawn.TeamNum == 2)
-            {
-                Console.WriteLine($"[KSYX] {player.PlayerName} 已经是 Team 2，跳过");
-            }
-            else
-            {
-                Console.WriteLine($"[KSYX] {player.PlayerName} 没有英雄实体，跳过");
             }
         }
 
         int seconds = 30;
-        Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
 
         SendGlobalChatMessage($"母体还有 {seconds} 秒后出现");
-        Console.WriteLine($"[KSYX] 已发送初始聊天消息，固定发送者已确定");
 
         var timer = Timer.Every(1.Seconds(), () =>
         {
             seconds--;
-            Console.WriteLine($"[KSYX] 倒计时: {seconds}秒");
 
             if (seconds > 0)
             {
@@ -698,35 +597,26 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Timer.Once(30.Seconds(), () =>
         {
-            Console.WriteLine($"[KSYX] ========== 倒计时结束 ==========");
             timer.Cancel();
-            Console.WriteLine($"[KSYX] 计时器已取消");
 
             SendGlobalChatMessage("母体来了！");
-            Console.WriteLine($"[KSYX] 已发送结束消息");
 
-            Console.WriteLine($"[KSYX] 开始选择母体...");
             var team2Players = allPlayers
                 .Where(p => p.GetHeroPawn() != null && p.GetHeroPawn()?.TeamNum == 2)
                 .ToList();
 
-            Console.WriteLine($"[KSYX] Team 2 玩家数: {team2Players.Count}");
-
             if (team2Players.Count == 0)
             {
-                Console.WriteLine($"[KSYX] 没有Team 2玩家，无法选择母体");
                 isGameRunning = false;
                 return;
             }
 
             var random = new Random();
             var selected = team2Players[random.Next(team2Players.Count)];
-            Console.WriteLine($"[KSYX] 选中: {selected.PlayerName}");
 
             var selectedPawn = selected.GetHeroPawn();
             if (selectedPawn != null)
             {
-                Console.WriteLine($"[KSYX] 保存 {selected.PlayerName} 的装备...");
                 var items = new List<string>();
                 var abilityComponent = selectedPawn.AbilityComponent;
                 if (abilityComponent != null)
@@ -739,18 +629,15 @@ public class KsyxPlugin : DeadworksPluginBase
                             if (!string.IsNullOrEmpty(itemName))
                             {
                                 items.Add(itemName);
-                                Console.WriteLine($"[KSYX] 找到装备: {itemName}");
                             }
                         }
                     }
                 }
                 playerItems[selected.Slot] = items;
-                Console.WriteLine($"[KSYX] 共保存 {items.Count} 件装备");
 
                 using var kv = new KeyValues3();
                 kv.SetInt("team", 3);
                 selectedPawn.AddModifier("citadel_change_team", kv);
-                Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
 
                 var pawnRef = selectedPawn;
                 Timer.Once(1.Seconds(), () =>
@@ -758,41 +645,28 @@ public class KsyxPlugin : DeadworksPluginBase
                     if (pawnRef != null && pawnRef.IsValid)
                     {
                         pawnRef.RemoveModifier("citadel_change_team");
-                        Console.WriteLine($"[KSYX] {selected.PlayerName} -> 移除 citadel_change_team modifier");
                     }
                 });
             }
 
             selected.SelectHero(Heroes.Necro);
-            Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
 
             var selectedSlot = selected.Slot;
             Timer.Once(3.Seconds(), () =>
             {
-                Console.WriteLine($"[KSYX] 开始重新给 {selected.PlayerName} 装备...");
                 var pawn = selected.GetHeroPawn();
                 if (pawn != null && pawn.IsValid && playerItems.TryGetValue(selectedSlot, out var items))
                 {
                     foreach (var itemName in items)
                     {
                         pawn.AddItem(itemName);
-                        Console.WriteLine($"[KSYX] 重新给予装备: {itemName}");
                     }
-                    Console.WriteLine($"[KSYX] 共重新给予 {items.Count} 件装备");
-                }
-                else
-                {
-                    Console.WriteLine($"[KSYX] 没有找到保存的装备");
                 }
             });
 
-            Console.WriteLine($"[KSYX] 母体已出现，启动 Team 3 周期性 Buff...");
             StartTeam3BuffTimer();
 
-            // ========== 母体生成后，启用 Team 2 检测 ==========
             isTeam2CheckEnabled = true;
-            Console.WriteLine($"[KSYX] Team 2 检测已启用");
-            // ========== 检测启用结束 ==========
 
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
@@ -804,24 +678,15 @@ public class KsyxPlugin : DeadworksPluginBase
             {
                 NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
             }
-
-            Console.WriteLine($"[KSYX] 已广播: {selected.PlayerName} 变成了母体！");
-            Console.WriteLine($"[KSYX] ========== 流程结束 ==========");
         });
-
-        Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
     }
 
     // ========== /r 命令：取消 Team 3 周期性 Buff ==========
     [Command("r", Description = "取消Team 3周期性Buff")]
     public void CmdCancelBuff(CCitadelPlayerController caller)
     {
-        Console.WriteLine($"[KSYX] ========== 取消Buff命令触发 ==========");
-        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
-
         if (team3BuffTimer == null)
         {
-            Console.WriteLine($"[KSYX] 没有正在运行的Buff计时器");
             if (caller != null)
             {
                 caller.PrintToConsole("没有正在运行的Buff计时器");
@@ -831,7 +696,6 @@ public class KsyxPlugin : DeadworksPluginBase
 
         team3BuffTimer.Cancel();
         team3BuffTimer = null;
-        Console.WriteLine($"[KSYX] Team 3 周期性Buff已取消");
 
         if (caller != null)
         {
@@ -847,65 +711,6 @@ public class KsyxPlugin : DeadworksPluginBase
         {
             NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
         }
-
-        Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
-    }
-
-    // ========== /tt 命令：测试设置 ability_priest_weaponswap 冷却为 0 ==========
-    [Command("tt", Description = "测试设置 ability_priest_weaponswap 冷却为 0")]
-    public void CmdTestCooldown(CCitadelPlayerController caller)
-    {
-        Console.WriteLine($"[KSYX] ========== 测试冷却命令触发 ==========");
-        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
-
-        if (caller == null)
-        {
-            Console.WriteLine($"[KSYX] 执行者为空，无法执行");
-            return;
-        }
-
-        var pawn = caller.GetHeroPawn();
-        if (pawn == null || !pawn.IsValid)
-        {
-            Console.WriteLine($"[KSYX] 无法获取执行者的英雄实体");
-            caller.PrintToConsole("无法获取英雄实体");
-            return;
-        }
-
-        Console.WriteLine($"[KSYX] 开始查找 ability_priest_weaponswap...");
-        var abilityComponent = pawn.AbilityComponent;
-        if (abilityComponent == null)
-        {
-            Console.WriteLine($"[KSYX] 无法获取 AbilityComponent");
-            caller.PrintToConsole("无法获取 AbilityComponent");
-            return;
-        }
-
-        bool found = false;
-        foreach (var ability in abilityComponent.Abilities)
-        {
-            if (ability == null) continue;
-            Console.WriteLine($"[KSYX] 找到技能: {ability.AbilityName}");
-            if (ability.AbilityName == "ability_priest_weaponswap")
-            {
-                Console.WriteLine($"[KSYX] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                ability.CooldownStart = 0;
-                ability.CooldownEnd = 0;
-                Console.WriteLine($"[KSYX] 已将 ability_priest_weaponswap 冷却设为 0");
-                Console.WriteLine($"[KSYX] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                found = true;
-                caller.PrintToConsole("ability_priest_weaponswap 冷却已设为 0");
-                break;
-            }
-        }
-
-        if (!found)
-        {
-            Console.WriteLine($"[KSYX] 未找到 ability_priest_weaponswap 技能");
-            caller.PrintToConsole("未找到 ability_priest_weaponswap 技能");
-        }
-
-        Console.WriteLine($"[KSYX] ========== 测试冷却命令结束 ==========");
     }
 
     public void SendGlobalChatMessage(string text)
@@ -916,7 +721,6 @@ public class KsyxPlugin : DeadworksPluginBase
         {
             var random = new Random();
             fixedSender = allPlayers[random.Next(allPlayers.Count)];
-            Console.WriteLine($"[KSYX] 固定发送者确定为: {fixedSender.PlayerName}");
         }
 
         var msg = new CCitadelUserMsg_ChatMsg
