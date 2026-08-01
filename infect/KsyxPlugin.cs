@@ -12,7 +12,7 @@ public class KsyxPlugin : DeadworksPluginBase
     public CCitadelPlayerController? fixedSender = null;
     public IHandle? team3BuffTimer = null;
     public bool isGameRunning = false;
-    public IHandle? team2CheckTimer = null;
+    public bool isTeam2CheckEnabled = false;  // 新增：母体生成后才启用检测
 
     public override void OnStartupServer()
     {
@@ -90,8 +90,8 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] ===============================");
         fixedSender = null;
         team3BuffTimer = null;
-        team2CheckTimer = null;
         isGameRunning = false;
+        isTeam2CheckEnabled = false;
     }
 
     public override void OnUnload()
@@ -99,9 +99,8 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] 插件卸载");
         team3BuffTimer?.Cancel();
         team3BuffTimer = null;
-        team2CheckTimer?.Cancel();
-        team2CheckTimer = null;
         isGameRunning = false;
+        isTeam2CheckEnabled = false;
     }
 
     // ========== 辅助：从 Pawn 获取 Controller ==========
@@ -332,8 +331,12 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX][重要] 已广播: {victimController.PlayerName} 被感染成了僵尸！");
         Console.WriteLine($"[KSYX][DEBUG] InfectPlayer 执行完毕");
 
-        // 感染完成后检查 Team 2 人数
-        Timer.NextTick(() => CheckTeam2AndProcess());
+        // ========== 只有在母体生成后才检测 Team 2 人数 ==========
+        if (isTeam2CheckEnabled)
+        {
+            Timer.NextTick(() => CheckTeam2AndProcess());
+        }
+        // ========== 检测结束 ==========
     }
 
     // ========== 周期性给 Team 3 添加 Buff ==========
@@ -379,7 +382,7 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 检查 Team 2 玩家数量并处理 ==========
     private void CheckTeam2AndProcess()
     {
-        if (!isGameRunning) return;
+        if (!isGameRunning || !isTeam2CheckEnabled) return;
 
         Console.WriteLine($"[KSYX][检查] 开始检测 Team 2 玩家数量...");
 
@@ -511,6 +514,7 @@ public class KsyxPlugin : DeadworksPluginBase
 
         fixedSender = null;
         isGameRunning = true;
+        isTeam2CheckEnabled = false;  // 重置检测标志
         Console.WriteLine($"[KSYX] 重置固定发送者，游戏开始");
 
         Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
@@ -678,6 +682,11 @@ public class KsyxPlugin : DeadworksPluginBase
 
             Console.WriteLine($"[KSYX] 母体已出现，启动 Team 3 周期性 Buff...");
             StartTeam3BuffTimer();
+
+            // ========== 母体生成后，启用 Team 2 检测 ==========
+            isTeam2CheckEnabled = true;
+            Console.WriteLine($"[KSYX] Team 2 检测已启用");
+            // ========== 检测启用结束 ==========
 
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
