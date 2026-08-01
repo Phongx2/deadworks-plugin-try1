@@ -102,6 +102,7 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 辅助：从 Pawn 获取 Controller ==========
     private CCitadelPlayerController? GetControllerFromPawn(CCitadelPlayerPawn pawn)
     {
+        if (pawn == null) return null;
         foreach (var controller in Players.GetAll())
         {
             if (controller.GetHeroPawn() == pawn)
@@ -113,35 +114,67 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 近战攻击监听（使用 OnTakeDamage） ==========
     public override HookResult OnTakeDamage(TakeDamageEvent ev)
     {
+        Console.WriteLine($"[KSYX][DEBUG] OnTakeDamage 被触发");
+
+        // 获取攻击者和受害者
         var attacker = ev.Info.Attacker as CCitadelPlayerPawn;
         var victim = ev.Entity as CCitadelPlayerPawn;
 
-        if (attacker == null || victim == null)
+        if (attacker == null)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 攻击者为 null，跳过");
             return HookResult.Continue;
+        }
+        if (victim == null)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 受害者（受伤实体）为 null，跳过");
+            return HookResult.Continue;
+        }
+
+        // 打印基础信息
+        var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
+        var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
+        Console.WriteLine($"[KSYX][DEBUG] 攻击者: {attackerName} (Team {attacker.TeamNum}), 受害者: {victimName} (Team {victim.TeamNum})");
 
         // 检查条件：攻击者必须是 Team 3，受害者必须是 Team 2
-        if (attacker.TeamNum != 3 || victim.TeamNum != 2)
+        if (attacker.TeamNum != 3)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 攻击者不是 Team 3 (当前 Team {attacker.TeamNum})，跳过");
             return HookResult.Continue;
+        }
+        if (victim.TeamNum != 2)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 受害者不是 Team 2 (当前 Team {victim.TeamNum})，跳过");
+            return HookResult.Continue;
+        }
 
-        // 使用位运算检查近战标志
+        // 检查是否是近战伤害
         var flags = ev.Info.DamageFlags;
         bool isMelee = (flags & TakeDamageFlags.LightMelee) != 0 || 
                        (flags & TakeDamageFlags.HeavyMelee) != 0;
 
-        if (!isMelee)
-            return HookResult.Continue;
+        Console.WriteLine($"[KSYX][DEBUG] DamageFlags: {flags}, 是否为近战: {isMelee}");
 
-        var attackerName = GetControllerFromPawn(attacker)?.PlayerName ?? "Unknown";
-        var victimName = GetControllerFromPawn(victim)?.PlayerName ?? "Unknown";
-        Console.WriteLine($"[KSYX] Team 3 玩家 {attackerName} 用近战攻击了 {victimName}，造成 {ev.Info.Damage} 点伤害");
+        if (!isMelee)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 不是近战伤害，跳过");
+            return HookResult.Continue;
+        }
+
+        Console.WriteLine($"[KSYX][重要] Team 3 玩家 {attackerName} 用近战攻击了 Team 2 玩家 {victimName}，造成 {ev.Info.Damage} 点伤害！");
 
         // 执行感染转化（延迟一帧，确保伤害结算完成）
         var victimRef = victim;
         Timer.NextTick(() =>
         {
+            Console.WriteLine($"[KSYX][DEBUG] 延迟帧执行感染转化...");
             if (victimRef != null && victimRef.IsValid)
             {
                 InfectPlayer(victimRef);
+            }
+            else
+            {
+                Console.WriteLine($"[KSYX][DEBUG] victimRef 无效或为 null，无法执行感染");
             }
         });
 
@@ -151,15 +184,30 @@ public class KsyxPlugin : DeadworksPluginBase
     // ========== 感染转化玩家（和母体生成流程一样） ==========
     private void InfectPlayer(CCitadelPlayerPawn victim)
     {
-        if (victim == null || !victim.IsValid) return;
+        Console.WriteLine($"[KSYX][DEBUG] InfectPlayer 被调用");
+
+        if (victim == null)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] victim 为 null，退出 InfectPlayer");
+            return;
+        }
+        if (!victim.IsValid)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] victim 无效，退出 InfectPlayer");
+            return;
+        }
 
         var victimController = GetControllerFromPawn(victim);
-        if (victimController == null) return;
+        if (victimController == null)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 无法获取 victimController，退出 InfectPlayer");
+            return;
+        }
 
-        Console.WriteLine($"[KSYX] 开始感染 {victimController.PlayerName}...");
+        Console.WriteLine($"[KSYX][重要] 开始感染 {victimController.PlayerName}...");
 
         // 1. 读取装备（保存）
-        Console.WriteLine($"[KSYX] 保存 {victimController.PlayerName} 的装备...");
+        Console.WriteLine($"[KSYX][DEBUG] 保存 {victimController.PlayerName} 的装备...");
         var items = new List<string>();
         var abilityComponent = victim.AbilityComponent;
         if (abilityComponent != null)
@@ -172,56 +220,65 @@ public class KsyxPlugin : DeadworksPluginBase
                     if (!string.IsNullOrEmpty(itemName))
                     {
                         items.Add(itemName);
-                        Console.WriteLine($"[KSYX] 找到装备: {itemName}");
+                        Console.WriteLine($"[KSYX][DEBUG] 找到装备: {itemName}");
                     }
                 }
             }
         }
         playerItems[victimController.Slot] = items;
-        Console.WriteLine($"[KSYX] 共保存 {items.Count} 件装备");
+        Console.WriteLine($"[KSYX][DEBUG] 共保存 {items.Count} 件装备");
 
         // 2. 切换队伍到 Team 3（使用 modifier）
+        Console.WriteLine($"[KSYX][DEBUG] 切换队伍到 Team 3...");
         using var kv = new KeyValues3();
         kv.SetInt("team", 3);
         victim.AddModifier("citadel_change_team", kv);
-        Console.WriteLine($"[KSYX] {victimController.PlayerName} -> Team 3");
+        Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> Team 3");
 
         var pawnRef = victim;
         Timer.Once(1.Seconds(), () =>
         {
+            Console.WriteLine($"[KSYX][DEBUG] 1秒延迟后移除 citadel_change_team modifier...");
             if (pawnRef != null && pawnRef.IsValid)
             {
                 pawnRef.RemoveModifier("citadel_change_team");
-                Console.WriteLine($"[KSYX] {victimController.PlayerName} -> 移除 citadel_change_team modifier");
+                Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> 移除 citadel_change_team modifier");
+            }
+            else
+            {
+                Console.WriteLine($"[KSYX][DEBUG] pawnRef 无效，无法移除 modifier");
             }
         });
 
         // 3. 切换英雄为 Necro
+        Console.WriteLine($"[KSYX][DEBUG] 切换英雄为 Necro...");
         victimController.SelectHero(Heroes.Necro);
-        Console.WriteLine($"[KSYX] {victimController.PlayerName} -> Necro");
+        Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> Necro");
 
         // 4. 延迟 3 秒后恢复装备
         var selectedSlot = victimController.Slot;
         Timer.Once(3.Seconds(), () =>
         {
+            Console.WriteLine($"[KSYX][DEBUG] 3秒延迟后恢复装备...");
             var pawn = victimController.GetHeroPawn();
             if (pawn != null && pawn.IsValid && playerItems.TryGetValue(selectedSlot, out var savedItems))
             {
-                Console.WriteLine($"[KSYX] 开始重新给 {victimController.PlayerName} 装备...");
+                Console.WriteLine($"[KSYX][DEBUG] 开始重新给 {victimController.PlayerName} 装备...");
                 foreach (var itemName in savedItems)
                 {
                     pawn.AddItem(itemName);
-                    Console.WriteLine($"[KSYX] 重新给予装备: {itemName}");
+                    Console.WriteLine($"[KSYX][DEBUG] 重新给予装备: {itemName}");
                 }
-                Console.WriteLine($"[KSYX] 共重新给予 {savedItems.Count} 件装备");
+                Console.WriteLine($"[KSYX][DEBUG] 共重新给予 {savedItems.Count} 件装备");
             }
             else
             {
-                Console.WriteLine($"[KSYX] 没有找到保存的装备");
+                Console.WriteLine($"[KSYX][DEBUG] 没有找到保存的装备");
             }
         });
 
         // 5. 广播消息
+        Console.WriteLine($"[KSYX][DEBUG] 广播感染消息...");
         var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "",
@@ -233,18 +290,22 @@ public class KsyxPlugin : DeadworksPluginBase
             NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
         }
 
-        Console.WriteLine($"[KSYX] 已广播: {victimController.PlayerName} 被感染成了僵尸！");
+        Console.WriteLine($"[KSYX][重要] 已广播: {victimController.PlayerName} 被感染成了僵尸！");
+        Console.WriteLine($"[KSYX][DEBUG] InfectPlayer 执行完毕");
     }
 
     // ========== 周期性给 Team 3 添加 Buff ==========
     private void StartTeam3BuffTimer()
     {
+        Console.WriteLine($"[KSYX][DEBUG] StartTeam3BuffTimer 被调用");
         team3BuffTimer?.Cancel();
+        Console.WriteLine($"[KSYX][DEBUG] 已取消旧计时器");
 
         team3BuffTimer = Timer.Every(1.Seconds(), () =>
         {
             if (!isGameRunning)
             {
+                Console.WriteLine($"[KSYX][DEBUG] 游戏已结束，停止 Buff 计时器");
                 team3BuffTimer?.Cancel();
                 team3BuffTimer = null;
                 return;
@@ -254,7 +315,13 @@ public class KsyxPlugin : DeadworksPluginBase
                 .Where(p => p != null && p.IsValid && p.TeamNum == 3)
                 .ToList();
 
-            if (team3Pawns.Count == 0) return;
+            if (team3Pawns.Count == 0)
+            {
+                Console.WriteLine($"[KSYX][DEBUG] 没有 Team 3 玩家，跳过本次 Buff 添加");
+                return;
+            }
+
+            Console.WriteLine($"[KSYX][DEBUG] 为 {team3Pawns.Count} 名 Team 3 玩家添加 Buff...");
 
             foreach (var pawn in team3Pawns)
             {
@@ -449,9 +516,10 @@ public class KsyxPlugin : DeadworksPluginBase
                 }
             });
 
-            // 启动 Team 3 周期性 Buff
-            Console.WriteLine($"[KSYX] 启动 Team 3 周期性 Buff...");
+            // ========== 启动 Team 3 周期性 Buff（母体出现后才启动） ==========
+            Console.WriteLine($"[KSYX] 母体已出现，启动 Team 3 周期性 Buff...");
             StartTeam3BuffTimer();
+            // ========== Buff 启动结束 ==========
 
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
