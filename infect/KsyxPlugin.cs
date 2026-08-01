@@ -399,103 +399,134 @@ public class KsyxPlugin : DeadworksPluginBase
     }
 
     // ========== 检查 Team 2 玩家数量并处理 ==========
-    private void CheckTeam2AndProcess()
+private void CheckTeam2AndProcess()
+{
+    if (!isGameRunning || !isTeam2CheckEnabled) return;
+
+    Console.WriteLine($"[KSYX][检查] 开始检测 Team 2 玩家数量...");
+
+    var team2Players = allPlayers
+        .Where(p => p.GetHeroPawn() != null && p.GetHeroPawn()?.TeamNum == 2)
+        .ToList();
+
+    Console.WriteLine($"[KSYX][检查] Team 2 玩家数: {team2Players.Count}");
+
+    if (team2Players.Count == 1)
     {
-        if (!isGameRunning || !isTeam2CheckEnabled) return;
+        var lastTeam2Player = team2Players[0];
+        Console.WriteLine($"[KSYX][检查] Team 2 只剩最后一名玩家: {lastTeam2Player.PlayerName}");
 
-        Console.WriteLine($"[KSYX][检查] 开始检测 Team 2 玩家数量...");
-
-        var team2Players = allPlayers
-            .Where(p => p.GetHeroPawn() != null && p.GetHeroPawn()?.TeamNum == 2)
-            .ToList();
-
-        Console.WriteLine($"[KSYX][检查] Team 2 玩家数: {team2Players.Count}");
-
-        if (team2Players.Count == 1)
+        var pawn = lastTeam2Player.GetHeroPawn();
+        if (pawn != null && pawn.IsValid)
         {
-            var lastTeam2Player = team2Players[0];
-            Console.WriteLine($"[KSYX][检查] Team 2 只剩最后一名玩家: {lastTeam2Player.PlayerName}");
-
-            var pawn = lastTeam2Player.GetHeroPawn();
-            if (pawn != null && pawn.IsValid)
+            // 1. 存储最后一位 Team 2 玩家的装备
+            Console.WriteLine($"[KSYX][检查] 保存 {lastTeam2Player.PlayerName} 的装备...");
+            var items = new List<string>();
+            var abilityComponent = pawn.AbilityComponent;
+            if (abilityComponent != null)
             {
-                // 1. 存储最后一位 Team 2 玩家的装备
-                Console.WriteLine($"[KSYX][检查] 保存 {lastTeam2Player.PlayerName} 的装备...");
-                var items = new List<string>();
-                var abilityComponent = pawn.AbilityComponent;
-                if (abilityComponent != null)
+                foreach (var ability in abilityComponent.Abilities)
                 {
-                    foreach (var ability in abilityComponent.Abilities)
+                    if (ability.IsItem)
                     {
-                        if (ability.IsItem)
+                        var itemName = ability.AbilityName;
+                        if (!string.IsNullOrEmpty(itemName))
                         {
-                            var itemName = ability.AbilityName;
-                            if (!string.IsNullOrEmpty(itemName))
+                            items.Add(itemName);
+                            Console.WriteLine($"[KSYX][检查] 找到装备: {itemName}");
+                        }
+                    }
+                }
+            }
+            playerItems[lastTeam2Player.Slot] = items;
+            Console.WriteLine($"[KSYX][检查] 共保存 {items.Count} 件装备");
+
+            // 2. 取消所有 Team 3 玩家的 modifier_citadel_in_fountain
+            Console.WriteLine($"[KSYX][检查] 取消所有 Team 3 玩家的 modifier_citadel_in_fountain...");
+            var team3Pawns = Players.GetAllPawns()
+                .Where(p => p != null && p.IsValid && p.TeamNum == 3)
+                .ToList();
+
+            foreach (var team3Pawn in team3Pawns)
+            {
+                team3Pawn.RemoveModifier("modifier_citadel_in_fountain");
+                Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
+            }
+
+            // 3. 将最后一位 Team 2 玩家英雄替换为 Priest
+            Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 Priest...");
+            lastTeam2Player.SelectHero(Heroes.Priest);
+
+            // 4. 延迟 2 秒后恢复装备
+            var slot = lastTeam2Player.Slot;
+            Timer.Once(2.Seconds(), () =>
+            {
+                Console.WriteLine($"[KSYX][检查] 2秒延迟后恢复 {lastTeam2Player.PlayerName} 的装备...");
+                var pawnToRestore = lastTeam2Player.GetHeroPawn();
+                if (pawnToRestore != null && pawnToRestore.IsValid && playerItems.TryGetValue(slot, out var savedItems))
+                {
+                    foreach (var itemName in savedItems)
+                    {
+                        pawnToRestore.AddItem(itemName);
+                        Console.WriteLine($"[KSYX][检查] 重新给予装备: {itemName}");
+                    }
+                    Console.WriteLine($"[KSYX][检查] 共重新给予 {savedItems.Count} 件装备");
+                }
+                else
+                {
+                    Console.WriteLine($"[KSYX][检查] 没有找到保存的装备");
+                }
+            });
+
+            // ========== 5. 设置 ability_priest_weaponswap 冷却为 0 ==========
+            Timer.Once(500.Milliseconds(), () =>
+            {
+                Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
+                var pawnForAbility = lastTeam2Player.GetHeroPawn();
+                if (pawnForAbility != null && pawnForAbility.IsValid)
+                {
+                    var abilityComponent2 = pawnForAbility.AbilityComponent;
+                    if (abilityComponent2 != null)
+                    {
+                        Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
+                        bool found = false;
+                        foreach (var ability in abilityComponent2.Abilities)
+                        {
+                            if (ability == null) continue;
+                            Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
+                            if (ability.AbilityName == "ability_priest_weaponswap")
                             {
-                                items.Add(itemName);
-                                Console.WriteLine($"[KSYX][检查] 找到装备: {itemName}");
+                                Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                                ability.CooldownStart = 0;
+                                ability.CooldownEnd = 0;
+                                Console.WriteLine($"[KSYX][检查] 已将 ability_priest_weaponswap 冷却设为 0");
+                                Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                                found = true;
+                                break;
                             }
                         }
-                    }
-                }
-                playerItems[lastTeam2Player.Slot] = items;
-                Console.WriteLine($"[KSYX][检查] 共保存 {items.Count} 件装备");
-
-                // 2. 取消所有 Team 3 玩家的 modifier_citadel_in_fountain
-                Console.WriteLine($"[KSYX][检查] 取消所有 Team 3 玩家的 modifier_citadel_in_fountain...");
-                var team3Pawns = Players.GetAllPawns()
-                    .Where(p => p != null && p.IsValid && p.TeamNum == 3)
-                    .ToList();
-
-                foreach (var team3Pawn in team3Pawns)
-                {
-                    team3Pawn.RemoveModifier("modifier_citadel_in_fountain");
-                    Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
-                }
-
-                // ========== 3. 禁用近战感染 ==========
-                isMeleeInfectionEnabled = false;
-                Console.WriteLine($"[KSYX][检查] 近战感染已禁用");
-                // ========== 禁用结束 ==========
-
-                // 4. 将最后一位 Team 2 玩家英雄替换为 Priest
-                Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 Priest...");
-                lastTeam2Player.SelectHero(Heroes.Priest);
-
-                // 5. 延迟 2 秒后恢复装备
-                var slot = lastTeam2Player.Slot;
-                Timer.Once(2.Seconds(), () =>
-                {
-                    Console.WriteLine($"[KSYX][检查] 2秒延迟后恢复 {lastTeam2Player.PlayerName} 的装备...");
-                    var pawnToRestore = lastTeam2Player.GetHeroPawn();
-                    if (pawnToRestore != null && pawnToRestore.IsValid && playerItems.TryGetValue(slot, out var savedItems))
-                    {
-                        foreach (var itemName in savedItems)
+                        if (!found)
                         {
-                            pawnToRestore.AddItem(itemName);
-                            Console.WriteLine($"[KSYX][检查] 重新给予装备: {itemName}");
+                            Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
                         }
-                        Console.WriteLine($"[KSYX][检查] 共重新给予 {savedItems.Count} 件装备");
                     }
-                    else
-                    {
-                        Console.WriteLine($"[KSYX][检查] 没有找到保存的装备");
-                    }
-                });
-
-                // 广播消息
-                var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
-                {
-                    TitleLocstring = "⚔️",
-                    DescriptionLocstring = $"{lastTeam2Player.PlayerName} 成为了最后的幸存者！"
-                };
-                foreach (var player in allPlayers)
-                {
-                    NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
                 }
+            });
+            // ========== 冷却设置结束 ==========
+
+            // 广播消息
+            var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "⚔️",
+                DescriptionLocstring = $"{lastTeam2Player.PlayerName} 成为了最后的幸存者！"
+            };
+            foreach (var player in allPlayers)
+            {
+                NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
             }
         }
     }
+}
 
     [Command("ksyx", Description = "僵尸倒计时")]
     public void CmdKsyx(CCitadelPlayerController caller)
