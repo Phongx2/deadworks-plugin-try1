@@ -431,9 +431,9 @@ public class KsyxPlugin : DeadworksPluginBase
                     Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
                 }
 
-                // 3. 将最后一位 Team 2 玩家英雄替换为 hero_priest
-                Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 hero_priest...");
-                lastTeam2Player.SelectHero(Heroes.hero_priest);
+                // 3. 将最后一位 Team 2 玩家英雄替换为 Priest
+                Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 Priest...");
+                lastTeam2Player.SelectHero(Heroes.Priest);
 
                 // 4. 延迟 2 秒后恢复装备
                 var slot = lastTeam2Player.Slot;
