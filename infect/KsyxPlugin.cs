@@ -459,7 +459,7 @@ public class KsyxPlugin : DeadworksPluginBase
                     }
                 });
 
-                // 5. 将 ability_priest_weaponswap 的冷却设为无冷却（增加详细日志）
+                // 5. 将 ability_priest_weaponswap 的冷却设为无冷却（每1秒刷新）
                 Timer.Once(500.Milliseconds(), () =>
                 {
                     Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
@@ -470,23 +470,43 @@ public class KsyxPlugin : DeadworksPluginBase
                         if (abilityComponent2 != null)
                         {
                             Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
-                            bool found = false;
+                            CCitadelAbility? targetAbility = null;
                             foreach (var ability in abilityComponent2.Abilities)
                             {
                                 if (ability == null) continue;
                                 Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
                                 if (ability.AbilityName == "ability_priest_weaponswap")
                                 {
-                                    Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                    ability.CooldownStart = 0;
-                                    ability.CooldownEnd = 0;
-                                    Console.WriteLine($"[KSYX][检查] ability_priest_weaponswap 冷却已设为 0");
-                                    Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                    found = true;
+                                    targetAbility = ability;
+                                    Console.WriteLine($"[KSYX][检查] 找到目标技能！");
                                     break;
                                 }
                             }
-                            if (!found)
+
+                            if (targetAbility != null)
+                            {
+                                // 立即设置一次
+                                float now = (float)ServerTime.Now;
+                                targetAbility.CooldownEnd = now;
+                                Console.WriteLine($"[KSYX][检查] 已设置 CooldownEnd = {now}");
+
+                                // 启动每1秒刷新计时器
+                                var abilityRef = targetAbility;
+                                var refreshTimer = Timer.Every(1.Seconds(), () =>
+                                {
+                                    if (abilityRef == null || !abilityRef.IsValid)
+                                    {
+                                        Console.WriteLine($"[KSYX][检查] 技能已失效，停止冷却刷新计时器");
+                                        refreshTimer.Cancel();
+                                        return;
+                                    }
+                                    float currentNow = (float)ServerTime.Now;
+                                    abilityRef.CooldownEnd = currentNow;
+                                    Console.WriteLine($"[KSYX][检查] 刷新冷却: CooldownEnd = {currentNow}");
+                                });
+                                Console.WriteLine($"[KSYX][检查] 已启动每1秒冷却刷新计时器");
+                            }
+                            else
                             {
                                 Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
                             }
@@ -756,8 +776,8 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
     }
 
-    // ========== /tt 命令：测试设置 ability_priest_weaponswap 冷却为 0 ==========
-    [Command("tt", Description = "测试设置 ability_priest_weaponswap 冷却为 0")]
+    // ========== /tt 命令：测试设置 ability_priest_weaponswap 冷却为 0（每1秒刷新） ==========
+    [Command("tt", Description = "测试：每1秒重置 ability_priest_weaponswap 冷却")]
     public void CmdTestCooldown(CCitadelPlayerController caller)
     {
         Console.WriteLine($"[KSYX] ========== 测试冷却命令触发 ==========");
@@ -786,30 +806,53 @@ public class KsyxPlugin : DeadworksPluginBase
             return;
         }
 
-        bool found = false;
+        CCitadelAbility? targetAbility = null;
         foreach (var ability in abilityComponent.Abilities)
         {
             if (ability == null) continue;
             Console.WriteLine($"[KSYX] 找到技能: {ability.AbilityName}");
             if (ability.AbilityName == "ability_priest_weaponswap")
             {
-                Console.WriteLine($"[KSYX] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                ability.CooldownStart = 0;
-                ability.CooldownEnd = 0;
-                Console.WriteLine($"[KSYX] 已将 ability_priest_weaponswap 冷却设为 0");
-                Console.WriteLine($"[KSYX] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                found = true;
-                caller.PrintToConsole("ability_priest_weaponswap 冷却已设为 0");
+                targetAbility = ability;
+                Console.WriteLine($"[KSYX] 找到目标技能！");
                 break;
             }
         }
 
-        if (!found)
+        if (targetAbility == null)
         {
             Console.WriteLine($"[KSYX] 未找到 ability_priest_weaponswap 技能");
             caller.PrintToConsole("未找到 ability_priest_weaponswap 技能");
+            return;
         }
 
+        // 保存当前服务器时间
+        float currentServerTime = (float)ServerTime.Now;
+        Console.WriteLine($"[KSYX] 当前服务器时间: {currentServerTime}");
+
+        // 立即设置一次冷却结束时间为当前时间
+        targetAbility.CooldownEnd = currentServerTime;
+        Console.WriteLine($"[KSYX] 已设置 CooldownEnd = {currentServerTime}");
+
+        caller.PrintToConsole("ability_priest_weaponswap 冷却已设为0（持续刷新）");
+
+        // ========== 每1秒执行一次，持续将冷却结束时间设为当前服务器时间 ==========
+        var abilityRef = targetAbility;
+        var timer = Timer.Every(1.Seconds(), () =>
+        {
+            if (abilityRef == null || !abilityRef.IsValid)
+            {
+                Console.WriteLine($"[KSYX] 技能已失效，停止冷却刷新计时器");
+                timer.Cancel();
+                return;
+            }
+
+            float now = (float)ServerTime.Now;
+            abilityRef.CooldownEnd = now;
+            Console.WriteLine($"[KSYX] 刷新冷却: CooldownEnd = {now}");
+        });
+
+        Console.WriteLine($"[KSYX] 已启动每1秒冷却刷新计时器");
         Console.WriteLine($"[KSYX] ========== 测试冷却命令结束 ==========");
     }
 
