@@ -1,5 +1,5 @@
 using DeadworksManaged.Api;
-using System.Numerics;  // ← 添加这一行
+using System.Numerics;
 
 namespace KsyxCountdown;
 
@@ -591,6 +591,49 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
     }
+
+    // ========== /r 命令：取消 Team 3 周期性 Buff ==========
+    [Command("r", Description = "取消Team 3周期性Buff")]
+    public void CmdCancelBuff(CCitadelPlayerController caller)
+    {
+        Console.WriteLine($"[KSYX] ========== 取消Buff命令触发 ==========");
+        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
+
+        if (team3BuffTimer == null)
+        {
+            Console.WriteLine($"[KSYX] 没有正在运行的Buff计时器");
+            if (caller != null)
+            {
+                caller.PrintToConsole("没有正在运行的Buff计时器");
+            }
+            return;
+        }
+
+        // 取消计时器
+        team3BuffTimer.Cancel();
+        team3BuffTimer = null;
+        Console.WriteLine($"[KSYX] Team 3 周期性Buff已取消");
+
+        // 通知执行者
+        if (caller != null)
+        {
+            caller.PrintToConsole("Team 3 周期性Buff已取消");
+        }
+
+        // 广播给所有玩家
+        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "⛔",
+            DescriptionLocstring = "僵尸 Buff 已被取消！"
+        };
+        foreach (var player in allPlayers)
+        {
+            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
+        }
+
+        Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
+    }
+    // ========== /r 命令结束 ==========
 
     public void SendGlobalChatMessage(string text)
     {
