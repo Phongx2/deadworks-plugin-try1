@@ -158,15 +158,13 @@ public class KsyxPlugin : DeadworksPluginBase
         
         // 应用减速
         victim.Teleport(null, null, slowedVelocity);
-        
-        // 同时用 ModifierProp 开启减速状态（视觉反馈）
-        victim.ModifierProp?.SetModifierState(EModifierState.SlowMovement, true);
 
         // 取消之前的恢复计时器（如果有）
         // 使用 EntityData 存储每个玩家的计时器句柄
         
         // 1秒后恢复速度
         var victimRef = victim;
+        var victimNameRef = victimName;
         Timer.Once(1.Seconds(), () =>
         {
             if (victimRef != null && victimRef.IsValid)
@@ -175,11 +173,8 @@ public class KsyxPlugin : DeadworksPluginBase
                 if (originalVelocities.TryGetValue(victimRef, out Vector3 origVel))
                 {
                     victimRef.Teleport(null, null, origVel);
-                    Console.WriteLine($"[KSYX][减速] {victimName} 速度已恢复");
+                    Console.WriteLine($"[KSYX][减速] {victimNameRef} 速度已恢复");
                 }
-                
-                // 关闭减速状态
-                victimRef.ModifierProp?.SetModifierState(EModifierState.SlowMovement, false);
                 
                 // 从字典中移除
                 originalVelocities.Remove(victimRef);
@@ -679,13 +674,11 @@ public class KsyxPlugin : DeadworksPluginBase
         team3BuffTimer = null;
         Console.WriteLine($"[KSYX] Team 3 周期性Buff已取消");
 
-        // 通知执行者
         if (caller != null)
         {
             caller.PrintToConsole("Team 3 周期性Buff已取消");
         }
 
-        // 广播给所有玩家
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "⛔",
