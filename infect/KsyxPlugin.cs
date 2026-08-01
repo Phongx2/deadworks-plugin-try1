@@ -358,7 +358,7 @@ public class KsyxPlugin : DeadworksPluginBase
         victimController.SelectHero(Heroes.Necro);
 
         var selectedSlot = victimController.Slot;
-        Timer.Once(3.Seconds(), () =>
+        Timer.Once(2.Seconds(), () =>
         {
             var pawn = victimController.GetHeroPawn();
             if (pawn != null && pawn.IsValid && playerItems.TryGetValue(selectedSlot, out var savedItems))
@@ -652,7 +652,7 @@ public class KsyxPlugin : DeadworksPluginBase
             selected.SelectHero(Heroes.Necro);
 
             var selectedSlot = selected.Slot;
-            Timer.Once(3.Seconds(), () =>
+            Timer.Once(2.Seconds(), () =>
             {
                 var pawn = selected.GetHeroPawn();
                 if (pawn != null && pawn.IsValid && playerItems.TryGetValue(selectedSlot, out var items))
