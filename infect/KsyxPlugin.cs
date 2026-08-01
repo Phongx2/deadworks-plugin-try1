@@ -34,26 +34,47 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Console.WriteLine($"[KSYX] 开始清除地图单位...");
         
-        Server.ExecuteCommand("ent_fire npc_trooper_boss kill");
-        Console.WriteLine($"[KSYX] ent_fire npc_trooper_boss kill");
+        foreach (var entity in Entities.ByDesignerName("npc_trooper_boss"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 npc_trooper_boss (索引: {entity.EntityIndex})");
+        }
         
-        Server.ExecuteCommand("ent_fire npc_boss_tier1 kill");
-        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier1 kill");
+        foreach (var entity in Entities.ByDesignerName("npc_boss_tier1"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 npc_boss_tier1 (索引: {entity.EntityIndex})");
+        }
         
-        Server.ExecuteCommand("ent_fire npc_boss_tier2 kill");
-        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier2 kill");
+        foreach (var entity in Entities.ByDesignerName("npc_boss_tier2"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 npc_boss_tier2 (索引: {entity.EntityIndex})");
+        }
         
-        Server.ExecuteCommand("ent_fire npc_boss_tier2_weak kill");
-        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier2_weak kill");
+        foreach (var entity in Entities.ByDesignerName("npc_boss_tier2_weak"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 npc_boss_tier2_weak (索引: {entity.EntityIndex})");
+        }
         
-        Server.ExecuteCommand("ent_fire npc_boss_tier3 kill");
-        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier3 kill");
+        foreach (var entity in Entities.ByDesignerName("npc_boss_tier3"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 npc_boss_tier3 (索引: {entity.EntityIndex})");
+        }
         
-        Server.ExecuteCommand("ent_fire npc_barrack_boss kill");
-        Console.WriteLine($"[KSYX] ent_fire npc_barrack_boss kill");
+        foreach (var entity in Entities.ByDesignerName("npc_barrack_boss"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 npc_barrack_boss (索引: {entity.EntityIndex})");
+        }
         
-        Server.ExecuteCommand("ent_fire destroyable_building kill");
-        Console.WriteLine($"[KSYX] ent_fire destroyable_building kill");
+        foreach (var entity in Entities.ByDesignerName("destroyable_building"))
+        {
+            entity.Remove();
+            Console.WriteLine($"[KSYX] 移除 destroyable_building (索引: {entity.EntityIndex})");
+        }
         
         Console.WriteLine($"[KSYX] ========== 游戏规则设置完成 ==========");
     }
@@ -88,6 +109,31 @@ public class KsyxPlugin : DeadworksPluginBase
 
         fixedSender = null;
         Console.WriteLine($"[KSYX] 重置固定发送者");
+
+        Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
+        ConVar.Find("sv_cheats")?.SetInt(1);
+
+        Timer.Once(500.Milliseconds(), () =>
+        {
+            Console.WriteLine($"[KSYX] 开始发放金币...");
+            
+            ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
+            Console.WriteLine($"[KSYX] citadel_allow_purchasing_anywhere -> 1");
+
+            foreach (var player in allPlayers)
+            {
+                var pawn = player.GetHeroPawn();
+                if (pawn != null)
+                {
+                    pawn.SetCurrency(ECurrencyType.EGold, 32000);
+                    Console.WriteLine($"[KSYX] {player.PlayerName} (槽位 {player.Slot}) -> 设置金币为 32000");
+                }
+                else
+                {
+                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体，无法设置金币");
+                }
+            }
+        });
 
         Console.WriteLine($"[KSYX] 开始移动玩家到 Team 2...");
         foreach (var player in allPlayers)
