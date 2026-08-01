@@ -3,6 +3,8 @@ using System.Numerics;
 
 namespace KsyxCountdown;
 
+public bool isLastOne = false;  // 标记是否为最后一人
+
 public class KsyxPlugin : DeadworksPluginBase
 {
     public override string Name => "KSYX";
@@ -360,43 +362,51 @@ public class KsyxPlugin : DeadworksPluginBase
 
     // ========== 周期性给 Team 3 添加 Buff ==========
     private void StartTeam3BuffTimer()
+{
+    Console.WriteLine($"[KSYX][DEBUG] StartTeam3BuffTimer 被调用");
+    team3BuffTimer?.Cancel();
+    Console.WriteLine($"[KSYX][DEBUG] 已取消旧计时器");
+
+    team3BuffTimer = Timer.Every(1.Seconds(), () =>
     {
-        Console.WriteLine($"[KSYX][DEBUG] StartTeam3BuffTimer 被调用");
-        team3BuffTimer?.Cancel();
-        Console.WriteLine($"[KSYX][DEBUG] 已取消旧计时器");
-
-        team3BuffTimer = Timer.Every(1.Seconds(), () =>
+        if (!isGameRunning)
         {
-            if (!isGameRunning)
+            Console.WriteLine($"[KSYX][DEBUG] 游戏已结束，停止 Buff 计时器");
+            team3BuffTimer?.Cancel();
+            team3BuffTimer = null;
+            return;
+        }
+
+        var team3Pawns = Players.GetAllPawns()
+            .Where(p => p != null && p.IsValid && p.TeamNum == 3)
+            .ToList();
+
+        if (team3Pawns.Count == 0)
+        {
+            Console.WriteLine($"[KSYX][DEBUG] 没有 Team 3 玩家，跳过本次 Buff 添加");
+            return;
+        }
+
+        Console.WriteLine($"[KSYX][DEBUG] 为 {team3Pawns.Count} 名 Team 3 玩家添加 Buff...");
+
+        foreach (var pawn in team3Pawns)
+        {
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", 1.1f);
+            
+            // ========== 只有不是最后一人时才添加 modifier_citadel_in_fountain ==========
+            if (!isLastOne)
             {
-                Console.WriteLine($"[KSYX][DEBUG] 游戏已结束，停止 Buff 计时器");
-                team3BuffTimer?.Cancel();
-                team3BuffTimer = null;
-                return;
-            }
-
-            var team3Pawns = Players.GetAllPawns()
-                .Where(p => p != null && p.IsValid && p.TeamNum == 3)
-                .ToList();
-
-            if (team3Pawns.Count == 0)
-            {
-                Console.WriteLine($"[KSYX][DEBUG] 没有 Team 3 玩家，跳过本次 Buff 添加");
-                return;
-            }
-
-            Console.WriteLine($"[KSYX][DEBUG] 为 {team3Pawns.Count} 名 Team 3 玩家添加 Buff...");
-
-            foreach (var pawn in team3Pawns)
-            {
-                using var kv = new KeyValues3();
-                kv.SetFloat("duration", 1.1f);
                 pawn.AddModifier("modifier_citadel_in_fountain", kv);
-                pawn.AddModifier("modifier_citadel_disarmed", kv);
-                pawn.AddModifier("modifier_citadel_silenced", kv);
             }
-        });
-    }
+            // ========== 判断结束 ==========
+            
+            // 这两个不受影响，一直添加
+            pawn.AddModifier("modifier_citadel_disarmed", kv);
+            pawn.AddModifier("modifier_citadel_silenced", kv);
+        }
+    });
+}
 
     // ========== 检查 Team 2 玩家数量并处理 ==========
 private void CheckTeam2AndProcess()
@@ -441,17 +451,20 @@ private void CheckTeam2AndProcess()
             playerItems[lastTeam2Player.Slot] = items;
             Console.WriteLine($"[KSYX][检查] 共保存 {items.Count} 件装备");
 
-            // 2. 取消所有 Team 3 玩家的 modifier_citadel_in_fountain
-            Console.WriteLine($"[KSYX][检查] 取消所有 Team 3 玩家的 modifier_citadel_in_fountain...");
-            var team3Pawns = Players.GetAllPawns()
-                .Where(p => p != null && p.IsValid && p.TeamNum == 3)
-                .ToList();
+            isLastOne = true;
+    Console.WriteLine($"[KSYX][检查] isLastOne 已设为 true");
 
-            foreach (var team3Pawn in team3Pawns)
-            {
-                team3Pawn.RemoveModifier("modifier_citadel_in_fountain");
-                Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
-            }
+    // ========== 移除 modifier_citadel_in_fountain ==========
+    Console.WriteLine($"[KSYX][检查] 移除所有 Team 3 玩家的 modifier_citadel_in_fountain...");
+    var team3Pawns = Players.GetAllPawns()
+        .Where(p => p != null && p.IsValid && p.TeamNum == 3)
+        .ToList();
+
+    foreach (var team3Pawn in team3Pawns)
+    {
+        team3Pawn.RemoveModifier("modifier_citadel_in_fountain");
+        Console.WriteLine($"[KSYX][检查] 移除 Team 3 玩家的 modifier_citadel_in_fountain");
+    }
 
             // 3. 将最后一位 Team 2 玩家英雄替换为 Priest
             Console.WriteLine($"[KSYX][检查] 将 {lastTeam2Player.PlayerName} 英雄替换为 Priest...");
@@ -478,49 +491,39 @@ private void CheckTeam2AndProcess()
                 }
             });
 
-           // ========== 5. 设置 ability_priest_weaponswap 冷却为 0 ==========
-            // 先查找并保存技能引用
-var pawnForAbility = lastTeam2Player.GetHeroPawn();
-CBaseEntity? targetAbility = null;
-if (pawnForAbility != null && pawnForAbility.IsValid)
-{
-    var abilityComponent2 = pawnForAbility.AbilityComponent;
-    if (abilityComponent2 != null)
-    {
-        foreach (var ability in abilityComponent2.Abilities)
-        {
-            if (ability == null) continue;
-            if (ability.AbilityName == "ability_priest_weaponswap")
+           Timer.Every(500.Milliseconds(), () =>
             {
-                targetAbility = ability;
-                Console.WriteLine($"[KSYX][检查] 找到目标技能！");
-                break;
-            }
-        }
-    }
-}
-
-if (targetAbility != null)
-{
-    var abilityRef = targetAbility;
-    var refreshTimer = Timer.Every(500.Milliseconds(), () =>
-    {
-        if (abilityRef == null || !abilityRef.IsValid)
-        {
-            Console.WriteLine($"[KSYX][检查] 技能已失效，停止冷却刷新");
-            refreshTimer.Cancel();
-            return;
-        }
-        abilityRef.CooldownStart = 0;
-        abilityRef.CooldownEnd = 0;
-        Console.WriteLine($"[KSYX][检查] 刷新冷却: CooldownStart=0, CooldownEnd=0");
-    });
-    Console.WriteLine($"[KSYX][检查] 已启动每0.5秒冷却刷新计时器");
-}
-else
-{
-    Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
-}
+                Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
+                var pawnForAbility = lastTeam2Player.GetHeroPawn();
+                if (pawnForAbility != null && pawnForAbility.IsValid)
+                {
+                    var abilityComponent2 = pawnForAbility.AbilityComponent;
+                    if (abilityComponent2 != null)
+                    {
+                        Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
+                        bool found = false;
+                        foreach (var ability in abilityComponent2.Abilities)
+                        {
+                            if (ability == null) continue;
+                            Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
+                            if (ability.AbilityName == "ability_priest_weaponswap")
+                            {
+                                Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                                ability.CooldownStart = 0;
+                                ability.CooldownEnd = 0;
+                                Console.WriteLine($"[KSYX][检查] 已将 ability_priest_weaponswap 冷却设为 0");
+                                Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
+                                found = true;
+                                break;
+                            }
+                        }
+                        if (!found)
+                        {
+                            Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
+                        }
+                    }
+                }
+            });
             // ========== 冷却设置结束 ==========
 
             // 广播消息
@@ -545,6 +548,7 @@ else
 
         allPlayers = Players.GetAll().ToList();
         Console.WriteLine($"[KSYX] 在线玩家数: {allPlayers.Count}");
+        isLastOne = false;
 
         if (allPlayers.Count == 0)
         {
