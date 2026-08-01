@@ -636,7 +636,7 @@ public class KsyxPlugin : DeadworksPluginBase
             }
         });
 
-        Timer.Once(15.Seconds(), () =>
+        Timer.Once(30.Seconds(), () =>
         {
             Console.WriteLine($"[KSYX] ========== 倒计时结束 ==========");
             timer.Cancel();
