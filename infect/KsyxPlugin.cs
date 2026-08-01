@@ -478,40 +478,62 @@ private void CheckTeam2AndProcess()
                 }
             });
 
-            // ========== 5. 设置 ability_priest_weaponswap 冷却为 0 ==========
-            Timer.Once(500.Milliseconds(), () =>
+           // ========== 设置 ability_priest_weaponswap 冷却为 0（每0.5秒持续刷新） ==========
+Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却（每0.5秒刷新）...");
+var pawnForAbility = lastTeam2Player.GetHeroPawn();
+if (pawnForAbility != null && pawnForAbility.IsValid)
+{
+    var abilityComponent2 = pawnForAbility.AbilityComponent;
+    if (abilityComponent2 != null)
+    {
+        Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
+        bool found = false;
+        CBaseEntity? targetAbility = null;
+        foreach (var ability in abilityComponent2.Abilities)
+        {
+            if (ability == null) continue;
+            Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
+            if (ability.AbilityName == "ability_priest_weaponswap")
             {
-                Console.WriteLine($"[KSYX][检查] 设置 ability_priest_weaponswap 冷却为无冷却...");
-                var pawnForAbility = lastTeam2Player.GetHeroPawn();
-                if (pawnForAbility != null && pawnForAbility.IsValid)
+                targetAbility = ability;
+                Console.WriteLine($"[KSYX][检查] 找到目标技能！");
+                found = true;
+                break;
+            }
+        }
+        if (found && targetAbility != null)
+        {
+            // 保存引用
+            var abilityRef = targetAbility;
+            
+            // 立即执行一次
+            abilityRef.CooldownStart = 0;
+            abilityRef.CooldownEnd = 0;
+            Console.WriteLine($"[KSYX][检查] 已立即设置冷却为 0");
+
+            // ========== 使用 Timer.Every 每0.5秒持续刷新 ==========
+            var refreshTimer = Timer.Every(500.Milliseconds(), () =>
+            {
+                if (abilityRef == null || !abilityRef.IsValid)
                 {
-                    var abilityComponent2 = pawnForAbility.AbilityComponent;
-                    if (abilityComponent2 != null)
-                    {
-                        Console.WriteLine($"[KSYX][检查] 遍历技能列表...");
-                        bool found = false;
-                        foreach (var ability in abilityComponent2.Abilities)
-                        {
-                            if (ability == null) continue;
-                            Console.WriteLine($"[KSYX][检查] 找到技能: {ability.AbilityName}");
-                            if (ability.AbilityName == "ability_priest_weaponswap")
-                            {
-                                Console.WriteLine($"[KSYX][检查] 找到目标技能！当前 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                ability.CooldownStart = 0;
-                                ability.CooldownEnd = 0;
-                                Console.WriteLine($"[KSYX][检查] 已将 ability_priest_weaponswap 冷却设为 0");
-                                Console.WriteLine($"[KSYX][检查] 设置后 CooldownStart: {ability.CooldownStart}, CooldownEnd: {ability.CooldownEnd}");
-                                found = true;
-                                break;
-                            }
-                        }
-                        if (!found)
-                        {
-                            Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
-                        }
-                    }
+                    Console.WriteLine($"[KSYX][检查] 技能已失效，停止冷却刷新");
+                    refreshTimer.Cancel();
+                    return;
                 }
+                abilityRef.CooldownStart = 0;
+                abilityRef.CooldownEnd = 0;
+                Console.WriteLine($"[KSYX][检查] 刷新冷却: CooldownStart=0, CooldownEnd=0");
             });
+            // ========== 刷新结束 ==========
+
+            Console.WriteLine($"[KSYX][检查] 已启动每0.5秒冷却刷新计时器");
+        }
+        else
+        {
+            Console.WriteLine($"[KSYX][检查] 未找到 ability_priest_weaponswap 技能");
+        }
+    }
+}
             // ========== 冷却设置结束 ==========
 
             // 广播消息
