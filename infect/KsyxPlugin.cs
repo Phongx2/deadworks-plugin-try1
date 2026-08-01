@@ -252,7 +252,8 @@ public class KsyxPlugin : DeadworksPluginBase
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
 
-            Timer.Once(500.Milliseconds(), () =>
+            // ========== 延迟 3 秒后重新给装备 ==========
+            Timer.Once(3.Seconds(), () =>
             {
                 Console.WriteLine($"[KSYX] 开始重新给 {selected.PlayerName} 装备...");
                 var pawn = selected.GetHeroPawn();
@@ -270,6 +271,7 @@ public class KsyxPlugin : DeadworksPluginBase
                     Console.WriteLine($"[KSYX] 没有找到保存的装备");
                 }
             });
+            // ========== 重新生成结束 ==========
 
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
