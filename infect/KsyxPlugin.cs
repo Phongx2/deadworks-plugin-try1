@@ -8,12 +8,62 @@ public class KsyxPlugin : DeadworksPluginBase
 
     public List<CCitadelPlayerController> allPlayers = new List<CCitadelPlayerController>();
     public Dictionary<int, List<string>> playerItems = new Dictionary<int, List<string>>();
+    public CCitadelPlayerController? fixedSender = null;
+
+    public override void OnStartupServer()
+    {
+        Console.WriteLine($"[KSYX] ========== 设置游戏规则 ==========");
+        
+        ConVar.Find("citadel_allow_duplicate_heroes")?.SetInt(1);
+        Console.WriteLine($"[KSYX] citadel_allow_duplicate_heroes -> 1");
+        
+        ConVar.Find("citadel_player_starting_gold")?.SetInt(0);
+        Console.WriteLine($"[KSYX] citadel_player_starting_gold -> 0");
+        
+        ConVar.Find("citadel_voice_all_talk")?.SetInt(1);
+        Console.WriteLine($"[KSYX] citadel_voice_all_talk -> 1");
+        
+        ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
+        Console.WriteLine($"[KSYX] citadel_allow_purchasing_anywhere -> 1");
+        
+        ConVar.Find("sv_cheats")?.SetInt(1);
+        Console.WriteLine($"[KSYX] sv_cheats -> 1");
+        
+        ConVar.Find("citadel_trooper_spawn_enabled")?.SetInt(0);
+        Console.WriteLine($"[KSYX] citadel_trooper_spawn_enabled -> 0");
+
+        Console.WriteLine($"[KSYX] 开始清除地图单位...");
+        
+        Server.ExecuteCommand("ent_fire npc_trooper_boss kill");
+        Console.WriteLine($"[KSYX] ent_fire npc_trooper_boss kill");
+        
+        Server.ExecuteCommand("ent_fire npc_boss_tier1 kill");
+        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier1 kill");
+        
+        Server.ExecuteCommand("ent_fire npc_boss_tier2 kill");
+        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier2 kill");
+        
+        Server.ExecuteCommand("ent_fire npc_boss_tier2_weak kill");
+        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier2_weak kill");
+        
+        Server.ExecuteCommand("ent_fire npc_boss_tier3 kill");
+        Console.WriteLine($"[KSYX] ent_fire npc_boss_tier3 kill");
+        
+        Server.ExecuteCommand("ent_fire npc_barrack_boss kill");
+        Console.WriteLine($"[KSYX] ent_fire npc_barrack_boss kill");
+        
+        Server.ExecuteCommand("ent_fire destroyable_building kill");
+        Console.WriteLine($"[KSYX] ent_fire destroyable_building kill");
+        
+        Console.WriteLine($"[KSYX] ========== 游戏规则设置完成 ==========");
+    }
 
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[KSYX] ========== 插件加载 ==========");
         Console.WriteLine($"[KSYX] 加载状态: {(isReload ? "热重载" : "首次加载")}");
         Console.WriteLine($"[KSYX] ===============================");
+        fixedSender = null;
     }
 
     public override void OnUnload()
@@ -36,35 +86,10 @@ public class KsyxPlugin : DeadworksPluginBase
             return;
         }
 
-        // 设置 sv_cheats = 1
-        Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
-        ConVar.Find("sv_cheats")?.SetInt(1);
+        fixedSender = null;
+        Console.WriteLine($"[KSYX] 重置固定发送者");
 
-        // 延迟 0.5 秒后发放金币
-        Timer.Once(500.Milliseconds(), () =>
-        {
-            Console.WriteLine($"[KSYX] 开始发放金币...");
-            
-            ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
-            Console.WriteLine($"[KSYX] citadel_allow_purchasing_anywhere -> 1");
-
-            foreach (var player in allPlayers)
-            {
-                var pawn = player.GetHeroPawn();
-                if (pawn != null)
-                {
-                    pawn.SetCurrency(ECurrencyType.EGold, 32000);
-                    Console.WriteLine($"[KSYX] {player.PlayerName} (槽位 {player.Slot}) -> 设置金币为 32000");
-                }
-                else
-                {
-                    Console.WriteLine($"[KSYX] {player.PlayerName} -> 没有英雄实体，无法设置金币");
-                }
-            }
-        });
-
-        // 只把 Team 3 的玩家移到 Team 2
-        Console.WriteLine($"[KSYX] 开始将 Team 3 玩家移到 Team 2...");
+        Console.WriteLine($"[KSYX] 开始移动玩家到 Team 2...");
         foreach (var player in allPlayers)
         {
             var pawn = player.GetHeroPawn();
@@ -75,7 +100,6 @@ public class KsyxPlugin : DeadworksPluginBase
                 pawn.AddModifier("citadel_change_team", kv);
                 Console.WriteLine($"[KSYX] {player.PlayerName} (Team 3) -> Team 2");
 
-                // ========== 延迟 1 秒后移除 citadel_change_team modifier ==========
                 var pawnRef = pawn;
                 Timer.Once(1.Seconds(), () =>
                 {
@@ -85,11 +109,14 @@ public class KsyxPlugin : DeadworksPluginBase
                         Console.WriteLine($"[KSYX] {player.PlayerName} -> 移除 citadel_change_team modifier");
                     }
                 });
-                // ========== 移除结束 ==========
+            }
+            else if (pawn != null && pawn.TeamNum == 2)
+            {
+                Console.WriteLine($"[KSYX] {player.PlayerName} 已经是 Team 2，跳过");
             }
             else
             {
-                Console.WriteLine($"[KSYX] {player.PlayerName} 不是 Team 3，跳过");
+                Console.WriteLine($"[KSYX] {player.PlayerName} 没有英雄实体，跳过");
             }
         }
 
@@ -97,7 +124,7 @@ public class KsyxPlugin : DeadworksPluginBase
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
 
         SendGlobalChatMessage($"母体还有 {seconds} 秒后出现");
-        Console.WriteLine($"[KSYX] 已发送初始聊天消息");
+        Console.WriteLine($"[KSYX] 已发送初始聊天消息，固定发送者已确定");
 
         var timer = Timer.Every(1.Seconds(), () =>
         {
@@ -139,7 +166,6 @@ public class KsyxPlugin : DeadworksPluginBase
             var selectedPawn = selected.GetHeroPawn();
             if (selectedPawn != null)
             {
-                // 保存该玩家的装备
                 Console.WriteLine($"[KSYX] 保存 {selected.PlayerName} 的装备...");
                 var items = new List<string>();
                 var abilityComponent = selectedPawn.AbilityComponent;
@@ -161,13 +187,11 @@ public class KsyxPlugin : DeadworksPluginBase
                 playerItems[selected.Slot] = items;
                 Console.WriteLine($"[KSYX] 共保存 {items.Count} 件装备");
 
-                // 选中的玩家移到 Team 3（使用 modifier）
                 using var kv = new KeyValues3();
                 kv.SetInt("team", 3);
                 selectedPawn.AddModifier("citadel_change_team", kv);
                 Console.WriteLine($"[KSYX] {selected.PlayerName} -> Team 3");
 
-                // ========== 延迟 1 秒后移除 citadel_change_team modifier ==========
                 var pawnRef = selectedPawn;
                 Timer.Once(1.Seconds(), () =>
                 {
@@ -177,13 +201,11 @@ public class KsyxPlugin : DeadworksPluginBase
                         Console.WriteLine($"[KSYX] {selected.PlayerName} -> 移除 citadel_change_team modifier");
                     }
                 });
-                // ========== 移除结束 ==========
             }
 
             selected.SelectHero(Heroes.Necro);
             Console.WriteLine($"[KSYX] {selected.PlayerName} -> Necro");
 
-            // 延迟 0.5 秒后重新给装备
             Timer.Once(500.Milliseconds(), () =>
             {
                 Console.WriteLine($"[KSYX] 开始重新给 {selected.PlayerName} 装备...");
@@ -202,10 +224,6 @@ public class KsyxPlugin : DeadworksPluginBase
                     Console.WriteLine($"[KSYX] 没有找到保存的装备");
                 }
             });
-
-            // 关闭 sv_cheats
-            ConVar.Find("sv_cheats")?.SetInt(0);
-            Console.WriteLine($"[KSYX] sv_cheats -> 0");
 
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
@@ -229,13 +247,17 @@ public class KsyxPlugin : DeadworksPluginBase
     {
         if (allPlayers.Count == 0) return;
 
-        var random = new Random();
-        var sender = allPlayers[random.Next(allPlayers.Count)];
+        if (fixedSender == null)
+        {
+            var random = new Random();
+            fixedSender = allPlayers[random.Next(allPlayers.Count)];
+            Console.WriteLine($"[KSYX] 固定发送者确定为: {fixedSender.PlayerName}");
+        }
 
         var msg = new CCitadelUserMsg_ChatMsg
         {
             Text = text,
-            PlayerSlot = sender.Slot
+            PlayerSlot = fixedSender.Slot
         };
 
         NetMessages.Send(msg, RecipientFilter.All);
