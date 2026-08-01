@@ -277,8 +277,8 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Vector3 attackerPos = attacker.Position;
         Vector3 forward = GetForwardVector(attacker.EyeAngles);
-        float meleeRange = 250f;
-        float angleThreshold = 0.3f;
+        float meleeRange = 180f;
+        float angleThreshold = 0.1f;
 
         foreach (var victim in team2Pawns)
         {
