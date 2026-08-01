@@ -204,7 +204,6 @@ public class KsyxPlugin : DeadworksPluginBase
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(GameEvent ev)
     {
-        // 获取施法者
         var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
         if (pawn == null)
         {
@@ -212,32 +211,25 @@ public class KsyxPlugin : DeadworksPluginBase
             return HookResult.Continue;
         }
 
-        // 获取技能名称
         string abilityName = ev.GetString("abilityname", "");
         Console.WriteLine($"[KSYX][DEBUG] OnPlayerUsedAbility: {abilityName}");
 
-        // 只处理近战攻击（ability_melee 开头）
         if (!abilityName.StartsWith("ability_melee"))
             return HookResult.Continue;
 
-        // 检查是否是 Team 3 玩家
         if (pawn.TeamNum != 3)
         {
             Console.WriteLine($"[KSYX][DEBUG] 施法者不是 Team 3 (当前 Team {pawn.TeamNum})，跳过");
             return HookResult.Continue;
         }
 
-        // 获取近战类型（轻击/重击）
         string annotation = ev.GetString("annotation", "");
         Console.WriteLine($"[KSYX][DEBUG] 近战类型: {annotation}");
 
-        // 延迟一帧检测命中的目标（伤害已经结算）
         var attacker = pawn;
         Timer.NextTick(() =>
         {
             if (attacker == null || !attacker.IsValid) return;
-            
-            // 检测攻击者附近是否有 Team 2 玩家被命中
             DetectMeleeHitAndInfect(attacker);
         });
 
@@ -251,7 +243,6 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Console.WriteLine($"[KSYX][DEBUG] 检测近战命中目标...");
 
-        // 获取所有 Team 2 的玩家 Pawn
         var team2Pawns = Players.GetAllPawns()
             .Where(p => p != null && p.IsValid && p.TeamNum == 2)
             .ToList();
@@ -262,7 +253,6 @@ public class KsyxPlugin : DeadworksPluginBase
             return;
         }
 
-        // 获取攻击者的位置和朝向
         Vector3 attackerPos = attacker.Position;
         Vector3 forward = GetForwardVector(attacker.EyeAngles);
         float meleeRange = 250f;
@@ -331,7 +321,6 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Console.WriteLine($"[KSYX][重要] 开始感染 {victimController.PlayerName}...");
 
-        // 1. 读取装备（保存）
         Console.WriteLine($"[KSYX][DEBUG] 保存 {victimController.PlayerName} 的装备...");
         var items = new List<string>();
         var abilityComponent = victim.AbilityComponent;
@@ -353,7 +342,6 @@ public class KsyxPlugin : DeadworksPluginBase
         playerItems[victimController.Slot] = items;
         Console.WriteLine($"[KSYX][DEBUG] 共保存 {items.Count} 件装备");
 
-        // 2. 切换队伍到 Team 3（使用 modifier）
         Console.WriteLine($"[KSYX][DEBUG] 切换队伍到 Team 3...");
         using var kv = new KeyValues3();
         kv.SetInt("team", 3);
@@ -375,12 +363,10 @@ public class KsyxPlugin : DeadworksPluginBase
             }
         });
 
-        // 3. 切换英雄为 Necro
         Console.WriteLine($"[KSYX][DEBUG] 切换英雄为 Necro...");
         victimController.SelectHero(Heroes.Necro);
         Console.WriteLine($"[KSYX][DEBUG] {victimController.PlayerName} -> Necro");
 
-        // 4. 延迟 3 秒后恢复装备
         var selectedSlot = victimController.Slot;
         Timer.Once(3.Seconds(), () =>
         {
@@ -402,7 +388,6 @@ public class KsyxPlugin : DeadworksPluginBase
             }
         });
 
-        // 5. 广播消息
         Console.WriteLine($"[KSYX][DEBUG] 广播感染消息...");
         var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
@@ -641,10 +626,8 @@ public class KsyxPlugin : DeadworksPluginBase
                 }
             });
 
-            // ========== 启动 Team 3 周期性 Buff（母体出现后才启动） ==========
             Console.WriteLine($"[KSYX] 母体已出现，启动 Team 3 周期性 Buff...");
             StartTeam3BuffTimer();
-            // ========== Buff 启动结束 ==========
 
             var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
@@ -663,6 +646,46 @@ public class KsyxPlugin : DeadworksPluginBase
 
         Console.WriteLine($"[KSYX] 命令执行完成，等待倒计时...");
     }
+
+    // ========== /r 命令：取消 Team 3 周期性 Buff ==========
+    [Command("r", Description = "取消Team 3周期性Buff")]
+    public void CmdCancelBuff(CCitadelPlayerController caller)
+    {
+        Console.WriteLine($"[KSYX] ========== 取消Buff命令触发 ==========");
+        Console.WriteLine($"[KSYX] 执行者: {(caller != null ? caller.PlayerName : "null")}");
+
+        if (team3BuffTimer == null)
+        {
+            Console.WriteLine($"[KSYX] 没有正在运行的Buff计时器");
+            if (caller != null)
+            {
+                caller.PrintToConsole("没有正在运行的Buff计时器");
+            }
+            return;
+        }
+
+        team3BuffTimer.Cancel();
+        team3BuffTimer = null;
+        Console.WriteLine($"[KSYX] Team 3 周期性Buff已取消");
+
+        if (caller != null)
+        {
+            caller.PrintToConsole("Team 3 周期性Buff已取消");
+        }
+
+        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "⛔",
+            DescriptionLocstring = "僵尸 Buff 已被取消！"
+        };
+        foreach (var player in allPlayers)
+        {
+            NetMessages.Send(msg, RecipientFilter.Single(player.EntityIndex - 1));
+        }
+
+        Console.WriteLine($"[KSYX] ========== 取消Buff命令结束 ==========");
+    }
+    // ========== /r 命令结束 ==========
 
     public void SendGlobalChatMessage(string text)
     {
