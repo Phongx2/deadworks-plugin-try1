@@ -14,7 +14,11 @@ public class KsyxPlugin : DeadworksPluginBase
     public bool isGameRunning = false;
     public bool isTeam2CheckEnabled = false;
     public bool isMeleeInfectionEnabled = true;
-    public bool isLastOne = false;  // 新增：标记是否为最后一人
+    public bool isLastOne = false;
+
+    // ========== 死亡检测相关 ==========
+    private HashSet<CCitadelPlayerController> _deadPlayers = new HashSet<CCitadelPlayerController>();
+    private bool _deathLogging = true;
 
     public override void OnStartupServer()
     {
@@ -96,6 +100,7 @@ public class KsyxPlugin : DeadworksPluginBase
         isTeam2CheckEnabled = false;
         isMeleeInfectionEnabled = true;
         isLastOne = false;
+        _deadPlayers.Clear();
     }
 
     public override void OnUnload()
@@ -107,6 +112,60 @@ public class KsyxPlugin : DeadworksPluginBase
         isTeam2CheckEnabled = false;
         isMeleeInfectionEnabled = true;
         isLastOne = false;
+        _deadPlayers.Clear();
+    }
+
+    // ========== 死亡检测 Tick 事件 ==========
+    [GameEvent.Tick.Server]
+    public void OnServerTick()
+    {
+        if (!isGameRunning) return;
+
+        var allControllers = Players.GetAll();
+        if (allControllers == null) return;
+
+        foreach (var controller in allControllers)
+        {
+            if (controller == null || !controller.IsValid) continue;
+
+            // 如果已经在死亡列表中，跳过
+            if (_deadPlayers.Contains(controller)) continue;
+
+            var pawn = controller.GetHeroPawn();
+            if (pawn == null || !pawn.IsValid) continue;
+
+            // 判断是否死亡
+            bool isDead = pawn.LifeState == LifeState.Dead || pawn.LifeState == LifeState.Dying;
+            if (!isDead && pawn.Health <= 0)
+            {
+                isDead = true;
+            }
+
+            // 处理死亡玩家 -> 移至观战队伍 (Team 1)，永久不移除
+            if (isDead)
+            {
+                // 观战队伍 ID 通常是 1，如果不对请测试调整为 0 或 4
+                controller.ChangeTeam(1);
+                
+                _deadPlayers.Add(controller);
+                
+                if (_deathLogging)
+                {
+                    Console.WriteLine($"[KSYX][死亡] 玩家 {controller.PlayerName} 已死亡，永久移至观战队伍 (Team 1)");
+                }
+
+                // 广播死亡消息
+                var hudMsg = new CCitadelUserMsg_HudGameAnnouncement
+                {
+                    TitleLocstring = "💀",
+                    DescriptionLocstring = $"{controller.PlayerName} 已死亡，进入观战模式"
+                };
+                foreach (var player in allPlayers)
+                {
+                    NetMessages.Send(hudMsg, RecipientFilter.Single(player.EntityIndex - 1));
+                }
+            }
+        }
     }
 
     // ========== 辅助：从 Pawn 获取 Controller ==========
@@ -561,7 +620,8 @@ public class KsyxPlugin : DeadworksPluginBase
         isTeam2CheckEnabled = false;
         isMeleeInfectionEnabled = true;
         isLastOne = false;
-        Console.WriteLine($"[KSYX] 重置固定发送者，游戏开始，近战感染已启用");
+        _deadPlayers.Clear(); // 清理死亡列表
+        Console.WriteLine($"[KSYX] 重置固定发送者，游戏开始，近战感染已启用，死亡列表已清空");
 
         Console.WriteLine($"[KSYX] 设置 sv_cheats = 1");
         ConVar.Find("sv_cheats")?.SetInt(1);
