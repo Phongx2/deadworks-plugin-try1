@@ -619,7 +619,7 @@ public class KsyxPlugin : DeadworksPluginBase
             }
         }
 
-        int seconds = 15;
+        int seconds = 30;
         Console.WriteLine($"[KSYX] 开始倒计时: {seconds}秒");
 
         SendGlobalChatMessage($"母体还有 {seconds} 秒后出现");
