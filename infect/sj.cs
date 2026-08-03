@@ -9,7 +9,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
     public IHandle? shuffleTimer = null;
     public bool isShuffling = false;
-    public bool isApplying = false;  // 是否正在分步应用
+    public bool isApplying = false;
 
     // ========== 技能库（1-3技能，共享池） ==========
     private readonly List<string> _signatureSkills = new List<string>
@@ -106,7 +106,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         "ability_doorman_luggage_cart"
     };
 
-    // ========== 技能库（4技能，独立池） ==========
     private readonly List<string> _ultimateSkills = new List<string>
     {
         "ability_fire_bomb",
@@ -141,7 +140,10 @@ public class SkillShufflePlugin : DeadworksPluginBase
         "ability_doorman_hotel"
     };
 
-    // ========== 分步应用缓存 ==========
+    // ========== SchemaAccessor for UpgradeBits ==========
+    private static readonly SchemaAccessor<int> _upgradeBitsAccessor =
+        new("CCitadelAbility"u8, "m_nUpgradeBits"u8);
+
     private List<(CCitadelPlayerPawn pawn, EAbilitySlot slot, int upgradeBits, string newSkillName)>? _applyQueue;
     private int _applyIndex = 0;
 
@@ -179,19 +181,21 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
+    // ========== 使用 SchemaAccessor 获取升级位 ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
-        return ability.UpgradeBits;
+        return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
+    // ========== 使用 SchemaAccessor 设置升级位 ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
-        ability.UpgradeBits = upgradeBits;
+        _upgradeBitsAccessor.Set(ability.Handle, upgradeBits);
     }
 
-    // ========== 计算洗牌结果（只计算，不应用） ==========
+    // ========== 计算洗牌结果 ==========
     private List<(CCitadelPlayerPawn pawn, EAbilitySlot slot, int upgradeBits, string newSkillName)> CalculateShuffleResult()
     {
         var result = new List<(CCitadelPlayerPawn, EAbilitySlot, int, string)>();
@@ -199,7 +203,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         var allPawns = Players.GetAllPawns().ToList();
         if (allPawns.Count == 0) return result;
 
-        // 收集所有玩家技能信息
         var playerSkillInfos = new List<(CCitadelPlayerPawn pawn, EAbilitySlot slot, int upgradeBits)>();
         foreach (var pawn in allPawns)
         {
@@ -224,7 +227,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
         var random = new Random();
 
-        // 生成 1-3 技能池
         var shuffledSigPool = _signatureSkills.OrderBy(x => random.Next()).ToList();
         var selectedSigSkills = new List<string>();
         while (selectedSigSkills.Count < sigInfos.Count)
@@ -238,7 +240,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             }
         }
 
-        // 生成 4 技能池
         var shuffledUltPool = _ultimateSkills.OrderBy(x => random.Next()).ToList();
         var selectedUltSkills = new List<string>();
         while (selectedUltSkills.Count < ultInfos.Count)
@@ -252,7 +253,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             }
         }
 
-        // 构建结果列表
         for (int i = 0; i < sigInfos.Count; i++)
         {
             result.Add((sigInfos[i].pawn, sigInfos[i].slot, sigInfos[i].upgradeBits, selectedSigSkills[i]));
@@ -270,7 +270,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
     {
         if (_applyQueue == null || _applyIndex >= _applyQueue.Count)
         {
-            // 全部完成
             isApplying = false;
             _applyQueue = null;
             _applyIndex = 0;
@@ -283,7 +282,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
         if (pawn == null || !pawn.IsValid)
         {
-            // 无效pawn，继续下一个
             Timer.NextTick(() => ApplyOneSkill());
             return;
         }
@@ -300,7 +298,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             if (oldName == newSkillName)
             {
                 SetSkillUpgradeBits(oldAbility, upgradeBits);
-                // 继续下一个
                 Timer.NextTick(() => ApplyOneSkill());
                 return;
             }
@@ -314,11 +311,10 @@ public class SkillShufflePlugin : DeadworksPluginBase
             SetSkillUpgradeBits(newAbility, upgradeBits);
         }
 
-        // 继续下一个（下一帧执行）
         Timer.NextTick(() => ApplyOneSkill());
     }
 
-    // ========== 执行洗牌（计算 + 分步应用） ==========
+    // ========== 执行洗牌 ==========
     private void ExecuteShuffle()
     {
         if (!isShuffling) return;
@@ -330,7 +326,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
         Console.WriteLine($"[{Name}][洗牌] 开始计算...");
 
-        // 计算洗牌结果
         var result = CalculateShuffleResult();
         if (result.Count == 0)
         {
@@ -340,12 +335,10 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
         Console.WriteLine($"[{Name}][洗牌] 计算完成，共 {result.Count} 个技能需要替换，开始分步应用");
 
-        // 设置应用队列
         _applyQueue = result;
         _applyIndex = 0;
         isApplying = true;
 
-        // 开始应用第一个（后续由 ApplyOneSkill 通过 NextTick 链式调用）
         ApplyOneSkill();
     }
 
@@ -368,10 +361,8 @@ public class SkillShufflePlugin : DeadworksPluginBase
         isShuffling = true;
         if (caller != null) caller.PrintToConsole("技能洗牌已启动（每5秒刷新）");
 
-        // 立即执行一次
         ExecuteShuffle();
 
-        // 每5秒执行一次
         shuffleTimer = Timer.Every(5.Seconds(), () =>
         {
             ExecuteShuffle();
