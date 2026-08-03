@@ -65,5 +65,5 @@ jobs:
     - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
-        name: zombi_mod
+        name: sj
         path: infect/bin/Release/net10.0/infect.dll
