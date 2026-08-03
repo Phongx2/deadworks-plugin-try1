@@ -144,8 +144,14 @@ public class SkillShufflePlugin : DeadworksPluginBase
     private static readonly SchemaAccessor<int> _upgradeBitsAccessor =
         new("CCitadelAbility"u8, "m_nUpgradeBits"u8);
 
-    private List<(CCitadelPlayerPawn pawn, EAbilitySlot slot, int upgradeBits, string newSkillName)>? _applyQueue;
-    private int _applyIndex = 0;
+    // ========== 打乱后的技能队列 ==========
+    private List<string> _shuffledSigQueue = new List<string>();
+    private List<string> _shuffledUltQueue = new List<string>();
+    private int _sigIndex = 0;
+    private int _ultIndex = 0;
+
+    // ========== 待应用的技能替换队列 ==========
+    private Queue<(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName)> _applyQueue = new Queue<(CCitadelPlayerPawn, EAbilitySlot, string)>();
 
     public override void OnLoad(bool isReload)
     {
@@ -155,8 +161,12 @@ public class SkillShufflePlugin : DeadworksPluginBase
         shuffleTimer = null;
         isShuffling = false;
         isApplying = false;
-        _applyQueue = null;
-        _applyIndex = 0;
+        _applyQueue.Clear();
+        _sigIndex = 0;
+        _ultIndex = 0;
+        _shuffledSigQueue.Clear();
+        _shuffledUltQueue.Clear();
+        ShufflePools();
     }
 
     public override void OnUnload()
@@ -166,8 +176,9 @@ public class SkillShufflePlugin : DeadworksPluginBase
         shuffleTimer = null;
         isShuffling = false;
         isApplying = false;
-        _applyQueue = null;
-        _applyIndex = 0;
+        _applyQueue.Clear();
+        _shuffledSigQueue.Clear();
+        _shuffledUltQueue.Clear();
     }
 
     private CCitadelPlayerController? GetControllerFromPawn(CCitadelPlayerPawn pawn)
@@ -181,168 +192,190 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 使用 SchemaAccessor 获取升级位 ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
         return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
-    // ========== 使用 SchemaAccessor 设置升级位 ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
         _upgradeBitsAccessor.Set(ability.Handle, upgradeBits);
     }
 
-    // ========== 计算洗牌结果 ==========
-    private List<(CCitadelPlayerPawn pawn, EAbilitySlot slot, int upgradeBits, string newSkillName)> CalculateShuffleResult()
+    private void ShufflePools()
     {
-        var result = new List<(CCitadelPlayerPawn, EAbilitySlot, int, string)>();
+        var random = new Random();
+        _shuffledSigQueue = _signatureSkills.OrderBy(x => random.Next()).ToList();
+        _shuffledUltQueue = _ultimateSkills.OrderBy(x => random.Next()).ToList();
+        _sigIndex = 0;
+        _ultIndex = 0;
+        Console.WriteLine($"[{Name}] 技能池已打乱");
+    }
+
+    private string GetNextSignatureSkill()
+    {
+        if (_sigIndex >= _shuffledSigQueue.Count)
+        {
+            ShufflePools();
+        }
+        return _shuffledSigQueue[_sigIndex++];
+    }
+
+    private string GetNextUltimateSkill()
+    {
+        if (_ultIndex >= _shuffledUltQueue.Count)
+        {
+            ShufflePools();
+        }
+        return _shuffledUltQueue[_ultIndex++];
+    }
+
+    private void BuildApplyQueue()
+    {
+        _applyQueue.Clear();
 
         var allPawns = Players.GetAllPawns().ToList();
-        if (allPawns.Count == 0) return result;
+        if (allPawns.Count == 0) return;
 
-        var playerSkillInfos = new List<(CCitadelPlayerPawn pawn, EAbilitySlot slot, int upgradeBits)>();
         foreach (var pawn in allPawns)
         {
             if (pawn == null || !pawn.IsValid) continue;
-            var abilities = pawn.AbilityComponent?.Abilities;
-            if (abilities == null) continue;
 
-            foreach (var ability in abilities)
-            {
-                if (ability == null) continue;
-                var slot = ability.AbilitySlot;
-                if (slot < EAbilitySlot.Signature1 || slot > EAbilitySlot.Signature4)
-                    continue;
-                playerSkillInfos.Add((pawn, slot, GetSkillUpgradeBits(ability)));
-            }
+            _applyQueue.Enqueue((pawn, EAbilitySlot.Signature1, GetNextSignatureSkill()));
+            _applyQueue.Enqueue((pawn, EAbilitySlot.Signature2, GetNextSignatureSkill()));
+            _applyQueue.Enqueue((pawn, EAbilitySlot.Signature3, GetNextSignatureSkill()));
+            _applyQueue.Enqueue((pawn, EAbilitySlot.Signature4, GetNextUltimateSkill()));
         }
-
-        if (playerSkillInfos.Count == 0) return result;
-
-        var sigInfos = playerSkillInfos.Where(info => info.slot >= EAbilitySlot.Signature1 && info.slot <= EAbilitySlot.Signature3).ToList();
-        var ultInfos = playerSkillInfos.Where(info => info.slot == EAbilitySlot.Signature4).ToList();
-
-        var random = new Random();
-
-        var shuffledSigPool = _signatureSkills.OrderBy(x => random.Next()).ToList();
-        var selectedSigSkills = new List<string>();
-        while (selectedSigSkills.Count < sigInfos.Count)
-        {
-            var remaining = sigInfos.Count - selectedSigSkills.Count;
-            var take = Math.Min(remaining, shuffledSigPool.Count);
-            selectedSigSkills.AddRange(shuffledSigPool.Take(take));
-            if (selectedSigSkills.Count < sigInfos.Count)
-            {
-                shuffledSigPool = _signatureSkills.OrderBy(x => random.Next()).ToList();
-            }
-        }
-
-        var shuffledUltPool = _ultimateSkills.OrderBy(x => random.Next()).ToList();
-        var selectedUltSkills = new List<string>();
-        while (selectedUltSkills.Count < ultInfos.Count)
-        {
-            var remaining = ultInfos.Count - selectedUltSkills.Count;
-            var take = Math.Min(remaining, shuffledUltPool.Count);
-            selectedUltSkills.AddRange(shuffledUltPool.Take(take));
-            if (selectedUltSkills.Count < ultInfos.Count)
-            {
-                shuffledUltPool = _ultimateSkills.OrderBy(x => random.Next()).ToList();
-            }
-        }
-
-        for (int i = 0; i < sigInfos.Count; i++)
-        {
-            result.Add((sigInfos[i].pawn, sigInfos[i].slot, sigInfos[i].upgradeBits, selectedSigSkills[i]));
-        }
-        for (int i = 0; i < ultInfos.Count; i++)
-        {
-            result.Add((ultInfos[i].pawn, ultInfos[i].slot, ultInfos[i].upgradeBits, selectedUltSkills[i]));
-        }
-
-        return result;
     }
 
-    // ========== 应用单个技能替换 ==========
+    // ========== 分步应用 ==========
+    private enum ApplyStep
+    {
+        SaveUpgrade,
+        RemoveOld,
+        AddNew,
+        RestoreUpgrade,
+        Next
+    }
+
+    private (CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits, ApplyStep step)? _currentApplyState = null;
+
     private void ApplyOneSkill()
     {
-        if (_applyQueue == null || _applyIndex >= _applyQueue.Count)
+        if (_currentApplyState == null)
         {
-            isApplying = false;
-            _applyQueue = null;
-            _applyIndex = 0;
-            Console.WriteLine($"[{Name}][应用] 所有技能替换完成");
-            return;
-        }
-
-        var (pawn, slot, upgradeBits, newSkillName) = _applyQueue[_applyIndex];
-        _applyIndex++;
-
-        if (pawn == null || !pawn.IsValid)
-        {
-            Timer.NextTick(() => ApplyOneSkill());
-            return;
-        }
-
-        var controller = GetControllerFromPawn(pawn);
-        var playerName = controller?.PlayerName ?? "Unknown";
-
-        var oldAbility = pawn.AbilityComponent?.Abilities
-            .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
-
-        if (oldAbility != null && oldAbility.IsValid)
-        {
-            var oldName = oldAbility.AbilityName;
-            if (oldName == newSkillName)
+            if (_applyQueue.Count == 0)
             {
-                SetSkillUpgradeBits(oldAbility, upgradeBits);
+                isApplying = false;
+                return;
+            }
+
+            var (pawn, slot, newSkillName) = _applyQueue.Dequeue();
+            if (pawn == null || !pawn.IsValid)
+            {
                 Timer.NextTick(() => ApplyOneSkill());
                 return;
             }
 
-            pawn.RemoveAbility(oldName);
+            _currentApplyState = (pawn, slot, newSkillName, 0, ApplyStep.SaveUpgrade);
         }
 
-        var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
-        if (newAbility != null)
+        var state = _currentApplyState.Value;
+        var pawn = state.pawn;
+        var slot = state.slot;
+        var newSkillName = state.newSkillName;
+        var upgradeBits = state.upgradeBits;
+        var step = state.step;
+
+        if (!pawn.IsValid)
         {
-            SetSkillUpgradeBits(newAbility, upgradeBits);
+            _currentApplyState = null;
+            Timer.NextTick(() => ApplyOneSkill());
+            return;
         }
 
-        Timer.NextTick(() => ApplyOneSkill());
+        switch (step)
+        {
+            case ApplyStep.SaveUpgrade:
+                var oldAbility = pawn.AbilityComponent?.Abilities
+                    .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
+
+                if (oldAbility != null && oldAbility.IsValid)
+                {
+                    upgradeBits = GetSkillUpgradeBits(oldAbility);
+                }
+                else
+                {
+                    upgradeBits = 0;
+                }
+
+                _currentApplyState = (pawn, slot, newSkillName, upgradeBits, ApplyStep.RemoveOld);
+                Timer.NextTick(() => ApplyOneSkill());
+                break;
+
+            case ApplyStep.RemoveOld:
+                var oldAbility2 = pawn.AbilityComponent?.Abilities
+                    .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
+
+                if (oldAbility2 != null && oldAbility2.IsValid)
+                {
+                    var oldName = oldAbility2.AbilityName;
+                    if (oldName != newSkillName)
+                    {
+                        pawn.RemoveAbility(oldName);
+                    }
+                    else
+                    {
+                        _currentApplyState = null;
+                        Timer.NextTick(() => ApplyOneSkill());
+                        return;
+                    }
+                }
+
+                _currentApplyState = (pawn, slot, newSkillName, upgradeBits, ApplyStep.AddNew);
+                Timer.NextTick(() => ApplyOneSkill());
+                break;
+
+            case ApplyStep.AddNew:
+                var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
+                _currentApplyState = (pawn, slot, newSkillName, upgradeBits, ApplyStep.RestoreUpgrade);
+                Timer.NextTick(() => ApplyOneSkill());
+                break;
+
+            case ApplyStep.RestoreUpgrade:
+                if (upgradeBits > 0)
+                {
+                    var newAbility2 = pawn.AbilityComponent?.Abilities
+                        .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
+                    if (newAbility2 != null && newAbility2.IsValid)
+                    {
+                        SetSkillUpgradeBits(newAbility2, upgradeBits);
+                    }
+                }
+
+                _currentApplyState = null;
+                Timer.NextTick(() => ApplyOneSkill());
+                break;
+        }
     }
 
-    // ========== 执行洗牌 ==========
     private void ExecuteShuffle()
     {
         if (!isShuffling) return;
-        if (isApplying)
-        {
-            Console.WriteLine($"[{Name}][洗牌] 正在应用中，跳过本次");
-            return;
-        }
+        if (isApplying) return;
 
-        Console.WriteLine($"[{Name}][洗牌] 开始计算...");
+        BuildApplyQueue();
 
-        var result = CalculateShuffleResult();
-        if (result.Count == 0)
-        {
-            Console.WriteLine($"[{Name}][洗牌] 没有技能需要替换");
-            return;
-        }
+        if (_applyQueue.Count == 0) return;
 
-        Console.WriteLine($"[{Name}][洗牌] 计算完成，共 {result.Count} 个技能需要替换，开始分步应用");
-
-        _applyQueue = result;
-        _applyIndex = 0;
         isApplying = true;
-
-        ApplyOneSkill();
+        _currentApplyState = null;
+        Timer.NextTick(() => ApplyOneSkill());
     }
 
-    // ========== 启动技能洗牌 ==========
+    // ========== 命令 ==========
     [Command("sj", Description = "启动/停止技能洗牌（每5秒刷新）")]
     public void CmdShuffle(CCitadelPlayerController caller)
     {
@@ -351,9 +384,9 @@ public class SkillShufflePlugin : DeadworksPluginBase
             isShuffling = false;
             shuffleTimer?.Cancel();
             shuffleTimer = null;
-            _applyQueue = null;
-            _applyIndex = 0;
+            _applyQueue.Clear();
             isApplying = false;
+            _currentApplyState = null;
             if (caller != null) caller.PrintToConsole("技能洗牌已停止");
             return;
         }
@@ -361,6 +394,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         isShuffling = true;
         if (caller != null) caller.PrintToConsole("技能洗牌已启动（每5秒刷新）");
 
+        ShufflePools();
         ExecuteShuffle();
 
         shuffleTimer = Timer.Every(5.Seconds(), () =>
@@ -369,7 +403,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         });
     }
 
-    // ========== 手动执行一次洗牌 ==========
     [Command("sj_once", Description = "手动执行一次技能洗牌")]
     public void CmdShuffleOnce(CCitadelPlayerController caller)
     {
@@ -378,6 +411,8 @@ public class SkillShufflePlugin : DeadworksPluginBase
             if (caller != null) caller.PrintToConsole("正在应用中，请稍后");
             return;
         }
+
+        ShufflePools();
 
         if (!isShuffling)
         {
@@ -393,7 +428,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         }
     }
 
-    // ========== /r 命令：执行换图 ==========
     [Command("r", Description = "换图到 dl_mid", ServerOnly = true, ConsoleOnly = true, SuppressChat = true)]
     public void CmdChangeLevel(CCitadelPlayerController? caller)
     {
@@ -401,7 +435,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         catch (Exception ex) { Console.WriteLine($"[{Name}] 执行换图命令失败: {ex.Message}"); }
     }
 
-    // ========== /p 命令：暂停/恢复游戏 ==========
     [Command("p", Description = "暂停/恢复游戏", ServerOnly = true, ConsoleOnly = true, SuppressChat = true)]
     public void CmdPauseGame(CCitadelPlayerController? caller)
     {
