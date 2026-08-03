@@ -194,19 +194,18 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 获取技能升级位（只用于读取，SchemaAccessor 读取是安全的） ==========
+    // ========== 获取技能升级位 ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
         return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
-    // ========== 恢复技能升级位（必须使用 CCitadelBaseAbility.UpgradeBits 属性） ==========
+    // ========== 恢复技能升级位 ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
         
-        // 转换为 CCitadelBaseAbility 才能访问 UpgradeBits 属性
         var baseAbility = ability as CCitadelBaseAbility;
         if (baseAbility != null)
         {
@@ -314,26 +313,26 @@ public class SkillShufflePlugin : DeadworksPluginBase
                 var oldAbility = p.AbilityComponent?.Abilities
                     .FirstOrDefault(a => a != null && a.AbilitySlot == s);
 
+                // ========== 玩家控制台输出：读取替换前技能的 UpgradeBits ==========
+                var controller = GetControllerFromPawn(p);
+                var playerName = controller?.PlayerName ?? "Unknown";
+                
                 if (oldAbility != null && oldAbility.IsValid)
                 {
                     upgradeBits = GetSkillUpgradeBits(oldAbility);
-                    
-                    // ========== 控制台输出：读取到的技能等级 ==========
-                    var controller = GetControllerFromPawn(p);
-                    var playerName = controller?.PlayerName ?? "Unknown";
-                    
-                    // 解析等级
-                    bool isUnlocked = (upgradeBits & 0b00001) != 0;
-                    int level = (upgradeBits >> 1) & 0b00111;  // 提取 3 位升级等级
-                    
-                    Console.WriteLine($"[{Name}] [读取] 玩家 {playerName} 槽位 {s} 技能 {oldAbility.AbilityName} - UpgradeBits: {Convert.ToString(upgradeBits, 2).PadLeft(5, '0')} (0b{Convert.ToString(upgradeBits, 2).PadLeft(5, '0')})");
-                    Console.WriteLine($"[{Name}] [读取]   -> 解锁: {isUnlocked}, 等级: {level} (原始值: {upgradeBits})");
-                    // ========== 控制台输出结束 ==========
+                    // 发送到玩家控制台
+                    string slotName = GetSlotName(s);
+                    controller?.PrintToConsole($"[技能洗牌] 槽位 {slotName} 替换前技能: {oldAbility.AbilityName}, UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制) / {upgradeBits} (十进制)");
+                    Console.WriteLine($"[{Name}] {playerName} 槽位 {slotName} 旧技能: {oldAbility.AbilityName}, UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)");
                 }
                 else
                 {
                     upgradeBits = 0;
+                    string slotName = GetSlotName(s);
+                    controller?.PrintToConsole($"[技能洗牌] 槽位 {slotName} 为空，UpgradeBits: 0");
+                    Console.WriteLine($"[{Name}] {playerName} 槽位 {slotName} 为空");
                 }
+                // ========== 输出结束 ==========
 
                 _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RemoveOld);
                 Timer.NextTick(() => ApplyOneSkill());
@@ -368,13 +367,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             case ApplyStep.AddNew:
             {
                 var newAbility = p.AddAbility(newName, (ushort)s);
-                
-                // ========== 控制台输出：添加的新技能 ==========
-                var controller = GetControllerFromPawn(p);
-                var playerName = controller?.PlayerName ?? "Unknown";
-                Console.WriteLine($"[{Name}] [添加] 玩家 {playerName} 槽位 {s} 添加新技能: {newName}");
-                // ========== 控制台输出结束 ==========
-                
                 _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
@@ -390,31 +382,31 @@ public class SkillShufflePlugin : DeadworksPluginBase
                     {
                         SetSkillUpgradeBits(newAbility, upgradeBits);
                         
-                        // ========== 控制台输出：恢复后的技能等级 ==========
+                        // ========== 玩家控制台输出：恢复后的 UpgradeBits ==========
                         var controller = GetControllerFromPawn(p);
-                        var playerName = controller?.PlayerName ?? "Unknown";
-                        
-                        bool isUnlocked = (upgradeBits & 0b00001) != 0;
-                        int level = (upgradeBits >> 1) & 0b00111;
-                        
-                        Console.WriteLine($"[{Name}] [恢复] 玩家 {playerName} 槽位 {s} 技能 {newAbility.AbilityName} - 恢复 UpgradeBits: {Convert.ToString(upgradeBits, 2).PadLeft(5, '0')} (0b{Convert.ToString(upgradeBits, 2).PadLeft(5, '0')})");
-                        Console.WriteLine($"[{Name}] [恢复]   -> 解锁: {isUnlocked}, 等级: {level} (原始值: {upgradeBits})");
-                        // ========== 控制台输出结束 ==========
+                        string slotName = GetSlotName(s);
+                        controller?.PrintToConsole($"[技能洗牌] 槽位 {slotName} 替换后技能: {newAbility.AbilityName}, 已恢复 UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)");
+                        // ========== 输出结束 ==========
                     }
-                }
-                else
-                {
-                    // ========== 升级位为 0，技能未解锁 ==========
-                    var controller = GetControllerFromPawn(p);
-                    var playerName = controller?.PlayerName ?? "Unknown";
-                    Console.WriteLine($"[{Name}] [恢复] 玩家 {playerName} 槽位 {s} - UpgradeBits 为 0，技能未解锁");
-                    // ========== 控制台输出结束 ==========
                 }
 
                 _currentApplyState = null;
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
             }
+        }
+    }
+
+    // ========== 获取槽位名称 ==========
+    private string GetSlotName(EAbilitySlot slot)
+    {
+        switch (slot)
+        {
+            case EAbilitySlot.Signature1: return "1";
+            case EAbilitySlot.Signature2: return "2";
+            case EAbilitySlot.Signature3: return "3";
+            case EAbilitySlot.Signature4: return "4";
+            default: return slot.ToString();
         }
     }
 
