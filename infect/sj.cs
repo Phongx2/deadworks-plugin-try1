@@ -275,129 +275,128 @@ public class SkillShufflePlugin : DeadworksPluginBase
     private (CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits, ApplyStep step)? _currentApplyState = null;
 
     private void ApplyOneSkill()
+{
+    if (_currentApplyState == null)
     {
-        if (_currentApplyState == null)
+        if (_applyQueue.Count == 0)
         {
-            if (_applyQueue.Count == 0)
-            {
-                isApplying = false;
-                return;
-            }
-
-            var (pawn, slot, newSkillName) = _applyQueue.Dequeue();
-            if (pawn == null || !pawn.IsValid)
-            {
-                Timer.NextTick(() => ApplyOneSkill());
-                return;
-            }
-
-            _currentApplyState = (pawn, slot, newSkillName, 0, ApplyStep.SaveUpgrade);
+            isApplying = false;
+            return;
         }
 
-        var state = _currentApplyState.Value;
-        var p = state.pawn;
-        var s = state.slot;
-        var newName = state.newSkillName;
-        var upgradeBits = state.upgradeBits;
-        var step = state.step;
-
-        if (!p.IsValid)
+        var (pawn, slot, newSkillName) = _applyQueue.Dequeue();
+        if (pawn == null || !pawn.IsValid)
         {
-            _currentApplyState = null;
             Timer.NextTick(() => ApplyOneSkill());
             return;
         }
 
-        switch (step)
-        {
-            case ApplyStep.SaveUpgrade:
-            {
-                var oldAbility = p.AbilityComponent?.Abilities
-                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
+        _currentApplyState = (pawn, slot, newSkillName, 0, ApplyStep.SaveUpgrade);
+    }
 
-                var controller = GetControllerFromPawn(p);
-                var playerName = controller?.PlayerName ?? "Unknown";
-                
-                if (oldAbility != null && oldAbility.IsValid)
+    var state = _currentApplyState.Value;
+    var p = state.pawn;
+    var s = state.slot;
+    var newName = state.newSkillName;
+    var upgradeBits = state.upgradeBits;
+    var step = state.step;
+
+    if (!p.IsValid)
+    {
+        _currentApplyState = null;
+        Timer.NextTick(() => ApplyOneSkill());
+        return;
+    }
+
+    // 获取玩家 Controller（在需要时使用）
+    var controller = GetControllerFromPawn(p);
+    var playerName = controller?.PlayerName ?? "Unknown";
+
+    switch (step)
+    {
+        case ApplyStep.SaveUpgrade:
+        {
+            var oldAbility = p.AbilityComponent?.Abilities
+                .FirstOrDefault(a => a != null && a.AbilitySlot == s);
+
+            if (oldAbility != null && oldAbility.IsValid)
+            {
+                upgradeBits = GetSkillUpgradeBits(oldAbility);
+                string slotName = GetSlotName(s);
+                string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 旧技能: {oldAbility.AbilityName}, UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)";
+                controller?.PrintToConsole(msg);
+                Console.WriteLine($"[{Name}] {msg}");
+            }
+            else
+            {
+                upgradeBits = 0;
+                string slotName = GetSlotName(s);
+                string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 为空，UpgradeBits: 0";
+                controller?.PrintToConsole(msg);
+                Console.WriteLine($"[{Name}] {msg}");
+            }
+
+            _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RemoveOld);
+            Timer.NextTick(() => ApplyOneSkill());
+            break;
+        }
+
+        case ApplyStep.RemoveOld:
+        {
+            var oldAbility2 = p.AbilityComponent?.Abilities
+                .FirstOrDefault(a => a != null && a.AbilitySlot == s);
+
+            if (oldAbility2 != null && oldAbility2.IsValid)
+            {
+                var oldName = oldAbility2.AbilityName;
+                if (oldName != newName)
                 {
-                    // ========== 通过 CCitadelBaseAbility.UpgradeBits 属性读取 ==========
-                    upgradeBits = GetSkillUpgradeBits(oldAbility);
-                    string slotName = GetSlotName(s);
-                    string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 旧技能: {oldAbility.AbilityName}, UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)";
-                    controller?.PrintToConsole(msg);
-                    Console.WriteLine($"[{Name}] {msg}");
+                    p.RemoveAbility(oldName);
                 }
                 else
                 {
-                    upgradeBits = 0;
+                    _currentApplyState = null;
+                    Timer.NextTick(() => ApplyOneSkill());
+                    return;
+                }
+            }
+
+            _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.AddNew);
+            Timer.NextTick(() => ApplyOneSkill());
+            break;
+        }
+
+        case ApplyStep.AddNew:
+        {
+            p.AddAbility(newName, (ushort)s);
+            _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
+            Timer.NextTick(() => ApplyOneSkill());
+            break;
+        }
+
+        case ApplyStep.RestoreUpgrade:
+        {
+            if (upgradeBits > 0)
+            {
+                var newAbility = p.AbilityComponent?.Abilities
+                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
+                if (newAbility != null && newAbility.IsValid)
+                {
+                    SetSkillUpgradeBits(newAbility, upgradeBits);
+                    
                     string slotName = GetSlotName(s);
-                    string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 为空，UpgradeBits: 0";
+                    string msg = $"[技能洗牌] 槽位 {slotName} 新技能: {newAbility.AbilityName}, 已恢复 UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)";
                     controller?.PrintToConsole(msg);
                     Console.WriteLine($"[{Name}] {msg}");
                 }
-
-                _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RemoveOld);
-                Timer.NextTick(() => ApplyOneSkill());
-                break;
             }
 
-            case ApplyStep.RemoveOld:
-            {
-                var oldAbility2 = p.AbilityComponent?.Abilities
-                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
-
-                if (oldAbility2 != null && oldAbility2.IsValid)
-                {
-                    var oldName = oldAbility2.AbilityName;
-                    if (oldName != newName)
-                    {
-                        p.RemoveAbility(oldName);
-                    }
-                    else
-                    {
-                        _currentApplyState = null;
-                        Timer.NextTick(() => ApplyOneSkill());
-                        return;
-                    }
-                }
-
-                _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.AddNew);
-                Timer.NextTick(() => ApplyOneSkill());
-                break;
-            }
-
-            case ApplyStep.AddNew:
-            {
-                p.AddAbility(newName, (ushort)s);
-                _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
-                Timer.NextTick(() => ApplyOneSkill());
-                break;
-            }
-
-            case ApplyStep.RestoreUpgrade:
-            {
-                if (upgradeBits > 0)
-                {
-                    var newAbility = p.AbilityComponent?.Abilities
-                        .FirstOrDefault(a => a != null && a.AbilitySlot == s);
-                    if (newAbility != null && newAbility.IsValid)
-                    {
-                        // ========== 通过 CCitadelBaseAbility.UpgradeBits 属性恢复 ==========
-                        SetSkillUpgradeBits(newAbility, upgradeBits);
-                        
-                        string slotName = GetSlotName(s);
-                        string msg = $"[技能洗牌] 槽位 {slotName} 新技能: {newAbility.AbilityName}, 已恢复 UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)";
-                        controller?.PrintToConsole(msg);
-                        Console.WriteLine($"[{Name}] {msg}");
-                    }
-                }
-
-                _currentApplyState = null;
-                Timer.NextTick(() => ApplyOneSkill());
-                break;
-            }
+            _currentApplyState = null;
+            Timer.NextTick(() => ApplyOneSkill());
+            break;
         }
     }
+}
 
     private string GetSlotName(EAbilitySlot slot)
     {
