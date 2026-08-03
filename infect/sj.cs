@@ -140,7 +140,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         "ability_doorman_hotel"
     };
 
-    // ========== SchemaAccessor for UpgradeBits ==========
+    // ========== SchemaAccessor for READING UpgradeBits（只用于读取） ==========
     private static readonly SchemaAccessor<int> _upgradeBitsAccessor =
         new("CCitadelAbility"u8, "m_nUpgradeBits"u8);
 
@@ -194,18 +194,19 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 获取技能升级位（包含解锁状态） ==========
+    // ========== 获取技能升级位（只用于读取） ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
         return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
-    // ========== 恢复技能升级位（同时恢复解锁状态和升级等级） ==========
+    // ========== 恢复技能升级位（使用 UpgradeBits 属性，而非 SchemaAccessor） ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
-        _upgradeBitsAccessor.Set(ability.Handle, upgradeBits);
+        // 直接通过属性设置，会调用原生 SetUpgradeBits 方法
+        ability.UpgradeBits = upgradeBits;
     }
 
     private void ShufflePools()
@@ -310,7 +311,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
                 if (oldAbility != null && oldAbility.IsValid)
                 {
-                    // 保存完整的 UpgradeBits（包含解锁状态 + 升级等级）
                     upgradeBits = GetSkillUpgradeBits(oldAbility);
                 }
                 else
@@ -364,7 +364,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
                         .FirstOrDefault(a => a != null && a.AbilitySlot == s);
                     if (newAbility != null && newAbility.IsValid)
                     {
-                        // 恢复完整的 UpgradeBits（同时恢复解锁状态和升级等级）
+                        // ========== 使用 UpgradeBits 属性设置，会触发原生 SetUpgradeBits ==========
                         SetSkillUpgradeBits(newAbility, upgradeBits);
                     }
                 }
