@@ -201,12 +201,11 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
-    // ========== 恢复技能升级位（使用 UpgradeBits 属性，而非 SchemaAccessor） ==========
+    // ========== 恢复技能升级位（使用 UpgradeBits 属性，触发原生 SetUpgradeBits） ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
-        // 直接通过属性设置，会调用原生 SetUpgradeBits 方法
-        ability.UpgradeBits = upgradeBits;
+        ability.UpgradeBits = upgradeBits;  // 通过属性设置，调用原生方法
     }
 
     private void ShufflePools()
@@ -364,7 +363,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
                         .FirstOrDefault(a => a != null && a.AbilitySlot == s);
                     if (newAbility != null && newAbility.IsValid)
                     {
-                        // ========== 使用 UpgradeBits 属性设置，会触发原生 SetUpgradeBits ==========
                         SetSkillUpgradeBits(newAbility, upgradeBits);
                     }
                 }
