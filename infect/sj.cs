@@ -190,29 +190,18 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 获取技能升级位 ==========
-    private int GetSkillUpgradeBits(CBaseEntity ability)
+    // ========== 获取技能升级位（直接使用 CCitadelBaseAbility.UpgradeBits） ==========
+    private int GetSkillUpgradeBits(CCitadelBaseAbility ability)
     {
         if (ability == null || !ability.IsValid) return 0;
-        
-        var baseAbility = ability as CCitadelBaseAbility;
-        if (baseAbility != null)
-        {
-            return baseAbility.UpgradeBits;
-        }
-        return 0;
+        return ability.UpgradeBits;
     }
 
-    // ========== 恢复技能升级位 ==========
-    private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
+    // ========== 恢复技能升级位（直接使用 CCitadelBaseAbility.UpgradeBits） ==========
+    private void SetSkillUpgradeBits(CCitadelBaseAbility ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
-        
-        var baseAbility = ability as CCitadelBaseAbility;
-        if (baseAbility != null)
-        {
-            baseAbility.UpgradeBits = upgradeBits;
-        }
+        ability.UpgradeBits = upgradeBits;
     }
 
     private void ShufflePools()
@@ -308,7 +297,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             return;
         }
 
-        // 获取玩家 Controller
         var controller = GetControllerFromPawn(p);
         var playerName = controller?.PlayerName ?? "Unknown";
 
@@ -316,12 +304,11 @@ public class SkillShufflePlugin : DeadworksPluginBase
         {
             case ApplyStep.SaveUpgrade:
             {
-                var oldAbility = p.AbilityComponent?.Abilities
-                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
-
+                // ========== 直接获取 CCitadelBaseAbility 并读取 UpgradeBits ==========
+                var oldAbility = p.AbilityComponent?.GetAbilityBySlot(s);
                 if (oldAbility != null && oldAbility.IsValid)
                 {
-                    upgradeBits = GetSkillUpgradeBits(oldAbility);
+                    upgradeBits = oldAbility.UpgradeBits;
                     string slotName = GetSlotName(s);
                     string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 旧技能: {oldAbility.AbilityName}, UpgradeBits: {upgradeBits}";
                     controller?.PrintToConsole(msg);
@@ -343,15 +330,13 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
             case ApplyStep.RemoveOld:
             {
-                var oldAbility2 = p.AbilityComponent?.Abilities
-                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
-
+                var oldAbility2 = p.AbilityComponent?.GetAbilityBySlot(s);
                 if (oldAbility2 != null && oldAbility2.IsValid)
                 {
                     var oldName = oldAbility2.AbilityName;
                     if (oldName != newName)
                     {
-                        p.RemoveAbility(oldName);
+                        p.RemoveAbility(oldAbility2);
                     }
                     else
                     {
@@ -378,11 +363,11 @@ public class SkillShufflePlugin : DeadworksPluginBase
             {
                 if (upgradeBits > 0)
                 {
-                    var newAbility = p.AbilityComponent?.Abilities
-                        .FirstOrDefault(a => a != null && a.AbilitySlot == s);
+                    var newAbility = p.AbilityComponent?.GetAbilityBySlot(s);
                     if (newAbility != null && newAbility.IsValid)
                     {
-                        SetSkillUpgradeBits(newAbility, upgradeBits);
+                        // ========== 直接设置 CCitadelBaseAbility.UpgradeBits ==========
+                        newAbility.UpgradeBits = upgradeBits;
                         
                         string slotName = GetSlotName(s);
                         string msg = $"[技能洗牌] 槽位 {slotName} 新技能: {newAbility.AbilityName}, 已恢复 UpgradeBits: {upgradeBits}";
