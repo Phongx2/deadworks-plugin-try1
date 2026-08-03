@@ -194,19 +194,19 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 获取技能升级位（只用于读取） ==========
+    // ========== 获取技能升级位（只用于读取，SchemaAccessor 读取是安全的） ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
         return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
-    // ========== 恢复技能升级位（使用 UpgradeBits 属性，触发原生 SetUpgradeBits） ==========
+    // ========== 恢复技能升级位（必须使用 CCitadelBaseAbility.UpgradeBits 属性） ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
         
-        // 转换为 CCitadelBaseAbility 来访问 UpgradeBits
+        // 转换为 CCitadelBaseAbility 才能访问 UpgradeBits 属性
         var baseAbility = ability as CCitadelBaseAbility;
         if (baseAbility != null)
         {
@@ -355,7 +355,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
             case ApplyStep.AddNew:
             {
-                p.AddAbility(newName, (ushort)s);
+                var newAbility = p.AddAbility(newName, (ushort)s);
                 _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
