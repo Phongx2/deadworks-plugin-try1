@@ -149,6 +149,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
     private List<string> _shuffledUltQueue = new List<string>();
     private int _sigIndex = 0;
     private int _ultIndex = 0;
+    private bool _isPoolShuffled = false;  // 标记技能池是否已被打乱过
 
     // ========== 待应用的技能替换队列 ==========
     private Queue<(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName)> _applyQueue = new Queue<(CCitadelPlayerPawn, EAbilitySlot, string)>();
@@ -166,7 +167,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         _ultIndex = 0;
         _shuffledSigQueue.Clear();
         _shuffledUltQueue.Clear();
-        ShufflePools();
+        _isPoolShuffled = false;
     }
 
     public override void OnUnload()
@@ -179,6 +180,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         _applyQueue.Clear();
         _shuffledSigQueue.Clear();
         _shuffledUltQueue.Clear();
+        _isPoolShuffled = false;
     }
 
     private CCitadelPlayerController? GetControllerFromPawn(CCitadelPlayerPawn pawn)
@@ -211,6 +213,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         _shuffledUltQueue = _ultimateSkills.OrderBy(x => random.Next()).ToList();
         _sigIndex = 0;
         _ultIndex = 0;
+        _isPoolShuffled = true;
         Console.WriteLine($"[{Name}] 技能池已打乱");
     }
 
@@ -402,7 +405,12 @@ public class SkillShufflePlugin : DeadworksPluginBase
         isShuffling = true;
         if (caller != null) caller.PrintToConsole("技能洗牌已启动（每5秒刷新）");
 
-        ShufflePools();
+        // 如果技能池从未被打乱过，先打乱一次
+        if (!_isPoolShuffled)
+        {
+            ShufflePools();
+        }
+
         ExecuteShuffle();
 
         shuffleTimer = Timer.Every(5.Seconds(), () =>
@@ -411,7 +419,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         });
     }
 
-    [Command("sj_once", Description = "手动执行一次技能洗牌")]
+    [Command("sj_once", Description = "手动执行一次完整洗牌（打乱技能池→替换到最后一个玩家4技能）")]
     public void CmdShuffleOnce(CCitadelPlayerController caller)
     {
         if (isApplying)
@@ -420,10 +428,33 @@ public class SkillShufflePlugin : DeadworksPluginBase
             return;
         }
 
-        ShufflePools();
+        // ========== 条件：技能池从未打乱过，或者已经抵达队列末尾 ==========
+        bool needShuffle = false;
+        if (!_isPoolShuffled)
+        {
+            needShuffle = true;
+            Console.WriteLine($"[{Name}] 技能池从未被打乱过，执行打乱");
+        }
+        else if (_sigIndex >= _shuffledSigQueue.Count && _ultIndex >= _shuffledUltQueue.Count)
+        {
+            needShuffle = true;
+            Console.WriteLine($"[{Name}] 技能池已耗尽，执行重新打乱");
+        }
+        else
+        {
+            Console.WriteLine($"[{Name}] 技能池还有剩余，直接使用当前队列 (sigIndex={_sigIndex}/{_shuffledSigQueue.Count}, ultIndex={_ultIndex}/{_shuffledUltQueue.Count})");
+        }
 
+        if (needShuffle)
+        {
+            ShufflePools();
+        }
+        // ========== 条件判断结束 ==========
+
+        // 执行完整的洗牌（生成队列并应用到最后一个玩家的4技能）
         if (!isShuffling)
         {
+            // 临时开启循环模式，执行一次完整洗牌
             isShuffling = true;
             ExecuteShuffle();
             isShuffling = false;
