@@ -149,7 +149,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
     private List<string> _shuffledUltQueue = new List<string>();
     private int _sigIndex = 0;
     private int _ultIndex = 0;
-    private bool _isPoolShuffled = false;  // 标记技能池是否已被打乱过
+    private bool _isPoolShuffled = false;
 
     // ========== 待应用的技能替换队列 ==========
     private Queue<(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName)> _applyQueue = new Queue<(CCitadelPlayerPawn, EAbilitySlot, string)>();
@@ -194,12 +194,14 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
+    // ========== 获取技能升级位（包含解锁状态） ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
         return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
+    // ========== 恢复技能升级位（同时恢复解锁状态和升级等级） ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
@@ -308,6 +310,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
                 if (oldAbility != null && oldAbility.IsValid)
                 {
+                    // 保存完整的 UpgradeBits（包含解锁状态 + 升级等级）
                     upgradeBits = GetSkillUpgradeBits(oldAbility);
                 }
                 else
@@ -361,6 +364,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
                         .FirstOrDefault(a => a != null && a.AbilitySlot == s);
                     if (newAbility != null && newAbility.IsValid)
                     {
+                        // 恢复完整的 UpgradeBits（同时恢复解锁状态和升级等级）
                         SetSkillUpgradeBits(newAbility, upgradeBits);
                     }
                 }
@@ -405,7 +409,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         isShuffling = true;
         if (caller != null) caller.PrintToConsole("技能洗牌已启动（每5秒刷新）");
 
-        // 如果技能池从未被打乱过，先打乱一次
         if (!_isPoolShuffled)
         {
             ShufflePools();
@@ -428,7 +431,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             return;
         }
 
-        // ========== 条件：技能池从未打乱过，或者已经抵达队列末尾 ==========
         bool needShuffle = false;
         if (!_isPoolShuffled)
         {
@@ -449,12 +451,9 @@ public class SkillShufflePlugin : DeadworksPluginBase
         {
             ShufflePools();
         }
-        // ========== 条件判断结束 ==========
 
-        // 执行完整的洗牌（生成队列并应用到最后一个玩家的4技能）
         if (!isShuffling)
         {
-            // 临时开启循环模式，执行一次完整洗牌
             isShuffling = true;
             ExecuteShuffle();
             isShuffling = false;
