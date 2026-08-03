@@ -205,7 +205,13 @@ public class SkillShufflePlugin : DeadworksPluginBase
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
-        ability.UpgradeBits = upgradeBits;  // 通过属性设置，调用原生方法
+        
+        // 转换为 CCitadelBaseAbility 来访问 UpgradeBits
+        var baseAbility = ability as CCitadelBaseAbility;
+        if (baseAbility != null)
+        {
+            baseAbility.UpgradeBits = upgradeBits;
+        }
     }
 
     private void ShufflePools()
