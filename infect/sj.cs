@@ -140,10 +140,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         "ability_doorman_hotel"
     };
 
-    // ========== SchemaAccessor for READING UpgradeBits ==========
-    private static readonly SchemaAccessor<int> _upgradeBitsAccessor =
-        new("CCitadelAbility"u8, "m_nUpgradeBits"u8);
-
     // ========== 打乱后的技能队列 ==========
     private List<string> _shuffledSigQueue = new List<string>();
     private List<string> _shuffledUltQueue = new List<string>();
@@ -194,12 +190,20 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
+    // ========== 获取技能升级位（直接通过 CCitadelBaseAbility.UpgradeBits 属性） ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
-        return _upgradeBitsAccessor.Get(ability.Handle);
+        
+        var baseAbility = ability as CCitadelBaseAbility;
+        if (baseAbility != null)
+        {
+            return baseAbility.UpgradeBits;
+        }
+        return 0;
     }
 
+    // ========== 恢复技能升级位（直接通过 CCitadelBaseAbility.UpgradeBits 属性） ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
@@ -220,7 +224,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         _ultIndex = 0;
         _isPoolShuffled = true;
         Console.WriteLine($"[{Name}] 技能池已打乱");
-        CCitadelPlayerController.PrintToConsoleAll("[技能洗牌] 技能池已打乱");
     }
 
     private string GetNextSignatureSkill()
@@ -257,9 +260,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             _applyQueue.Enqueue((pawn, EAbilitySlot.Signature3, GetNextSignatureSkill()));
             _applyQueue.Enqueue((pawn, EAbilitySlot.Signature4, GetNextUltimateSkill()));
         }
-        
-        Console.WriteLine($"[{Name}] 替换队列已生成，共 {_applyQueue.Count} 个技能");
-        CCitadelPlayerController.PrintToConsoleAll($"[技能洗牌] 替换队列已生成，共 {_applyQueue.Count} 个技能");
     }
 
     // ========== 分步应用 ==========
@@ -281,8 +281,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             if (_applyQueue.Count == 0)
             {
                 isApplying = false;
-                Console.WriteLine($"[{Name}] 所有技能替换完成");
-                CCitadelPlayerController.PrintToConsoleAll("[技能洗牌] 所有技能替换完成");
                 return;
             }
 
@@ -322,6 +320,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
                 
                 if (oldAbility != null && oldAbility.IsValid)
                 {
+                    // ========== 通过 CCitadelBaseAbility.UpgradeBits 属性读取 ==========
                     upgradeBits = GetSkillUpgradeBits(oldAbility);
                     string slotName = GetSlotName(s);
                     string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 旧技能: {oldAbility.AbilityName}, UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)";
@@ -369,7 +368,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
             case ApplyStep.AddNew:
             {
-                var newAbility = p.AddAbility(newName, (ushort)s);
+                p.AddAbility(newName, (ushort)s);
                 _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
@@ -383,9 +382,9 @@ public class SkillShufflePlugin : DeadworksPluginBase
                         .FirstOrDefault(a => a != null && a.AbilitySlot == s);
                     if (newAbility != null && newAbility.IsValid)
                     {
+                        // ========== 通过 CCitadelBaseAbility.UpgradeBits 属性恢复 ==========
                         SetSkillUpgradeBits(newAbility, upgradeBits);
                         
-                        var controller = GetControllerFromPawn(p);
                         string slotName = GetSlotName(s);
                         string msg = $"[技能洗牌] 槽位 {slotName} 新技能: {newAbility.AbilityName}, 已恢复 UpgradeBits: {Convert.ToString(upgradeBits, 2)} (二进制)";
                         controller?.PrintToConsole(msg);
@@ -438,12 +437,12 @@ public class SkillShufflePlugin : DeadworksPluginBase
             _applyQueue.Clear();
             isApplying = false;
             _currentApplyState = null;
-            CCitadelPlayerController.PrintToConsoleAll("[技能洗牌] 已停止");
+            if (caller != null) caller.PrintToConsole("[技能洗牌] 已停止");
             return;
         }
 
         isShuffling = true;
-        CCitadelPlayerController.PrintToConsoleAll("[技能洗牌] 已启动（每5秒刷新）");
+        if (caller != null) caller.PrintToConsole("[技能洗牌] 已启动（每5秒刷新）");
 
         if (!_isPoolShuffled)
         {
@@ -508,7 +507,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         Console.WriteLine($"[{Name}] ========== 换图命令触发 ==========");
         Console.WriteLine($"[{Name}] 执行者: {(caller != null ? caller.PlayerName : "null")}");
         Console.WriteLine($"[{Name}] 执行换图命令，目标地图: dl_mid");
-        CCitadelPlayerController.PrintToConsoleAll("[技能洗牌] 服务器即将换图到 dl_mid...");
         try
         {
             Server.ExecuteCommand("changelevel dl_mid");
@@ -517,7 +515,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
         catch (Exception ex)
         {
             Console.WriteLine($"[{Name}] 执行换图命令失败: {ex.Message}");
-            CCitadelPlayerController.PrintToConsoleAll($"[技能洗牌] 换图失败: {ex.Message}");
         }
     }
 
