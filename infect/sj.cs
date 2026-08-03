@@ -317,6 +317,18 @@ public class SkillShufflePlugin : DeadworksPluginBase
                 if (oldAbility != null && oldAbility.IsValid)
                 {
                     upgradeBits = GetSkillUpgradeBits(oldAbility);
+                    
+                    // ========== 控制台输出：读取到的技能等级 ==========
+                    var controller = GetControllerFromPawn(p);
+                    var playerName = controller?.PlayerName ?? "Unknown";
+                    
+                    // 解析等级
+                    bool isUnlocked = (upgradeBits & 0b00001) != 0;
+                    int level = (upgradeBits >> 1) & 0b00111;  // 提取 3 位升级等级
+                    
+                    Console.WriteLine($"[{Name}] [读取] 玩家 {playerName} 槽位 {s} 技能 {oldAbility.AbilityName} - UpgradeBits: {Convert.ToString(upgradeBits, 2).PadLeft(5, '0')} (0b{Convert.ToString(upgradeBits, 2).PadLeft(5, '0')})");
+                    Console.WriteLine($"[{Name}] [读取]   -> 解锁: {isUnlocked}, 等级: {level} (原始值: {upgradeBits})");
+                    // ========== 控制台输出结束 ==========
                 }
                 else
                 {
@@ -356,6 +368,13 @@ public class SkillShufflePlugin : DeadworksPluginBase
             case ApplyStep.AddNew:
             {
                 var newAbility = p.AddAbility(newName, (ushort)s);
+                
+                // ========== 控制台输出：添加的新技能 ==========
+                var controller = GetControllerFromPawn(p);
+                var playerName = controller?.PlayerName ?? "Unknown";
+                Console.WriteLine($"[{Name}] [添加] 玩家 {playerName} 槽位 {s} 添加新技能: {newName}");
+                // ========== 控制台输出结束 ==========
+                
                 _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
@@ -370,7 +389,26 @@ public class SkillShufflePlugin : DeadworksPluginBase
                     if (newAbility != null && newAbility.IsValid)
                     {
                         SetSkillUpgradeBits(newAbility, upgradeBits);
+                        
+                        // ========== 控制台输出：恢复后的技能等级 ==========
+                        var controller = GetControllerFromPawn(p);
+                        var playerName = controller?.PlayerName ?? "Unknown";
+                        
+                        bool isUnlocked = (upgradeBits & 0b00001) != 0;
+                        int level = (upgradeBits >> 1) & 0b00111;
+                        
+                        Console.WriteLine($"[{Name}] [恢复] 玩家 {playerName} 槽位 {s} 技能 {newAbility.AbilityName} - 恢复 UpgradeBits: {Convert.ToString(upgradeBits, 2).PadLeft(5, '0')} (0b{Convert.ToString(upgradeBits, 2).PadLeft(5, '0')})");
+                        Console.WriteLine($"[{Name}] [恢复]   -> 解锁: {isUnlocked}, 等级: {level} (原始值: {upgradeBits})");
+                        // ========== 控制台输出结束 ==========
                     }
+                }
+                else
+                {
+                    // ========== 升级位为 0，技能未解锁 ==========
+                    var controller = GetControllerFromPawn(p);
+                    var playerName = controller?.PlayerName ?? "Unknown";
+                    Console.WriteLine($"[{Name}] [恢复] 玩家 {playerName} 槽位 {s} - UpgradeBits 为 0，技能未解锁");
+                    // ========== 控制台输出结束 ==========
                 }
 
                 _currentApplyState = null;
