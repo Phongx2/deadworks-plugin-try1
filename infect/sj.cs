@@ -170,6 +170,10 @@ public class SkillShufflePlugin : DeadworksPluginBase
         "ability_doorman_hotel"
     };
 
+    // ========== SchemaAccessor for UpgradeBits ==========
+    private static readonly SchemaAccessor<int> _upgradeBitsAccessor =
+        new("CCitadelAbility"u8, "m_nUpgradeBits"u8);
+
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[{Name}] ========== 插件加载 ==========");
@@ -199,18 +203,18 @@ public class SkillShufflePlugin : DeadworksPluginBase
         return null;
     }
 
-    // ========== 获取技能的升级位 ==========
+    // ========== 获取技能的升级位（使用 SchemaAccessor） ==========
     private int GetSkillUpgradeBits(CBaseEntity ability)
     {
         if (ability == null || !ability.IsValid) return 0;
-        return ability.UpgradeBits;
+        return _upgradeBitsAccessor.Get(ability.Handle);
     }
 
-    // ========== 设置技能的升级位 ==========
+    // ========== 设置技能的升级位（使用 SchemaAccessor） ==========
     private void SetSkillUpgradeBits(CBaseEntity ability, int upgradeBits)
     {
         if (ability == null || !ability.IsValid) return;
-        ability.UpgradeBits = upgradeBits;
+        _upgradeBitsAccessor.Set(ability.Handle, upgradeBits);
     }
 
     // ========== 打乱所有玩家的技能 ==========
@@ -250,7 +254,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
                 if (slot < EAbilitySlot.Signature1 || slot > EAbilitySlot.Signature4)
                     continue;
 
-                // 保存 UpgradeBits
+                // 保存 UpgradeBits（使用 SchemaAccessor）
                 int upgradeBits = GetSkillUpgradeBits(ability);
                 playerSkillInfos.Add((pawn, slot, upgradeBits));
             }
@@ -276,14 +280,11 @@ public class SkillShufflePlugin : DeadworksPluginBase
         // 3.1 1-3技能池：从总池中随机抽取，数量等于 sigInfos.Count
         var shuffledSigPool = _signatureSkills.OrderBy(x => random.Next()).ToList();
         var selectedSigSkills = new List<string>();
-        // 如果需要的技能数大于池子大小，允许重复使用整个池子
         while (selectedSigSkills.Count < sigInfos.Count)
         {
-            // 从打乱后的池子中取需要的数量
             var remaining = sigInfos.Count - selectedSigSkills.Count;
             var take = Math.Min(remaining, shuffledSigPool.Count);
             selectedSigSkills.AddRange(shuffledSigPool.Take(take));
-            // 如果还没取够，重新打乱池子再次取
             if (selectedSigSkills.Count < sigInfos.Count)
             {
                 shuffledSigPool = _signatureSkills.OrderBy(x => random.Next()).ToList();
@@ -319,7 +320,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
             var playerName = controller?.PlayerName ?? "Unknown";
 
             // 先移除该槽位的旧技能
-            // 需要先找到旧技能实体
             var oldAbility = info.pawn.AbilityComponent?.Abilities
                 .FirstOrDefault(a => a != null && a.AbilitySlot == info.slot);
             
@@ -329,22 +329,17 @@ public class SkillShufflePlugin : DeadworksPluginBase
                 if (oldName == newSkillName)
                 {
                     Console.WriteLine($"[{Name}][洗牌] {playerName} 槽位 {info.slot} 的 {oldName} 保持不变");
-                    // 即使保持不变，也要确保 UpgradeBits 正确
                     SetSkillUpgradeBits(oldAbility, info.upgradeBits);
                     continue;
                 }
 
                 Console.WriteLine($"[{Name}][洗牌] {playerName} 槽位 {info.slot} 的 {oldName} -> {newSkillName}");
-                
-                // 移除旧技能
                 info.pawn.RemoveAbility(oldName);
             }
 
-            // 添加新技能到相同槽位
             var newAbility = info.pawn.AddAbility(newSkillName, (ushort)info.slot);
             if (newAbility != null)
             {
-                // 恢复升级位
                 SetSkillUpgradeBits(newAbility, info.upgradeBits);
                 Console.WriteLine($"[{Name}][洗牌] {playerName} 槽位 {info.slot} 成功获得 {newSkillName}，升级位: {info.upgradeBits}");
             }
