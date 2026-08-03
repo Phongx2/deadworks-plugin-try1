@@ -283,13 +283,13 @@ public class SkillShufflePlugin : DeadworksPluginBase
         }
 
         var state = _currentApplyState.Value;
-        var pawn = state.pawn;
-        var slot = state.slot;
-        var newSkillName = state.newSkillName;
+        var p = state.pawn;
+        var s = state.slot;
+        var newName = state.newSkillName;
         var upgradeBits = state.upgradeBits;
         var step = state.step;
 
-        if (!pawn.IsValid)
+        if (!p.IsValid)
         {
             _currentApplyState = null;
             Timer.NextTick(() => ApplyOneSkill());
@@ -299,8 +299,9 @@ public class SkillShufflePlugin : DeadworksPluginBase
         switch (step)
         {
             case ApplyStep.SaveUpgrade:
-                var oldAbility = pawn.AbilityComponent?.Abilities
-                    .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
+            {
+                var oldAbility = p.AbilityComponent?.Abilities
+                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
 
                 if (oldAbility != null && oldAbility.IsValid)
                 {
@@ -311,20 +312,22 @@ public class SkillShufflePlugin : DeadworksPluginBase
                     upgradeBits = 0;
                 }
 
-                _currentApplyState = (pawn, slot, newSkillName, upgradeBits, ApplyStep.RemoveOld);
+                _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RemoveOld);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
+            }
 
             case ApplyStep.RemoveOld:
-                var oldAbility2 = pawn.AbilityComponent?.Abilities
-                    .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
+            {
+                var oldAbility2 = p.AbilityComponent?.Abilities
+                    .FirstOrDefault(a => a != null && a.AbilitySlot == s);
 
                 if (oldAbility2 != null && oldAbility2.IsValid)
                 {
                     var oldName = oldAbility2.AbilityName;
-                    if (oldName != newSkillName)
+                    if (oldName != newName)
                     {
-                        pawn.RemoveAbility(oldName);
+                        p.RemoveAbility(oldName);
                     }
                     else
                     {
@@ -334,30 +337,35 @@ public class SkillShufflePlugin : DeadworksPluginBase
                     }
                 }
 
-                _currentApplyState = (pawn, slot, newSkillName, upgradeBits, ApplyStep.AddNew);
+                _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.AddNew);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
+            }
 
             case ApplyStep.AddNew:
-                var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
-                _currentApplyState = (pawn, slot, newSkillName, upgradeBits, ApplyStep.RestoreUpgrade);
+            {
+                p.AddAbility(newName, (ushort)s);
+                _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RestoreUpgrade);
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
+            }
 
             case ApplyStep.RestoreUpgrade:
+            {
                 if (upgradeBits > 0)
                 {
-                    var newAbility2 = pawn.AbilityComponent?.Abilities
-                        .FirstOrDefault(a => a != null && a.AbilitySlot == slot);
-                    if (newAbility2 != null && newAbility2.IsValid)
+                    var newAbility = p.AbilityComponent?.Abilities
+                        .FirstOrDefault(a => a != null && a.AbilitySlot == s);
+                    if (newAbility != null && newAbility.IsValid)
                     {
-                        SetSkillUpgradeBits(newAbility2, upgradeBits);
+                        SetSkillUpgradeBits(newAbility, upgradeBits);
                     }
                 }
 
                 _currentApplyState = null;
                 Timer.NextTick(() => ApplyOneSkill());
                 break;
+            }
         }
     }
 
