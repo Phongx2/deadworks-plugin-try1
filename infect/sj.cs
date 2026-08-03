@@ -63,7 +63,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
     // ========== 预计算缓存 ==========
     private List<(int pawnHandle, EAbilitySlot slot, int upgradeBits, string newSkillName)>? _pendingResults;
     private int _applyIndex = 0;
-    private int _batchSize = 8;
+    private int _batchSize = 1;
 
     public override void OnLoad(bool isReload)
     {
