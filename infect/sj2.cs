@@ -175,7 +175,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         Heroes.Viscous,
         Heroes.Viper,
         Heroes.Magician,
-        Heroes.Vampirebat,
+        Heroes.VampireBat,   // 修正：Vampirebat -> VampireBat
         Heroes.Drifter,
         Heroes.Priest,
         Heroes.Frank,
@@ -348,19 +348,21 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         var playerName = controller?.PlayerName ?? "Unknown";
         Console.WriteLine($"[{Name}] {playerName} 槽位 {slot} 技能在冷却中，等待冷却结束...");
 
-        var timer = Timer.Every(500.Milliseconds(), () =>
+        // 先声明 timer 为 null
+        IHandle? timer = null;
+        timer = Timer.Every(500.Milliseconds(), () =>
         {
             var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
             if (currentAbility == null || !currentAbility.IsValid)
             {
-                timer.Cancel();
+                timer?.Cancel();
                 ExecuteSwap(pawn, slot, newSkillName, upgradeBits);
                 return;
             }
 
             if (!IsOnCooldown(currentAbility))
             {
-                timer.Cancel();
+                timer?.Cancel();
                 Console.WriteLine($"[{Name}] {playerName} 槽位 {slot} 冷却结束，执行替换");
                 ExecuteSwap(pawn, slot, newSkillName, upgradeBits);
             }
@@ -476,15 +478,10 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             return;
         }
 
-        // 保存当前英雄，最后恢复
-        Heroes currentHero = Heroes.Inferno;
-        // 这里无法直接获取当前英雄，我们从列表第一个开始
-
         caller.PrintToConsole($"[资源加载] 开始遍历 {_allHeroes.Count} 个英雄，每个切换间隔 4 tick...");
 
         Console.WriteLine($"[{Name}] 玩家 {caller.PlayerName} 开始加载所有英雄资源");
 
-        // 从索引 0 开始遍历，依次切换
         int heroIndex = 0;
         var callerRef = caller;
 
@@ -492,8 +489,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         {
             if (heroIndex >= _allHeroes.Count)
             {
-                // 所有英雄遍历完成
-                // 回到第一个英雄
                 callerRef.SelectHero(_allHeroes[0]);
                 callerRef.PrintToConsole($"[资源加载] 所有英雄资源已加载完成！");
                 Console.WriteLine($"[{Name}] 玩家 {callerRef.PlayerName} 所有英雄资源加载完成");
@@ -503,26 +498,15 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             var hero = _allHeroes[heroIndex];
             Console.WriteLine($"[{Name}] 切换英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
 
-            // 保存当前英雄的装备（简单起见，切换英雄时不做复杂处理）
             callerRef.SelectHero(hero);
-
-            if (heroIndex == 0)
-            {
-                // 第一个英雄需要等待更长时间让资源加载
-                callerRef.PrintToConsole($"[资源加载] 加载英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
-                Timer.Once(4.Ticks(), () => SwitchNextHero());
-            }
-            else
-            {
-                // 显示进度
-                callerRef.PrintToConsole($"[资源加载] 加载英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
-                Timer.Once(4.Ticks(), () => SwitchNextHero());
-            }
+            callerRef.PrintToConsole($"[资源加载] 加载英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
 
             heroIndex++;
+
+            // 4 tick 后切换下一个
+            Timer.Once(4.Ticks(), () => SwitchNextHero());
         }
 
-        // 开始切换
         SwitchNextHero();
     }
 
