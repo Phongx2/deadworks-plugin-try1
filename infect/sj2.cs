@@ -146,6 +146,36 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
     private bool _isActive = false;
 
+    // ========== 分步应用状态 ==========
+    private enum ApplyStep
+    {
+        SaveUpgrade,
+        RemoveOld,
+        AddNew,
+        RestoreUpgrade,
+        Done
+    }
+
+    private class AbilitySwapState
+    {
+        public CCitadelPlayerPawn Pawn;
+        public EAbilitySlot Slot;
+        public string NewSkillName;
+        public int UpgradeBits;
+        public ApplyStep Step;
+
+        public AbilitySwapState(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits, ApplyStep step)
+        {
+            Pawn = pawn;
+            Slot = slot;
+            NewSkillName = newSkillName;
+            UpgradeBits = upgradeBits;
+            Step = step;
+        }
+    }
+
+    private AbilitySwapState? _currentState = null;
+
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine($"[{Name}] ========== 插件加载 ==========");
@@ -165,6 +195,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         Console.WriteLine($"[{Name}] 插件卸载");
         _isActive = false;
+        _currentState = null;
         CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已卸载");
     }
 
@@ -190,7 +221,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         CCitadelPlayerController.PrintToConsoleAll(msg);
     }
 
-    // ========== 从 1-3 技能池获取下一个（用光则独立重洗） ==========
+    // ========== 从 1-3 技能池获取下一个 ==========
     private string GetNextSignatureSkill()
     {
         if (_sigIndex >= _shuffledSigQueue.Count)
@@ -205,7 +236,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         return skill;
     }
 
-    // ========== 从 4 技能池获取下一个（用光则独立重洗） ==========
+    // ========== 从 4 技能池获取下一个 ==========
     private string GetNextUltimateSkill()
     {
         if (_ultIndex >= _shuffledUltQueue.Count)
@@ -231,11 +262,153 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         return null;
     }
 
+    // ========== 分步执行技能替换 ==========
+    private void ProcessNextStep()
+    {
+        if (_currentState == null)
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] ProcessNextStep: 状态为空，退出");
+            return;
+        }
+
+        var state = _currentState;
+        var p = state.Pawn;
+        var s = state.Slot;
+        var newName = state.NewSkillName;
+        var upgradeBits = state.UpgradeBits;
+
+        if (p == null || !p.IsValid)
+        {
+            Console.WriteLine($"[{Name}] [ERROR] Pawn 无效，放弃替换");
+            _currentState = null;
+            return;
+        }
+
+        switch (state.Step)
+        {
+            case ApplyStep.SaveUpgrade:
+            {
+                Console.WriteLine($"[{Name}] [DEBUG] Step: SaveUpgrade - 保存升级位");
+                var oldAbility = p.AbilityComponent?.GetAbilityBySlot(s);
+                if (oldAbility != null && oldAbility.IsValid)
+                {
+                    state.UpgradeBits = oldAbility.UpgradeBits;
+                    Console.WriteLine($"[{Name}] [DEBUG] 保存升级位: {state.UpgradeBits}");
+                }
+                else
+                {
+                    state.UpgradeBits = 0;
+                    Console.WriteLine($"[{Name}] [DEBUG] 槽位为空，升级位设为 0");
+                }
+
+                state.Step = ApplyStep.RemoveOld;
+                Timer.NextTick(() => ProcessNextStep());
+                break;
+            }
+
+            case ApplyStep.RemoveOld:
+            {
+                Console.WriteLine($"[{Name}] [DEBUG] Step: RemoveOld - 移除旧技能");
+                var oldAbility2 = p.AbilityComponent?.GetAbilityBySlot(s);
+                if (oldAbility2 != null && oldAbility2.IsValid)
+                {
+                    var oldName = oldAbility2.AbilityName;
+                    Console.WriteLine($"[{Name}] [DEBUG] 找到旧技能: {oldName}");
+                    if (oldName != newName)
+                    {
+                        p.RemoveAbility(oldAbility2);
+                        Console.WriteLine($"[{Name}] [DEBUG] 已移除旧技能: {oldName}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[{Name}] [DEBUG] 新旧技能相同，跳过替换");
+                        _currentState = null;
+                        return;
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[{Name}] [DEBUG] 槽位为空，无需移除");
+                }
+
+                state.Step = ApplyStep.AddNew;
+                Timer.NextTick(() => ProcessNextStep());
+                break;
+            }
+
+            case ApplyStep.AddNew:
+            {
+                Console.WriteLine($"[{Name}] [DEBUG] Step: AddNew - 添加新技能: {newName} 到槽位 {s}");
+                p.AddAbility(newName, (ushort)s);
+                Console.WriteLine($"[{Name}] [DEBUG] 新技能已添加");
+
+                state.Step = ApplyStep.RestoreUpgrade;
+                Timer.NextTick(() => ProcessNextStep());
+                break;
+            }
+
+            case ApplyStep.RestoreUpgrade:
+            {
+                Console.WriteLine($"[{Name}] [DEBUG] Step: RestoreUpgrade - 恢复升级位");
+                if (state.UpgradeBits > 0)
+                {
+                    var newAbility = p.AbilityComponent?.GetAbilityBySlot(s);
+                    if (newAbility != null && newAbility.IsValid)
+                    {
+                        newAbility.UpgradeBits = state.UpgradeBits;
+                        Console.WriteLine($"[{Name}] [DEBUG] 已恢复升级位: {state.UpgradeBits}");
+                    }
+                    else
+                    {
+                        Console.WriteLine($"[{Name}] [DEBUG] 新技能无效，无法恢复升级位");
+                    }
+                }
+                else
+                {
+                    Console.WriteLine($"[{Name}] [DEBUG] 升级位为 0，无需恢复");
+                }
+
+                // 执行新技能
+                Console.WriteLine($"[{Name}] [DEBUG] 执行新技能: {newName}");
+                int result = p.ExecuteAbilityBySlot(s, false, 0);
+                if (result == 0)
+                {
+                    Console.WriteLine($"[{Name}] 新技能已执行: {newName}");
+                    var controller = GetControllerFromPawn(p);
+                    controller?.PrintToConsole($"[技能替换] 新技能已执行: {newName}");
+                }
+                else
+                {
+                    Console.WriteLine($"[{Name}] 新技能执行失败: 返回值 {result}");
+                    var controller = GetControllerFromPawn(p);
+                    controller?.PrintToConsole($"[技能替换] 新技能执行失败: 返回值 {result}");
+                }
+
+                state.Step = ApplyStep.Done;
+                _currentState = null;
+                Console.WriteLine($"[{Name}] [DEBUG] 技能替换完成");
+                break;
+            }
+
+            case ApplyStep.Done:
+            default:
+                _currentState = null;
+                break;
+        }
+    }
+
     // ========== 监听玩家使用技能 ==========
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(GameEvent ev)
     {
         if (!_isActive) return HookResult.Continue;
+
+        // 如果当前有正在进行的替换，跳过新的事件
+        if (_currentState != null)
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] 正在处理上一个技能替换，跳过新事件");
+            return HookResult.Continue;
+        }
 
         Console.WriteLine($"[{Name}] [DEBUG] player_used_ability 事件触发");
 
@@ -298,70 +471,23 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         bool isUltimate = (slot == EAbilitySlot.Signature4);
         Console.WriteLine($"[{Name}] [DEBUG] 是否为4技能: {isUltimate}");
 
-        int upgradeBits = targetAbility.UpgradeBits;
-        string oldName = targetAbility.AbilityName;
-        Console.WriteLine($"[{Name}] [DEBUG] 当前技能升级位: {upgradeBits}");
-
         string newSkillName = isUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
         Console.WriteLine($"[{Name}] [DEBUG] 从池中获取新技能: {newSkillName}");
 
-        if (oldName == newSkillName)
+        if (abilityName == newSkillName)
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 新旧技能相同 ({oldName})，跳过替换");
-            controller?.PrintToConsole($"[技能替换] 技能相同，跳过: {oldName}");
+            Console.WriteLine($"[{Name}] [DEBUG] 新旧技能相同 ({abilityName})，跳过替换");
+            controller?.PrintToConsole($"[技能替换] 技能相同，跳过: {abilityName}");
             return HookResult.Continue;
         }
 
-        Console.WriteLine($"[{Name}] 替换技能: {oldName} -> {newSkillName} (槽位 {slot})");
-        controller?.PrintToConsole($"[技能替换] 替换技能: {oldName} -> {newSkillName}");
+        Console.WriteLine($"[{Name}] 替换技能: {abilityName} -> {newSkillName} (槽位 {slot})");
+        controller?.PrintToConsole($"[技能替换] 替换技能: {abilityName} -> {newSkillName}");
 
-        bool wasChanneling = targetAbility.IsChanneling;
-        Console.WriteLine($"[{Name}] [DEBUG] 技能是否正在释放: {wasChanneling}");
+        // 创建状态并开始分步执行
+        _currentState = new AbilitySwapState(pawn, slot, newSkillName, 0, ApplyStep.SaveUpgrade);
+        Timer.NextTick(() => ProcessNextStep());
 
-        // 移除旧技能
-        Console.WriteLine($"[{Name}] [DEBUG] 移除旧技能: {oldName}");
-        pawn.RemoveAbility(targetAbility);
-        Console.WriteLine($"[{Name}] [DEBUG] 旧技能已移除");
-
-        // 添加新技能
-        Console.WriteLine($"[{Name}] [DEBUG] 添加新技能: {newSkillName} 到槽位 {slot}");
-        var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
-        if (newAbility != null)
-        {
-            Console.WriteLine($"[{Name}] [DEBUG] 新技能添加成功");
-            var newBaseAbility = newAbility as CCitadelBaseAbility;
-            if (newBaseAbility != null)
-            {
-                // 恢复升级位
-                newBaseAbility.UpgradeBits = upgradeBits;
-                Console.WriteLine($"[{Name}] [DEBUG] 已恢复升级位: {upgradeBits}");
-
-                // 执行新技能
-                Console.WriteLine($"[{Name}] [DEBUG] 执行新技能: {newSkillName}");
-                int result = pawn.ExecuteAbilityBySlot(slot, false, 0);
-                if (result == 0)
-                {
-                    Console.WriteLine($"[{Name}] 新技能已执行: {newSkillName}");
-                    controller?.PrintToConsole($"[技能替换] 新技能已执行: {newSkillName}");
-                }
-                else
-                {
-                    Console.WriteLine($"[{Name}] 新技能执行失败: 返回值 {result}");
-                    controller?.PrintToConsole($"[技能替换] 新技能执行失败: 返回值 {result}");
-                }
-            }
-            else
-            {
-                Console.WriteLine($"[{Name}] [ERROR] 新技能不是 CCitadelBaseAbility 类型");
-            }
-        }
-        else
-        {
-            Console.WriteLine($"[{Name}] [ERROR] 添加新技能失败: {newSkillName}");
-            controller?.PrintToConsole($"[技能替换] 添加新技能失败: {newSkillName}");
-        }
-
-        Console.WriteLine($"[{Name}] [DEBUG] 处理完成");
         return HookResult.Continue;
     }
 
@@ -372,6 +498,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         if (_isActive)
         {
             _isActive = false;
+            _currentState = null;
             Console.WriteLine($"[{Name}] 已停止");
             string msg = "[技能替换] 已停止";
             Console.WriteLine($"[{Name}] {msg}");
