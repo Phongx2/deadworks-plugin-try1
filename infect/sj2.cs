@@ -148,6 +148,41 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_drifter_hunger"
     };
 
+    // ========== 所有英雄列表 ==========
+    private readonly List<Heroes> _allHeroes = new List<Heroes>
+    {
+        Heroes.Inferno,
+        Heroes.Gigawatt,
+        Heroes.Hornet,
+        Heroes.Ghost,
+        Heroes.Atlas,
+        Heroes.Wraith,
+        Heroes.Forge,
+        Heroes.Chrono,
+        Heroes.Dynamo,
+        Heroes.Kelvin,
+        Heroes.Haze,
+        Heroes.Astro,
+        Heroes.Bebop,
+        Heroes.Nano,
+        Heroes.Orion,
+        Heroes.Krill,
+        Heroes.Shiv,
+        Heroes.Tengu,
+        Heroes.Warden,
+        Heroes.Yamato,
+        Heroes.Lash,
+        Heroes.Viscous,
+        Heroes.Viper,
+        Heroes.Magician,
+        Heroes.Vampirebat,
+        Heroes.Drifter,
+        Heroes.Priest,
+        Heroes.Frank,
+        Heroes.Bookworm,
+        Heroes.Doorman
+    };
+
     // ========== 打乱后的技能队列 ==========
     private List<string> _shuffledSigQueue = new List<string>();
     private int _sigIndex = 0;
@@ -290,7 +325,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     private bool IsOnCooldown(CCitadelBaseAbility ability)
     {
         if (ability == null || !ability.IsValid) return false;
-        // CooldownEnd > CooldownStart 表示技能在冷却中
         return ability.CooldownEnd > ability.CooldownStart;
     }
 
@@ -304,7 +338,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             return;
         }
 
-        // 如果不在冷却中，直接替换
         if (!IsOnCooldown(ability))
         {
             ExecuteSwap(pawn, slot, newSkillName, upgradeBits);
@@ -315,7 +348,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         var playerName = controller?.PlayerName ?? "Unknown";
         Console.WriteLine($"[{Name}] {playerName} 槽位 {slot} 技能在冷却中，等待冷却结束...");
 
-        // 每 0.5 秒检查一次冷却状态
         var timer = Timer.Every(500.Milliseconds(), () =>
         {
             var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
@@ -326,7 +358,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 return;
             }
 
-            // 检查冷却是否结束
             if (!IsOnCooldown(currentAbility))
             {
                 timer.Cancel();
@@ -365,7 +396,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         timerInfo.TimerHandle = Timer.Once(10.Seconds(), () =>
         {
             Console.WriteLine($"[{Name}] {playerName} 10秒已到，替换被动技能 {passiveSkillName} -> {nextSkill}");
-            // 替换时检查冷却
             WaitForCooldownAndSwap(pawn, slot, nextSkill, upgradeBits);
             _passiveTimers.Remove(key);
         });
@@ -418,18 +448,82 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         if (_passiveSkills.Contains(newSkillName))
         {
             Console.WriteLine($"[{Name}] 新技能 {newSkillName} 是被动技能，先替换再等待10秒");
-            // 先替换为被动技能（不检查冷却，因为要立即获得被动效果）
             ExecuteSwap(pawn, slot, newSkillName, upgradeBits);
-            // 然后处理被动技能的延迟替换（10秒后替换为下一个技能，需要等待冷却）
             ProcessPassiveSkill(pawn, slot, newSkillName, upgradeBits, isUltimate);
         }
         else
         {
-            // 非被动技能：等待冷却结束后替换
             WaitForCooldownAndSwap(pawn, slot, newSkillName, upgradeBits);
         }
 
         return HookResult.Continue;
+    }
+
+    // ========== !cache 命令：遍历所有英雄加载资源 ==========
+    [Command("cache", Description = "遍历所有英雄切换，加载所有英雄资源")]
+    public void CmdCacheHeroes(CCitadelPlayerController caller)
+    {
+        if (caller == null)
+        {
+            Console.WriteLine($"[{Name}] 该命令只能由玩家执行");
+            return;
+        }
+
+        var pawn = caller.GetHeroPawn();
+        if (pawn == null || !pawn.IsValid)
+        {
+            caller.PrintToConsole("[资源加载] 无法获取英雄实体");
+            return;
+        }
+
+        // 保存当前英雄，最后恢复
+        Heroes currentHero = Heroes.Inferno;
+        // 这里无法直接获取当前英雄，我们从列表第一个开始
+
+        caller.PrintToConsole($"[资源加载] 开始遍历 {_allHeroes.Count} 个英雄，每个切换间隔 4 tick...");
+
+        Console.WriteLine($"[{Name}] 玩家 {caller.PlayerName} 开始加载所有英雄资源");
+
+        // 从索引 0 开始遍历，依次切换
+        int heroIndex = 0;
+        var callerRef = caller;
+
+        void SwitchNextHero()
+        {
+            if (heroIndex >= _allHeroes.Count)
+            {
+                // 所有英雄遍历完成
+                // 回到第一个英雄
+                callerRef.SelectHero(_allHeroes[0]);
+                callerRef.PrintToConsole($"[资源加载] 所有英雄资源已加载完成！");
+                Console.WriteLine($"[{Name}] 玩家 {callerRef.PlayerName} 所有英雄资源加载完成");
+                return;
+            }
+
+            var hero = _allHeroes[heroIndex];
+            Console.WriteLine($"[{Name}] 切换英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
+
+            // 保存当前英雄的装备（简单起见，切换英雄时不做复杂处理）
+            callerRef.SelectHero(hero);
+
+            if (heroIndex == 0)
+            {
+                // 第一个英雄需要等待更长时间让资源加载
+                callerRef.PrintToConsole($"[资源加载] 加载英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
+                Timer.Once(4.Ticks(), () => SwitchNextHero());
+            }
+            else
+            {
+                // 显示进度
+                callerRef.PrintToConsole($"[资源加载] 加载英雄: {hero} ({heroIndex + 1}/{_allHeroes.Count})");
+                Timer.Once(4.Ticks(), () => SwitchNextHero());
+            }
+
+            heroIndex++;
+        }
+
+        // 开始切换
+        SwitchNextHero();
     }
 
     // ========== 启动/停止 ==========
