@@ -158,12 +158,14 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledUltQueue.Clear();
         ShuffleSigPool();
         ShuffleUltPool();
+        CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已加载，使用 !sj2 启动");
     }
 
     public override void OnUnload()
     {
         Console.WriteLine($"[{Name}] 插件卸载");
         _isActive = false;
+        CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已卸载");
     }
 
     // ========== 独立打乱 1-3 技能池 ==========
@@ -172,7 +174,9 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         var random = new Random();
         _shuffledSigQueue = _signatureSkills.OrderBy(x => random.Next()).ToList();
         _sigIndex = 0;
-        Console.WriteLine($"[{Name}] 1-3技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
+        string msg = $"[技能替换] 1-3技能池已打乱，共 {_shuffledSigQueue.Count} 个技能";
+        Console.WriteLine($"[{Name}] {msg}");
+        CCitadelPlayerController.PrintToConsoleAll(msg);
     }
 
     // ========== 独立打乱 4 技能池 ==========
@@ -181,7 +185,9 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         var random = new Random();
         _shuffledUltQueue = _ultimateSkills.OrderBy(x => random.Next()).ToList();
         _ultIndex = 0;
-        Console.WriteLine($"[{Name}] 4技能池已打乱，共 {_shuffledUltQueue.Count} 个技能");
+        string msg = $"[技能替换] 4技能池已打乱，共 {_shuffledUltQueue.Count} 个技能";
+        Console.WriteLine($"[{Name}] {msg}");
+        CCitadelPlayerController.PrintToConsoleAll(msg);
     }
 
     // ========== 从 1-3 技能池获取下一个（用光则独立重洗） ==========
@@ -189,10 +195,14 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         if (_sigIndex >= _shuffledSigQueue.Count)
         {
-            Console.WriteLine($"[{Name}] 1-3技能池已用完，独立重新打乱");
+            string msg = $"[技能替换] 1-3技能池已用完 (索引 {_sigIndex}/{_shuffledSigQueue.Count})，独立重新打乱";
+            Console.WriteLine($"[{Name}] {msg}");
+            CCitadelPlayerController.PrintToConsoleAll(msg);
             ShuffleSigPool();
         }
-        return _shuffledSigQueue[_sigIndex++];
+        string skill = _shuffledSigQueue[_sigIndex++];
+        Console.WriteLine($"[{Name}] 从1-3池取出技能: {skill} (索引 {_sigIndex-1}/{_shuffledSigQueue.Count})");
+        return skill;
     }
 
     // ========== 从 4 技能池获取下一个（用光则独立重洗） ==========
@@ -200,10 +210,14 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         if (_ultIndex >= _shuffledUltQueue.Count)
         {
-            Console.WriteLine($"[{Name}] 4技能池已用完，独立重新打乱");
+            string msg = $"[技能替换] 4技能池已用完 (索引 {_ultIndex}/{_shuffledUltQueue.Count})，独立重新打乱";
+            Console.WriteLine($"[{Name}] {msg}");
+            CCitadelPlayerController.PrintToConsoleAll(msg);
             ShuffleUltPool();
         }
-        return _shuffledUltQueue[_ultIndex++];
+        string skill = _shuffledUltQueue[_ultIndex++];
+        Console.WriteLine($"[{Name}] 从4池取出技能: {skill} (索引 {_ultIndex-1}/{_shuffledUltQueue.Count})");
+        return skill;
     }
 
     private CCitadelPlayerController? GetControllerFromPawn(CCitadelPlayerPawn pawn)
@@ -223,14 +237,30 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         if (!_isActive) return HookResult.Continue;
 
+        Console.WriteLine($"[{Name}] [DEBUG] player_used_ability 事件触发");
+
         var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
-        if (pawn == null) return HookResult.Continue;
+        if (pawn == null)
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] 无法获取施法者 Pawn");
+            return HookResult.Continue;
+        }
 
         string abilityName = ev.GetString("abilityname", "");
-        if (string.IsNullOrEmpty(abilityName)) return HookResult.Continue;
+        Console.WriteLine($"[{Name}] [DEBUG] 技能名称: {abilityName}");
+
+        if (string.IsNullOrEmpty(abilityName))
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] 技能名称为空，跳过");
+            return HookResult.Continue;
+        }
 
         var abilities = pawn.AbilityComponent?.Abilities;
-        if (abilities == null) return HookResult.Continue;
+        if (abilities == null)
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] 无法获取技能列表");
+            return HookResult.Continue;
+        }
 
         CCitadelBaseAbility? targetAbility = null;
         var slot = EAbilitySlot.Invalid;
@@ -242,57 +272,96 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             {
                 targetAbility = ability;
                 slot = ability.AbilitySlot;
+                Console.WriteLine($"[{Name}] [DEBUG] 找到目标技能，槽位: {slot}");
                 break;
             }
         }
 
         if (slot < EAbilitySlot.Signature1 || slot > EAbilitySlot.Signature4)
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] 技能槽位 {slot} 不在 1-4 范围内，跳过");
             return HookResult.Continue;
+        }
 
-        if (targetAbility == null) return HookResult.Continue;
+        if (targetAbility == null)
+        {
+            Console.WriteLine($"[{Name}] [DEBUG] 目标技能为空，跳过");
+            return HookResult.Continue;
+        }
 
-        Console.WriteLine($"[{Name}] 玩家 {GetControllerFromPawn(pawn)?.PlayerName ?? "Unknown"} 使用了技能: {abilityName} (槽位 {slot})");
+        var controller = GetControllerFromPawn(pawn);
+        var playerName = controller?.PlayerName ?? "Unknown";
+
+        Console.WriteLine($"[{Name}] [DEBUG] 玩家 {playerName} 使用了技能: {abilityName} (槽位 {slot})");
+        controller?.PrintToConsole($"[技能替换] 你使用了 {abilityName} (槽位 {slot})");
 
         bool isUltimate = (slot == EAbilitySlot.Signature4);
+        Console.WriteLine($"[{Name}] [DEBUG] 是否为4技能: {isUltimate}");
 
         int upgradeBits = targetAbility.UpgradeBits;
         string oldName = targetAbility.AbilityName;
+        Console.WriteLine($"[{Name}] [DEBUG] 当前技能升级位: {upgradeBits}");
 
         string newSkillName = isUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
+        Console.WriteLine($"[{Name}] [DEBUG] 从池中获取新技能: {newSkillName}");
 
         if (oldName == newSkillName)
         {
-            Console.WriteLine($"[{Name}] 技能相同，跳过替换");
+            Console.WriteLine($"[{Name}] [DEBUG] 新旧技能相同 ({oldName})，跳过替换");
+            controller?.PrintToConsole($"[技能替换] 技能相同，跳过: {oldName}");
             return HookResult.Continue;
         }
 
         Console.WriteLine($"[{Name}] 替换技能: {oldName} -> {newSkillName} (槽位 {slot})");
+        controller?.PrintToConsole($"[技能替换] 替换技能: {oldName} -> {newSkillName}");
 
         bool wasChanneling = targetAbility.IsChanneling;
+        Console.WriteLine($"[{Name}] [DEBUG] 技能是否正在释放: {wasChanneling}");
 
+        // 移除旧技能
+        Console.WriteLine($"[{Name}] [DEBUG] 移除旧技能: {oldName}");
         pawn.RemoveAbility(targetAbility);
+        Console.WriteLine($"[{Name}] [DEBUG] 旧技能已移除");
 
+        // 添加新技能
+        Console.WriteLine($"[{Name}] [DEBUG] 添加新技能: {newSkillName} 到槽位 {slot}");
         var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
         if (newAbility != null)
         {
+            Console.WriteLine($"[{Name}] [DEBUG] 新技能添加成功");
             var newBaseAbility = newAbility as CCitadelBaseAbility;
             if (newBaseAbility != null)
             {
+                // 恢复升级位
                 newBaseAbility.UpgradeBits = upgradeBits;
-                Console.WriteLine($"[{Name}] 已恢复升级位: {upgradeBits}");
+                Console.WriteLine($"[{Name}] [DEBUG] 已恢复升级位: {upgradeBits}");
 
+                // 执行新技能
+                Console.WriteLine($"[{Name}] [DEBUG] 执行新技能: {newSkillName}");
                 int result = pawn.ExecuteAbilityBySlot(slot, false, 0);
                 if (result == 0)
                 {
                     Console.WriteLine($"[{Name}] 新技能已执行: {newSkillName}");
+                    controller?.PrintToConsole($"[技能替换] 新技能已执行: {newSkillName}");
                 }
                 else
                 {
                     Console.WriteLine($"[{Name}] 新技能执行失败: 返回值 {result}");
+                    controller?.PrintToConsole($"[技能替换] 新技能执行失败: 返回值 {result}");
                 }
             }
+            else
+            {
+                Console.WriteLine($"[{Name}] [ERROR] 新技能不是 CCitadelBaseAbility 类型");
+            }
+        }
+        else
+        {
+            Console.WriteLine($"[{Name}] [ERROR] 添加新技能失败: {newSkillName}");
+            controller?.PrintToConsole($"[技能替换] 添加新技能失败: {newSkillName}");
         }
 
+        Console.WriteLine($"[{Name}] [DEBUG] 处理完成");
         return HookResult.Continue;
     }
 
@@ -304,15 +373,21 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         {
             _isActive = false;
             Console.WriteLine($"[{Name}] 已停止");
-            if (caller != null) caller.PrintToConsole("[技能替换] 已停止");
+            string msg = "[技能替换] 已停止";
+            Console.WriteLine($"[{Name}] {msg}");
+            if (caller != null) caller.PrintToConsole(msg);
+            CCitadelPlayerController.PrintToConsoleAll(msg);
             return;
         }
 
         ShuffleSigPool();
         ShuffleUltPool();
         _isActive = true;
-        Console.WriteLine($"[{Name}] 已启动，技能池已打乱");
-        if (caller != null) caller.PrintToConsole("[技能替换] 已启动，使用技能时将自动替换");
+        Console.WriteLine($"[{Name}] 已启动");
+        string msg2 = "[技能替换] 已启动，使用技能时将自动替换";
+        Console.WriteLine($"[{Name}] {msg2}");
+        if (caller != null) caller.PrintToConsole(msg2);
+        CCitadelPlayerController.PrintToConsoleAll(msg2);
     }
 
     // ========== 手动重洗技能池 ==========
@@ -322,6 +397,8 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         ShuffleSigPool();
         ShuffleUltPool();
         Console.WriteLine($"[{Name}] 技能池已手动重洗");
-        if (caller != null) caller.PrintToConsole("[技能替换] 技能池已手动重洗");
+        string msg = "[技能替换] 技能池已手动重洗";
+        if (caller != null) caller.PrintToConsole(msg);
+        CCitadelPlayerController.PrintToConsoleAll(msg);
     }
 }
