@@ -10,6 +10,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
     public IHandle? shuffleTimer = null;
     public bool isShuffling = false;
     public bool isApplying = false;
+    public int _shuffleInterval = 5;  // 默认 5 秒
 
     // ========== 技能库（1-3技能，共享池） ==========
     private readonly List<string> _signatureSkills = new List<string>
@@ -164,6 +165,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         _shuffledSigQueue.Clear();
         _shuffledUltQueue.Clear();
         _isPoolShuffled = false;
+        _shuffleInterval = 5;
     }
 
     public override void OnUnload()
@@ -188,20 +190,6 @@ public class SkillShufflePlugin : DeadworksPluginBase
                 return controller;
         }
         return null;
-    }
-
-    // ========== 获取技能升级位（直接使用 CCitadelBaseAbility.UpgradeBits） ==========
-    private int GetSkillUpgradeBits(CCitadelBaseAbility ability)
-    {
-        if (ability == null || !ability.IsValid) return 0;
-        return ability.UpgradeBits;
-    }
-
-    // ========== 恢复技能升级位（直接使用 CCitadelBaseAbility.UpgradeBits） ==========
-    private void SetSkillUpgradeBits(CCitadelBaseAbility ability, int upgradeBits)
-    {
-        if (ability == null || !ability.IsValid) return;
-        ability.UpgradeBits = upgradeBits;
     }
 
     private void ShufflePools()
@@ -304,23 +292,14 @@ public class SkillShufflePlugin : DeadworksPluginBase
         {
             case ApplyStep.SaveUpgrade:
             {
-                // ========== 直接获取 CCitadelBaseAbility 并读取 UpgradeBits ==========
                 var oldAbility = p.AbilityComponent?.GetAbilityBySlot(s);
                 if (oldAbility != null && oldAbility.IsValid)
                 {
                     upgradeBits = oldAbility.UpgradeBits;
-                    string slotName = GetSlotName(s);
-                    string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 旧技能: {oldAbility.AbilityName}, UpgradeBits: {upgradeBits}";
-                    controller?.PrintToConsole(msg);
-                    Console.WriteLine($"[{Name}] {msg}");
                 }
                 else
                 {
                     upgradeBits = 0;
-                    string slotName = GetSlotName(s);
-                    string msg = $"[技能洗牌] {playerName} 槽位 {slotName} 为空，UpgradeBits: 0";
-                    controller?.PrintToConsole(msg);
-                    Console.WriteLine($"[{Name}] {msg}");
                 }
 
                 _currentApplyState = (p, s, newName, upgradeBits, ApplyStep.RemoveOld);
@@ -366,13 +345,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
                     var newAbility = p.AbilityComponent?.GetAbilityBySlot(s);
                     if (newAbility != null && newAbility.IsValid)
                     {
-                        // ========== 直接设置 CCitadelBaseAbility.UpgradeBits ==========
                         newAbility.UpgradeBits = upgradeBits;
-                        
-                        string slotName = GetSlotName(s);
-                        string msg = $"[技能洗牌] 槽位 {slotName} 新技能: {newAbility.AbilityName}, 已恢复 UpgradeBits: {upgradeBits}";
-                        controller?.PrintToConsole(msg);
-                        Console.WriteLine($"[{Name}] {msg}");
                     }
                 }
 
@@ -409,8 +382,38 @@ public class SkillShufflePlugin : DeadworksPluginBase
         Timer.NextTick(() => ApplyOneSkill());
     }
 
+    // ========== 设置洗牌间隔 ==========
+    [Command("d", Description = "设置技能洗牌间隔时间（秒），例如: dw_d 30")]
+    public void CmdSetInterval(CCitadelPlayerController caller, int seconds)
+    {
+        if (seconds < 1)
+        {
+            Console.WriteLine($"[{Name}] 间隔时间不能小于1秒");
+            if (caller != null) caller.PrintToConsole("[技能洗牌] 间隔时间不能小于1秒");
+            return;
+        }
+
+        _shuffleInterval = seconds;
+        Console.WriteLine($"[{Name}] 技能洗牌间隔已设置为 {seconds} 秒");
+        if (caller != null) caller.PrintToConsole($"[技能洗牌] 间隔已设置为 {seconds} 秒");
+
+        // 如果正在运行，重启计时器以应用新间隔
+        if (isShuffling && shuffleTimer != null)
+        {
+            shuffleTimer.Cancel();
+            shuffleTimer = null;
+            
+            shuffleTimer = Timer.Every(_shuffleInterval.Seconds(), () =>
+            {
+                ExecuteShuffle();
+            });
+            Console.WriteLine($"[{Name}] 已应用新间隔，重启计时器");
+            if (caller != null) caller.PrintToConsole($"[技能洗牌] 已应用新间隔 {seconds} 秒");
+        }
+    }
+
     // ========== 命令 ==========
-    [Command("sj", Description = "启动/停止技能洗牌（每5秒刷新）")]
+    [Command("sj", Description = "启动/停止技能洗牌")]
     public void CmdShuffle(CCitadelPlayerController caller)
     {
         if (isShuffling)
@@ -426,7 +429,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
         }
 
         isShuffling = true;
-        if (caller != null) caller.PrintToConsole("[技能洗牌] 已启动（每5秒刷新）");
+        if (caller != null) caller.PrintToConsole($"[技能洗牌] 已启动（每 {_shuffleInterval} 秒刷新）");
 
         if (!_isPoolShuffled)
         {
@@ -435,7 +438,7 @@ public class SkillShufflePlugin : DeadworksPluginBase
 
         ExecuteShuffle();
 
-        shuffleTimer = Timer.Every(5.Seconds(), () =>
+        shuffleTimer = Timer.Every(_shuffleInterval.Seconds(), () =>
         {
             ExecuteShuffle();
         });
