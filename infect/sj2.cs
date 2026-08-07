@@ -146,7 +146,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_viper_snakedash",
         "ability_vampirebat_lovebites",
         "ability_drifter_hunger"，
-        "ability_crackshot",
+        "ability_crackshot"
     };
 
     // ========== 打乱后的技能队列 ==========
