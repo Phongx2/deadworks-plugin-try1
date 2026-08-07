@@ -144,9 +144,9 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "citadel_ability_passive_beefy",
         "citadel_ability_tangotether",
         "ability_viper_snakedash",
+        "ability_crackshot",
         "ability_vampirebat_lovebites",
-        "ability_drifter_hunger"，
-        "ability_crackshot"
+        "ability_drifter_hunger"
     };
 
     // ========== 打乱后的技能队列 ==========
