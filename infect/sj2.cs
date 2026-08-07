@@ -159,25 +159,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     private bool _sigLuan = false;  // 1-3技能池是否已打乱
     private bool _ultLuan = false;  // 4技能池是否已打乱
 
-    // ========== 待替换任务 ==========
-    private class PendingSwap
-    {
-        public CCitadelPlayerPawn Pawn;
-        public EAbilitySlot Slot;
-        public string NewSkillName;
-        public int UpgradeBits;
-        public bool IsUltimate;
-
-        public PendingSwap(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits, bool isUltimate)
-        {
-            Pawn = pawn;
-            Slot = slot;
-            NewSkillName = newSkillName;
-            UpgradeBits = upgradeBits;
-            IsUltimate = isUltimate;
-        }
-    }
-
     // ========== 被动技能延迟信息 ==========
     private class PassiveDelayInfo
     {
@@ -251,14 +232,11 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
     private string GetNextSignatureSkill()
     {
-        // 检查是否到达最后一位
         if (_sigIndex >= _shuffledSigQueue.Count - 1)
         {
-            // 到达最后一位，这次取完后标记需要重新打乱
             Console.WriteLine($"[{Name}] 1-3技能池即将用光，当前索引 {_sigIndex}/{_shuffledSigQueue.Count}");
             var skill = _shuffledSigQueue[_sigIndex];
             _sigIndex++;
-            // 延迟 8 tick 后重新打乱
             Timer.Once(8.Ticks(), () =>
             {
                 Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 1-3 技能池");
@@ -269,7 +247,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
         if (_sigIndex >= _shuffledSigQueue.Count)
         {
-            // 意外情况，直接重新打乱
             ShuffleSigPool();
             return _shuffledSigQueue[_sigIndex++];
         }
@@ -339,7 +316,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
         if (newAbility != null)
         {
-            // 延迟 4 tick 恢复升级位
             var newBaseAbility = newAbility as CCitadelBaseAbility;
             var capturedUpgradeBits = upgradeBits;
             var capturedSlot = slot;
@@ -388,7 +364,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             Console.WriteLine($"[{Name}] 10秒已到，替换被动技能 {passiveSkillName} -> {nextSkill}");
             controller?.PrintToConsole($"[技能替换] 被动技能已替换");
 
-            // 先保存当前技能的升级位（被动技能可能被升级了）
             var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
             int currentUpgradeBits = currentAbility != null && currentAbility.IsValid ? currentAbility.UpgradeBits : upgradeBits;
 
@@ -474,7 +449,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
         Console.WriteLine($"[{Name}] 玩家 {playerName} 使用了 {abilityName} (槽位 {slot})，冷却: {remainingCooldown} 秒");
 
-        // 延迟 8 tick 后获取剩余冷却时间
         var capturedPawn = pawn;
         var capturedSlot = slot;
         var capturedUpgradeBits = upgradeBits;
@@ -483,7 +457,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
         Timer.Once(8.Ticks(), () =>
         {
-            // 获取当前技能（可能已被替换）
             var currentAbility = capturedPawn.AbilityComponent?.GetAbilityBySlot(capturedSlot);
             if (currentAbility == null || !currentAbility.IsValid)
             {
@@ -498,15 +471,13 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
             Console.WriteLine($"[{Name}] 8 tick 后，{capturedAbilityName} 剩余冷却: {currentRemaining} 秒");
 
-            // 如果剩余冷却 > 0，等待冷却结束（减去 0.5 秒）
             if (currentRemaining > 0)
             {
                 float waitTime = currentRemaining - 0.5f;
                 if (waitTime < 0.1f) waitTime = 0.1f;
 
-                Console.WriteLine($"[{Name}] 等待 {waitTime} 秒后替换技能");
+                Console.WriteLine($"[{Name}] 等待 {(int)(waitTime * 1000)} 毫秒后替换技能");
 
-                // 获取下一个技能
                 string nextSkill = capturedIsUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
 
                 var waitPawn = capturedPawn;
@@ -514,10 +485,12 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 var waitUpgradeBits = capturedUpgradeBits;
                 var waitIsUltimate = capturedIsUltimate;
 
-                Timer.Once(waitTime.Seconds(), () =>
+                // ========== 使用 Milliseconds ==========
+                int waitMilliseconds = (int)(waitTime * 1000);
+
+                Timer.Once(waitMilliseconds.Milliseconds(), () =>
                 {
                     Console.WriteLine($"[{Name}] 等待结束，执行替换");
-                    // 再次检查冷却
                     var finalAbility = waitPawn.AbilityComponent?.GetAbilityBySlot(waitSlot);
                     if (finalAbility != null && finalAbility.IsValid)
                     {
@@ -526,11 +499,9 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                         {
                             Console.WriteLine($"[{Name}] 技能仍在冷却中 ({finalRemaining} 秒)，强制替换");
                         }
-                        // 使用最新的升级位
                         int finalUpgradeBits = finalAbility.UpgradeBits;
                         ExecuteSwap(waitPawn, waitSlot, nextSkill, finalUpgradeBits);
 
-                        // 检查是否是被动技能
                         if (_passiveSkills.Contains(nextSkill))
                         {
                             Console.WriteLine($"[{Name}] 新技能 {nextSkill} 是被动技能，启动 10 秒延迟替换");
@@ -539,7 +510,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                     }
                     else
                     {
-                        // 技能不存在，直接替换
                         ExecuteSwap(waitPawn, waitSlot, nextSkill, waitUpgradeBits);
                         if (_passiveSkills.Contains(nextSkill))
                         {
@@ -550,7 +520,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             }
             else
             {
-                // 冷却已结束，直接替换
                 string nextSkill = capturedIsUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
                 Console.WriteLine($"[{Name}] 技能已就绪，立即替换为 {nextSkill}");
 
@@ -587,7 +556,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             return;
         }
 
-        // 打乱技能池
         ShuffleSigPool();
         ShuffleUltPool();
         _isActive = true;
