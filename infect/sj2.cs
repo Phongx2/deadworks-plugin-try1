@@ -3,16 +3,18 @@ using System.Numerics;
 
 namespace SkillShuffle2;
 
-public override void OnStartupServer()
-{
-    ConVar.Find("citadel_active_lane")?.SetInt(4);
-}
 
 
 
 public class SkillShuffle2Plugin : DeadworksPluginBase
 {
     public override string Name => "Skill Shuffle 2";
+
+    public override void OnStartupServer()
+{
+    ConVar.Find("citadel_active_lane")?.SetInt(4);
+}
+
 
     // ========== 技能库（1-2技能，共享池） ==========
     private readonly List<string> _signatureSkills = new List<string>
