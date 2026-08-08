@@ -189,7 +189,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_familiar_attach"
     };
 
-    // ========== 打乱后的技能队列 ==========
+   // ========== 打乱后的技能队列 ==========
     private List<string> _shuffledSigQueue = new List<string>();
     private int _sigIndex = 0;
     private List<string> _shuffledUltQueue = new List<string>();
@@ -257,7 +257,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledUltQueue.Clear();
         _passiveDelays.Clear();
         _pendingReplaces.Clear();
-        //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已加载，使用 !sj2 启动");
     }
 
     public override void OnUnload()
@@ -274,8 +273,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             pending.CheckTimer?.Cancel();
         }
         _pendingReplaces.Clear();
-        
-        //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已卸载");
     }
 
     public override void OnStartupServer()
@@ -289,7 +286,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledSigQueue = _signatureSkills.OrderBy(x => random.Next()).ToList();
         _sigIndex = 0;
         _sigLuan = true;
-        //CCitadelPlayerController.PrintToConsoleAll($"[技能替换] 1-2技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
     }
 
     private void ShuffleUltPool()
@@ -298,7 +294,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledUltQueue = _ultimateSkills.OrderBy(x => random.Next()).ToList();
         _ultIndex = 0;
         _ultLuan = true;
-        //CCitadelPlayerController.PrintToConsoleAll($"[技能替换] 4技能池已打乱，共 {_shuffledUltQueue.Count} 个技能");
     }
 
     private string GetNextSignatureSkill()
@@ -359,16 +354,23 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     // ========== 检查技能是否在引导状态 ==========
     private bool IsAbilityChanneling(CCitadelPlayerPawn pawn, EAbilitySlot slot)
     {
+        if (pawn == null || !pawn.IsValid) return false;
+        
         var ability = pawn.AbilityComponent?.GetAbilityBySlot(slot);
         if (ability == null || !ability.IsValid) return false;
         
-        // 尝试转换为 CCitadelBaseAbility 以访问 IsChanneling
         var baseAbility = ability as CCitadelBaseAbility;
         if (baseAbility != null)
         {
             return baseAbility.IsChanneling;
         }
         return false;
+    }
+
+    // ========== 检查技能是否在延迟替换列表中 ==========
+    private bool IsDelayedSkill(string skillName)
+    {
+        return _delayedSkills.Contains(skillName);
     }
 
     // ========== 执行技能替换（带引导检查） ==========
@@ -380,7 +382,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         if (IsAbilityChanneling(pawn, slot))
         {
             var controller = GetControllerFromPawn(pawn);
-            var playerName = controller?.PlayerName ?? "Unknown";
             controller?.PrintToConsole($"[技能替换] 技能正在引导中，等待引导结束...");
             
             // 取消之前的等待任务
@@ -392,8 +393,8 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             
             var pendingInfo = new PendingReplaceInfo(pawn, slot, newSkillName, upgradeBits, isUltimate);
             
-            // 每2 tick检查一次引导状态
-            pendingInfo.CheckTimer = Timer.Repeat(2.Ticks(), (timer) =>
+            // 使用 Timer.Every 每2 tick检查一次引导状态
+            pendingInfo.CheckTimer = Timer.Every(2.Ticks(), (timer) =>
             {
                 // 检查pawn是否有效
                 if (pawn == null || !pawn.IsValid)
@@ -435,12 +436,22 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         }
         
         // 不在引导状态，直接执行替换
-        ExecuteSwap(pawn, slot, newSkillName, upgradeBits);
+        DoReplace(pawn, slot, newSkillName, upgradeBits, isUltimate);
+    }
+
+    // ========== 执行替换的实际逻辑 ==========
+    private void DoReplace(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits, bool isUltimate)
+    {
+        // 获取当前技能和升级位
+        var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
+        int currentUpgradeBits = currentAbility != null && currentAbility.IsValid ? currentAbility.UpgradeBits : upgradeBits;
+        
+        ExecuteSwap(pawn, slot, newSkillName, currentUpgradeBits);
         
         // 如果新技能是被动技能，启动延迟替换
         if (_passiveSkills.Contains(newSkillName))
         {
-            ProcessPassiveSkill(pawn, slot, newSkillName, upgradeBits, isUltimate);
+            ProcessPassiveSkill(pawn, slot, newSkillName, currentUpgradeBits, isUltimate);
         }
     }
 
@@ -505,7 +516,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         } while (_passiveSkills.Contains(nextSkill) && attempts < maxAttempts);
 
         var controller = GetControllerFromPawn(pawn);
-        var playerName = controller?.PlayerName ?? "Unknown";
         controller?.PrintToConsole($"[技能替换] 被动技能将在 10 秒后替换");
 
         var delayInfo = new PassiveDelayInfo(pawn, slot, passiveSkillName, upgradeBits, isUltimate);
@@ -689,7 +699,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             _pendingReplaces.Clear();
             
             if (caller != null) caller.PrintToConsole("[技能替换] 已停止");
-            //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 已停止");
             return;
         }
 
@@ -697,7 +706,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         ShuffleUltPool();
         _isActive = true;
         if (caller != null) caller.PrintToConsole("[技能替换] 已启动，使用技能后将自动替换");
-        //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 已启动");
     }
 
     // ========== 手动重洗技能池 ==========
@@ -707,6 +715,5 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         ShuffleSigPool();
         ShuffleUltPool();
         if (caller != null) caller.PrintToConsole("[技能替换] 技能池已手动重洗");
-        //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 技能池已手动重洗");
     }
 }
