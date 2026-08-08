@@ -80,7 +80,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         //"ability_magician_magicbolt",
         "ability_magician_animalhexarea",
         "ability_vampirebat_steallife",
-        "ability_vampirebat_batblink",
         "ability_vampirebat_lovebites",
         "drifter_blood_blast",
         "drifter_shadow_mark",
