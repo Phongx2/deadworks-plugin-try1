@@ -187,6 +187,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         // "ability_flame_dash",
         // "citadel_ability_lightning_ball",
         // "ability_ice_grenade"
+        "ability_familiar_attach"
     };
 
     // ========== 打乱后的技能队列 ==========
