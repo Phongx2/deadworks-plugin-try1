@@ -118,7 +118,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     private readonly List<string> _ultimateSkills = new List<string>
     {
         "ability_fire_bomb",
-        "citadel_ability_storm_cloud",
+        //"citadel_ability_storm_cloud",
         "citadel_ability_hornet_snipe",
         "ability_health_swap",
         "citadel_ability_bull_leap",
