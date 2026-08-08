@@ -198,8 +198,8 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
     // ========== 状态标志 ==========
     private bool _isActive = false;
-    private bool _sigLuan = false;  // 1-2技能池是否已打乱
-    private bool _ultLuan = false;  // 4技能池是否已打乱
+    private bool _sigLuan = false;
+    private bool _ultLuan = false;
 
     // ========== 被动技能延迟信息 ==========
     private class PassiveDelayInfo
@@ -222,29 +222,30 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         }
     }
 
-    // ========== 延迟技能替换信息 ==========
-    private class DelayedSkillInfo
+    private readonly Dictionary<(CCitadelPlayerPawn, EAbilitySlot), PassiveDelayInfo> _passiveDelays = new();
+
+    // ========== 存储等待引导结束的替换任务 ==========
+    private class PendingReplaceInfo
     {
         public CCitadelPlayerPawn Pawn;
         public EAbilitySlot Slot;
-        public string SkillName;
+        public string NextSkill;
         public int UpgradeBits;
         public bool IsUltimate;
-        public IHandle? DelayTimer;
+        public IHandle? CheckTimer;
 
-        public DelayedSkillInfo(CCitadelPlayerPawn pawn, EAbilitySlot slot, string skillName, int upgradeBits, bool isUltimate)
+        public PendingReplaceInfo(CCitadelPlayerPawn pawn, EAbilitySlot slot, string nextSkill, int upgradeBits, bool isUltimate)
         {
             Pawn = pawn;
             Slot = slot;
-            SkillName = skillName;
+            NextSkill = nextSkill;
             UpgradeBits = upgradeBits;
             IsUltimate = isUltimate;
-            DelayTimer = null;
+            CheckTimer = null;
         }
     }
 
-    private readonly Dictionary<(CCitadelPlayerPawn, EAbilitySlot), PassiveDelayInfo> _passiveDelays = new();
-    private readonly Dictionary<(CCitadelPlayerPawn, EAbilitySlot), DelayedSkillInfo> _delayedSkillTimers = new();
+    private readonly Dictionary<(CCitadelPlayerPawn, EAbilitySlot), PendingReplaceInfo> _pendingReplaces = new();
 
     public override void OnLoad(bool isReload)
     {
@@ -256,7 +257,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledSigQueue.Clear();
         _shuffledUltQueue.Clear();
         _passiveDelays.Clear();
-        _delayedSkillTimers.Clear();
+        _pendingReplaces.Clear();
         //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已加载，使用 !sj2 启动");
     }
 
@@ -268,18 +269,15 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             delay.DelayTimer?.Cancel();
         }
         _passiveDelays.Clear();
-        foreach (var delay in _delayedSkillTimers.Values)
+        
+        foreach (var pending in _pendingReplaces.Values)
         {
-            delay.DelayTimer?.Cancel();
+            pending.CheckTimer?.Cancel();
         }
-        _delayedSkillTimers.Clear();
+        _pendingReplaces.Clear();
+        
         //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已卸载");
     }
-
-    public override void OnStartupServer()
-{
-    ConVar.Find("citadel_active_lane")?.SetInt(4);
-}
 
     private void ShuffleSigPool()
     {
@@ -354,6 +352,94 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         return null;
     }
 
+    // ========== 检查技能是否在引导状态 ==========
+    private bool IsAbilityChanneling(CCitadelPlayerPawn pawn, EAbilitySlot slot)
+    {
+        var ability = pawn.AbilityComponent?.GetAbilityBySlot(slot);
+        if (ability == null || !ability.IsValid) return false;
+        
+        // 尝试转换为 CCitadelBaseAbility 以访问 IsChanneling
+        var baseAbility = ability as CCitadelBaseAbility;
+        if (baseAbility != null)
+        {
+            return baseAbility.IsChanneling;
+        }
+        return false;
+    }
+
+    // ========== 执行技能替换（带引导检查） ==========
+    private void ExecuteSwapWithChannelCheck(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits, bool isUltimate)
+    {
+        var key = (pawn, slot);
+        
+        // 如果正在引导，等待引导结束
+        if (IsAbilityChanneling(pawn, slot))
+        {
+            var controller = GetControllerFromPawn(pawn);
+            var playerName = controller?.PlayerName ?? "Unknown";
+            controller?.PrintToConsole($"[技能替换] 技能正在引导中，等待引导结束...");
+            
+            // 取消之前的等待任务
+            if (_pendingReplaces.TryGetValue(key, out var existingPending))
+            {
+                existingPending.CheckTimer?.Cancel();
+                _pendingReplaces.Remove(key);
+            }
+            
+            var pendingInfo = new PendingReplaceInfo(pawn, slot, newSkillName, upgradeBits, isUltimate);
+            
+            // 每2 tick检查一次引导状态
+            pendingInfo.CheckTimer = Timer.Repeat(2.Ticks(), (timer) =>
+            {
+                // 检查pawn是否有效
+                if (pawn == null || !pawn.IsValid)
+                {
+                    timer.Cancel();
+                    _pendingReplaces.Remove(key);
+                    return;
+                }
+                
+                // 检查是否还在引导
+                if (IsAbilityChanneling(pawn, slot))
+                {
+                    // 还在引导，继续等待
+                    return;
+                }
+                
+                // 引导结束，执行替换
+                timer.Cancel();
+                _pendingReplaces.Remove(key);
+                
+                var controller2 = GetControllerFromPawn(pawn);
+                controller2?.PrintToConsole($"[技能替换] 引导结束，执行替换");
+                
+                // 获取当前技能和升级位
+                var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
+                int currentUpgradeBits = currentAbility != null && currentAbility.IsValid ? currentAbility.UpgradeBits : upgradeBits;
+                
+                ExecuteSwap(pawn, slot, newSkillName, currentUpgradeBits);
+                
+                // 如果新技能是被动技能，启动延迟替换
+                if (_passiveSkills.Contains(newSkillName))
+                {
+                    ProcessPassiveSkill(pawn, slot, newSkillName, currentUpgradeBits, isUltimate);
+                }
+            });
+            
+            _pendingReplaces[key] = pendingInfo;
+            return;
+        }
+        
+        // 不在引导状态，直接执行替换
+        ExecuteSwap(pawn, slot, newSkillName, upgradeBits);
+        
+        // 如果新技能是被动技能，启动延迟替换
+        if (_passiveSkills.Contains(newSkillName))
+        {
+            ProcessPassiveSkill(pawn, slot, newSkillName, upgradeBits, isUltimate);
+        }
+    }
+
     // ========== 执行技能替换 ==========
     private void ExecuteSwap(CCitadelPlayerPawn pawn, EAbilitySlot slot, string newSkillName, int upgradeBits)
     {
@@ -380,7 +466,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         var newAbility = pawn.AddAbility(newSkillName, (ushort)slot);
         if (newAbility != null)
         {
-            var newBaseAbility = newAbility as CCitadelBaseAbility;
             var capturedUpgradeBits = upgradeBits;
             var capturedSlot = slot;
             var capturedPawn = pawn;
@@ -416,6 +501,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         } while (_passiveSkills.Contains(nextSkill) && attempts < maxAttempts);
 
         var controller = GetControllerFromPawn(pawn);
+        var playerName = controller?.PlayerName ?? "Unknown";
         controller?.PrintToConsole($"[技能替换] 被动技能将在 10 秒后替换");
 
         var delayInfo = new PassiveDelayInfo(pawn, slot, passiveSkillName, upgradeBits, isUltimate);
@@ -427,54 +513,12 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
             int currentUpgradeBits = currentAbility != null && currentAbility.IsValid ? currentAbility.UpgradeBits : upgradeBits;
 
-            ExecuteSwap(pawn, slot, nextSkill, currentUpgradeBits);
+            // 使用带引导检查的替换
+            ExecuteSwapWithChannelCheck(pawn, slot, nextSkill, currentUpgradeBits, isUltimate);
             _passiveDelays.Remove(key);
         });
 
         _passiveDelays[key] = delayInfo;
-    }
-
-    // ========== 执行延迟技能替换（10秒后替换） ==========
-    private void ProcessDelayedSkill(CCitadelPlayerPawn pawn, EAbilitySlot slot, string skillName, int upgradeBits, bool isUltimate)
-    {
-        var key = (pawn, slot);
-
-        // 取消之前的延迟计时器
-        if (_delayedSkillTimers.TryGetValue(key, out var existingDelay))
-        {
-            existingDelay.DelayTimer?.Cancel();
-            _delayedSkillTimers.Remove(key);
-        }
-
-        var controller = GetControllerFromPawn(pawn);
-        controller?.PrintToConsole($"[技能替换] 技能 {skillName} 将在 10 秒后替换");
-
-        var delayInfo = new DelayedSkillInfo(pawn, slot, skillName, upgradeBits, isUltimate);
-
-        delayInfo.DelayTimer = Timer.Once(10.Seconds(), () =>
-        {
-            controller?.PrintToConsole($"[技能替换] 延迟技能 {skillName} 已开始替换");
-
-            // 获取下一个技能
-            string nextSkill = isUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
-
-            // 检查当前技能是否还存在
-            var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
-            int currentUpgradeBits = currentAbility != null && currentAbility.IsValid ? currentAbility.UpgradeBits : upgradeBits;
-
-            // 执行替换
-            ExecuteSwap(pawn, slot, nextSkill, currentUpgradeBits);
-
-            // 如果新技能是被动技能，启动被动替换
-            if (_passiveSkills.Contains(nextSkill))
-            {
-                ProcessPassiveSkill(pawn, slot, nextSkill, currentUpgradeBits, isUltimate);
-            }
-
-            _delayedSkillTimers.Remove(key);
-        });
-
-        _delayedSkillTimers[key] = delayInfo;
     }
 
     // ========== 监听玩家使用技能 ==========
@@ -494,7 +538,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         }
 
         string abilityName = ev.GetString("abilityname", "");
-
         if (string.IsNullOrEmpty(abilityName))
         {
             return HookResult.Continue;
@@ -520,7 +563,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             }
         }
 
-        // 检测 Signature1, Signature2, Signature4
+        // 只检测 Signature1、Signature2 和 Signature4
         if (slot != EAbilitySlot.Signature1 && slot != EAbilitySlot.Signature2 && slot != EAbilitySlot.Signature4)
         {
             return HookResult.Continue;
@@ -541,28 +584,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         float remainingCooldown = cooldownEnd - cooldownStart;
         if (remainingCooldown < 0) remainingCooldown = 0;
 
-        // ========== 检查是否是需要延迟替换的技能 ==========
-        if (_delayedSkills.Contains(abilityName))
-        {
-            // 延迟技能：取消正常的替换逻辑，改为10秒后替换
-            var delayedKey = (pawn, slot);
-            
-            // 取消之前可能存在的延迟计时器
-            if (_delayedSkillTimers.TryGetValue(delayedKey, out var existingDelay))
-            {
-                existingDelay.DelayTimer?.Cancel();
-                _delayedSkillTimers.Remove(delayedKey);
-            }
-
-            // 启动10秒延迟替换
-            ProcessDelayedSkill(pawn, slot, abilityName, upgradeBits, isUltimate);
-            
-            // 如果技能有冷却，可以在这里处理冷却期间的替换逻辑
-            // 但我们使用延迟替换，所以直接返回
-            return HookResult.Continue;
-        }
-
-        // ========== 正常的技能替换逻辑 ==========
         var capturedPawn = pawn;
         var capturedSlot = slot;
         var capturedUpgradeBits = upgradeBits;
@@ -574,6 +595,14 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             var currentAbility = capturedPawn.AbilityComponent?.GetAbilityBySlot(capturedSlot);
             if (currentAbility == null || !currentAbility.IsValid)
             {
+                return;
+            }
+
+            // 检查是否在引导状态
+            if (IsAbilityChanneling(capturedPawn, capturedSlot))
+            {
+                var controller2 = GetControllerFromPawn(capturedPawn);
+                controller2?.PrintToConsole($"[技能替换] 技能正在引导中，等待引导结束后替换");
                 return;
             }
 
@@ -599,36 +628,35 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 Timer.Once(waitMilliseconds.Milliseconds(), () =>
                 {
                     var finalAbility = waitPawn.AbilityComponent?.GetAbilityBySlot(waitSlot);
+                    
+                    // 替换前再次检查引导状态
+                    if (IsAbilityChanneling(waitPawn, waitSlot))
+                    {
+                        var controller3 = GetControllerFromPawn(waitPawn);
+                        controller3?.PrintToConsole($"[技能替换] 等待冷却结束时技能仍在引导，继续等待...");
+                        // 递归等待引导结束
+                        ExecuteSwapWithChannelCheck(waitPawn, waitSlot, nextSkill, waitUpgradeBits, waitIsUltimate);
+                        return;
+                    }
+                    
                     if (finalAbility != null && finalAbility.IsValid)
                     {
                         int finalUpgradeBits = finalAbility.UpgradeBits;
-                        ExecuteSwap(waitPawn, waitSlot, nextSkill, finalUpgradeBits);
-
-                        if (_passiveSkills.Contains(nextSkill))
-                        {
-                            ProcessPassiveSkill(waitPawn, waitSlot, nextSkill, finalUpgradeBits, waitIsUltimate);
-                        }
+                        // 使用带引导检查的替换
+                        ExecuteSwapWithChannelCheck(waitPawn, waitSlot, nextSkill, finalUpgradeBits, waitIsUltimate);
                     }
                     else
                     {
-                        ExecuteSwap(waitPawn, waitSlot, nextSkill, waitUpgradeBits);
-                        if (_passiveSkills.Contains(nextSkill))
-                        {
-                            ProcessPassiveSkill(waitPawn, waitSlot, nextSkill, waitUpgradeBits, waitIsUltimate);
-                        }
+                        ExecuteSwapWithChannelCheck(waitPawn, waitSlot, nextSkill, waitUpgradeBits, waitIsUltimate);
                     }
                 });
             }
             else
             {
                 string nextSkill = capturedIsUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
-
-                ExecuteSwap(capturedPawn, capturedSlot, nextSkill, capturedUpgradeBits);
-
-                if (_passiveSkills.Contains(nextSkill))
-                {
-                    ProcessPassiveSkill(capturedPawn, capturedSlot, nextSkill, capturedUpgradeBits, capturedIsUltimate);
-                }
+                
+                // 使用带引导检查的替换
+                ExecuteSwapWithChannelCheck(capturedPawn, capturedSlot, nextSkill, capturedUpgradeBits, capturedIsUltimate);
             }
         });
 
@@ -649,11 +677,13 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 delay.DelayTimer?.Cancel();
             }
             _passiveDelays.Clear();
-            foreach (var delay in _delayedSkillTimers.Values)
+            
+            foreach (var pending in _pendingReplaces.Values)
             {
-                delay.DelayTimer?.Cancel();
+                pending.CheckTimer?.Cancel();
             }
-            _delayedSkillTimers.Clear();
+            _pendingReplaces.Clear();
+            
             if (caller != null) caller.PrintToConsole("[技能替换] 已停止");
             //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 已停止");
             return;
