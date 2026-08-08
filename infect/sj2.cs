@@ -10,81 +10,92 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     // ========== 技能库（1-2技能，共享池） ==========
     private readonly List<string> _signatureSkills = new List<string>
     {
-        "ability_incendiary_projectile",
+       "ability_incendiary_projectile",
         "ability_flame_dash",
-        "citadel_ability_lightning_ball",      // 原第3位，保留
-        "citadel_ability_static_charge",       // 原第4位
-        "ability_power_surge",                  // 原第5位
-        "citadel_ability_hornet_leap",         // 原第7位
-        "citadel_ability_hornet_sting",         // 原第8位
-        "ability_blood_bomb",                  // 原第9位，保留
-        "ability_life_drain",                  // 原第10位
-        "ability_blood_shards",                // 原第11位
-        "citadel_ability_bull_charge",          // 原第13位
-        "citadel_ability_passive_beefy",        // 原第14位
-        "citadel_ability_card_toss",           // 原第15位，保留
-        "citadel_ability_projectmind",         // 原第16位
-        "citadel_ability_wraith_rapidfire",    // 原第17位
-        "citadel_ability_mobile_resupply",     // 原第19位
-        "citadel_ability_fissure_wall",        // 原第20位
-        "citadel_ability_chrono_pulse_grenade", // 原第21位，保留
-        "citadel_ability_chrono_time_wall",     // 原第22位
-        "citadel_ability_chrono_kinetic_carbine", // 原第23位
-        "citadel_ability_stomp",               // 原第25位
-        "citadel_ability_void_sphere",         // 原第26位
-        "citadel_ability_nikuman",             // 原第27位，保留
-        "ability_ice_grenade",                 // 原第28位
-        "ability_icepath",                     // 原第29位
-        "ability_smoke_bomb",                  // 原第31位
-        "ability_stacking_damage",             // 原第32位
-        "ability_explosive_barrel",            // 原第33位，保留
-        "ability_bounce_pad",                  // 原第34位
-        "ability_crackshot",                   // 原第35位
-        "citadel_ability_sticky_bomb",         // 原第37位
-        "citadel_ability_hook",                // 原第38位
-        "ability_nano_clustergrenade",         // 原第39位，保留
-        "ability_nano_dash",                   // 原第40位
-        "ability_nano_catform",                // 原第41位
-        "ability_power_jump",                  // 原第43位
-        "ability_immobilize_trap",             // 原第44位
-        "ability_intimidate",                  // 原第45位，保留
-        "ability_burrow",                      // 原第46位
-        "ability_throw_sand",                  // 原第47位
-        "citadel_ability_shiv_dash",           // 原第49位
-        "citadel_ability_shiv_defer_damage",   // 原第50位
-        "citadel_ability_tengu_urn",           // 原第51位，保留
-        "citadel_ability_tangotether",         // 原第52位
-        "citadel_ability_tengu_stone_form",    // 原第53位
-        "ability_warden_high_alert",           // 原第55位
-        "ability_warden_lock_down",            // 原第56位
-        "citadel_ability_power_slash",         // 原第57位，保留
-        "citadel_ability_flying_strike",       // 原第58位
-        "citadel_ability_healing_slash",       // 原第59位
-        "citadel_ability_lash",                // 原第61位
-        "ability_lash_flog",                   // 原第62位
-        "viscous_goo_grenade",                 // 原第63位，保留
-        "viscous_restorative_goo",             // 原第64位
-        "viscous_telepunch",                   // 原第65位
-        "ability_viper_venom",                 // 原第67位
-        "ability_viper_snakedash",             // 原第68位
-        "ability_magician_magicbolt",          // 原第69位，保留
-        "ability_magician_cloneturret",        // 原第70位
-        "ability_magician_animalhexarea",      // 原第71位
-        "ability_vampirebat_batblink",         // 原第73位
-        "ability_vampirebat_lovebites",        // 原第74位
-        "drifter_blood_blast",                 // 原第75位，保留
-        "drifter_shadow_mark",                 // 原第76位
-        "ability_drifter_hunger",              // 原第77位
-        "ability_priest_knockback",            // 原第79位
-        "ability_priest_beartrap",             // 原第80位
-        "ability_frank_shocktarget2",          // 原第81位，保留
-        "ability_frank_selfzap",               // 原第82位
-        "ability_frank_painaura",              // 原第83位
-        "ability_bookworm_knightbarrier",      // 原第85位
-        "ability_bookworm_aoemagic",           // 原第86位
-        "ability_doorman_bomb",                // 原第87位，保留
-        "ability_doorman_doorway",             // 原第88位
-        "ability_doorman_luggage_cart"         // 原第89位
+        "ability_afterburn",
+        "citadel_ability_lightning_ball",
+        "citadel_ability_static_charge",
+        "ability_power_surge",
+        "citadel_ability_hornet_chain",
+        "citadel_ability_hornet_leap",
+        "citadel_ability_hornet_sting",
+        "ability_blood_bomb",
+        "ability_life_drain",
+        "ability_blood_shards",
+        "citadel_ability_bull_heal",
+        "citadel_ability_bull_charge",
+        "citadel_ability_passive_beefy",
+        "citadel_ability_card_toss",
+        "citadel_ability_projectmind",
+        "citadel_ability_wraith_rapidfire",
+        "citadel_ability_shieldedsentry",
+        "citadel_ability_mobile_resupply",
+        "citadel_ability_fissure_wall",
+        "citadel_ability_chrono_pulse_grenade",
+        "citadel_ability_chrono_time_wall",
+        "citadel_ability_chrono_kinetic_carbine",
+        "citadel_ability_stomp",
+        "citadel_ability_void_sphere",
+        "citadel_ability_nikuman",
+        "ability_ice_grenade",
+        "ability_icepath",
+        "ability_icebeam",
+        "ability_sleep_dagger",
+        "ability_smoke_bomb",
+        "ability_stacking_damage",
+        "ability_explosive_barrel",
+        "ability_bounce_pad",
+        "citadel_ability_uppercut",
+        "citadel_ability_sticky_bomb",
+        "citadel_ability_hook",
+        "ability_nano_clustergrenade",
+        "ability_nano_dash",
+        "ability_charged_shot",
+        "ability_power_jump",
+        "ability_immobilize_trap",
+        "ability_intimidate",
+        "ability_burrow",
+        "ability_throw_sand",
+        "citadel_ability_shiv_dagger",
+        "citadel_ability_shiv_dash",
+        "citadel_ability_shiv_defer_damage",
+        "citadel_ability_tengu_urn",
+        "citadel_ability_tangotether",
+        "citadel_ability_tengu_stone_form",
+        "ability_warden_crowd_control",
+        "ability_warden_high_alert",
+        "ability_warden_lock_down",
+        "citadel_ability_power_slash",
+        "citadel_ability_flying_strike",
+        "citadel_ability_healing_slash",
+        "citadel_ability_lash_down_strike",
+        "citadel_ability_lash",
+        "ability_lash_flog",
+        "viscous_goo_grenade",
+        "viscous_restorative_goo",
+        "viscous_telepunch",
+        "ability_viper_debuffdagger",
+        "ability_viper_venom",
+        "ability_viper_snakedash",
+        "ability_magician_magicbolt",
+        "ability_magician_animalhexarea",
+        "ability_vampirebat_steallife",
+        "ability_vampirebat_batblink",
+        "ability_vampirebat_lovebites",
+        "drifter_blood_blast",
+        "drifter_shadow_mark",
+        "ability_drifter_hunger",
+        "ability_drifter_hunger",
+        "ability_priest_flashbang",
+        "ability_priest_knockback",
+        "ability_priest_beartrap",
+        "ability_frank_shocktarget2",
+        "ability_frank_selfzap",
+        "ability_bookworm_dragonfire",
+        "ability_bookworm_knightbarrier",
+        "ability_bookworm_aoemagic",
+        "ability_doorman_bomb",
+        "ability_doorman_luggage_cart"
     };
 
     private readonly List<string> _ultimateSkills = new List<string>
@@ -112,7 +123,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "citadel_ability_lash_ultimate",
         "viscous_goo_bowling_ball",
         "ability_viper_petrifybola",
-        "ability_magician_copyult",
+       // "ability_magician_copyult",
         "ability_vampirebat_batswarm",
         "drifter_darkness",
         "ability_priest_weaponswap",
@@ -131,6 +142,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_viper_snakedash",
         "ability_crackshot",
         "ability_vampirebat_lovebites",
+        "citadel_ability_tangotether",
         "ability_drifter_hunger"
     };
 
@@ -170,9 +182,9 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
     public override void OnLoad(bool isReload)
     {
-        Console.WriteLine($"[{Name}] ========== 插件加载 ==========");
-        Console.WriteLine($"[{Name}] 加载状态: {(isReload ? "热重载" : "首次加载")}");
-        Console.WriteLine($"[{Name}] ===============================");
+        //Console.WriteLine($"[{Name}] ========== 插件加载 ==========");
+        //Console.WriteLine($"[{Name}] 加载状态: {(isReload ? "热重载" : "首次加载")}");
+        //Console.WriteLine($"[{Name}] ===============================");
         _isActive = false;
         _sigLuan = false;
         _ultLuan = false;
@@ -186,7 +198,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
     public override void OnUnload()
     {
-        Console.WriteLine($"[{Name}] 插件卸载");
+        //Console.WriteLine($"[{Name}] 插件卸载");
         _isActive = false;
         foreach (var delay in _passiveDelays.Values)
         {
@@ -202,7 +214,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledSigQueue = _signatureSkills.OrderBy(x => random.Next()).ToList();
         _sigIndex = 0;
         _sigLuan = true;
-        Console.WriteLine($"[{Name}] 1-2技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
+        //Console.WriteLine($"[{Name}] 1-2技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
         CCitadelPlayerController.PrintToConsoleAll($"[技能替换] 1-2技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
     }
 
@@ -212,7 +224,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledUltQueue = _ultimateSkills.OrderBy(x => random.Next()).ToList();
         _ultIndex = 0;
         _ultLuan = true;
-        Console.WriteLine($"[{Name}] 4技能池已打乱，共 {_shuffledUltQueue.Count} 个技能");
+        //Console.WriteLine($"[{Name}] 4技能池已打乱，共 {_shuffledUltQueue.Count} 个技能");
         CCitadelPlayerController.PrintToConsoleAll($"[技能替换] 4技能池已打乱，共 {_shuffledUltQueue.Count} 个技能");
     }
 
@@ -220,12 +232,12 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         if (_sigIndex >= _shuffledSigQueue.Count - 1)
         {
-            Console.WriteLine($"[{Name}] 1-2技能池即将用光，当前索引 {_sigIndex}/{_shuffledSigQueue.Count}");
+            //Console.WriteLine($"[{Name}] 1-2技能池即将用光，当前索引 {_sigIndex}/{_shuffledSigQueue.Count}");
             var skill = _shuffledSigQueue[_sigIndex];
             _sigIndex++;
             Timer.Once(8.Ticks(), () =>
             {
-                Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 1-2 技能池");
+                //Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 1-2 技能池");
                 ShuffleSigPool();
             });
             return skill;
@@ -244,12 +256,12 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         if (_ultIndex >= _shuffledUltQueue.Count - 1)
         {
-            Console.WriteLine($"[{Name}] 4技能池即将用光，当前索引 {_ultIndex}/{_shuffledUltQueue.Count}");
+            //Console.WriteLine($"[{Name}] 4技能池即将用光，当前索引 {_ultIndex}/{_shuffledUltQueue.Count}");
             var skill = _shuffledUltQueue[_ultIndex];
             _ultIndex++;
             Timer.Once(8.Ticks(), () =>
             {
-                Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 4 技能池");
+                //Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 4 技能池");
                 ShuffleUltPool();
             });
             return skill;
@@ -291,7 +303,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             return;
         }
 
-        Console.WriteLine($"[{Name}] 替换 {playerName} 槽位 {slot}: {oldName} -> {newSkillName}");
+        //Console.WriteLine($"[{Name}] 替换 {playerName} 槽位 {slot}: {oldName} -> {newSkillName}");
         controller?.PrintToConsole($"[技能替换] {oldName} -> {newSkillName}");
 
         if (oldAbility != null && oldAbility.IsValid)
@@ -312,7 +324,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 if (abilityToRestore != null && abilityToRestore.IsValid && capturedUpgradeBits > 0)
                 {
                     abilityToRestore.UpgradeBits = capturedUpgradeBits;
-                    Console.WriteLine($"[{Name}] 已恢复升级位: {capturedUpgradeBits}");
+                    //Console.WriteLine($"[{Name}] 已恢复升级位: {capturedUpgradeBits}");
                 }
             });
         }
@@ -340,14 +352,14 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
         var controller = GetControllerFromPawn(pawn);
         var playerName = controller?.PlayerName ?? "Unknown";
-        Console.WriteLine($"[{Name}] {playerName} 被动技能 {passiveSkillName} 将在 10 秒后替换为 {nextSkill}");
+        //Console.WriteLine($"[{Name}] {playerName} 被动技能 {passiveSkillName} 将在 10 秒后替换为 {nextSkill}");
         controller?.PrintToConsole($"[技能替换] 被动技能将在 10 秒后替换");
 
         var delayInfo = new PassiveDelayInfo(pawn, slot, passiveSkillName, upgradeBits, isUltimate);
 
         delayInfo.DelayTimer = Timer.Once(10.Seconds(), () =>
         {
-            Console.WriteLine($"[{Name}] 10秒已到，替换被动技能 {passiveSkillName} -> {nextSkill}");
+            //Console.WriteLine($"[{Name}] 10秒已到，替换被动技能 {passiveSkillName} -> {nextSkill}");
             controller?.PrintToConsole($"[技能替换] 被动技能已替换");
 
             var currentAbility = pawn.AbilityComponent?.GetAbilityBySlot(slot);
@@ -367,32 +379,32 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         if (!_isActive) return HookResult.Continue;
         if (!_sigLuan || !_ultLuan)
         {
-            Console.WriteLine($"[{Name}] 技能池未初始化，请先执行 !sj2");
+            //Console.WriteLine($"[{Name}] 技能池未初始化，请先执行 !sj2");
             return HookResult.Continue;
         }
 
-        Console.WriteLine($"[{Name}] [DEBUG] player_used_ability 事件触发");
+        //Console.WriteLine($"[{Name}] [DEBUG] player_used_ability 事件触发");
 
         var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
         if (pawn == null)
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 无法获取施法者 Pawn");
+            //Console.WriteLine($"[{Name}] [DEBUG] 无法获取施法者 Pawn");
             return HookResult.Continue;
         }
 
         string abilityName = ev.GetString("abilityname", "");
-        Console.WriteLine($"[{Name}] [DEBUG] 技能名称: {abilityName}");
+        //Console.WriteLine($"[{Name}] [DEBUG] 技能名称: {abilityName}");
 
         if (string.IsNullOrEmpty(abilityName))
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 技能名称为空，跳过");
+            //Console.WriteLine($"[{Name}] [DEBUG] 技能名称为空，跳过");
             return HookResult.Continue;
         }
 
         var abilities = pawn.AbilityComponent?.Abilities;
         if (abilities == null)
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 无法获取技能列表");
+            //Console.WriteLine($"[{Name}] [DEBUG] 无法获取技能列表");
             return HookResult.Continue;
         }
 
@@ -406,7 +418,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             {
                 targetAbility = ability;
                 slot = ability.AbilitySlot;
-                Console.WriteLine($"[{Name}] [DEBUG] 找到目标技能，槽位: {slot}");
+                //Console.WriteLine($"[{Name}] [DEBUG] 找到目标技能，槽位: {slot}");
                 break;
             }
         }
@@ -414,13 +426,13 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         // 修改为只检测 Signature1 和 Signature2
         if (slot != EAbilitySlot.Signature1 && slot != EAbilitySlot.Signature2 && slot != EAbilitySlot.Signature4)
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 技能槽位 {slot} 不在 1,2,4 范围内，跳过");
+            //Console.WriteLine($"[{Name}] [DEBUG] 技能槽位 {slot} 不在 1,2,4 范围内，跳过");
             return HookResult.Continue;
         }
 
         if (targetAbility == null)
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 目标技能为空，跳过");
+            //Console.WriteLine($"[{Name}] [DEBUG] 目标技能为空，跳过");
             return HookResult.Continue;
         }
 
@@ -434,7 +446,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         float remainingCooldown = cooldownEnd - cooldownStart;
         if (remainingCooldown < 0) remainingCooldown = 0;
 
-        Console.WriteLine($"[{Name}] 玩家 {playerName} 使用了 {abilityName} (槽位 {slot})，冷却: {remainingCooldown} 秒");
+        //Console.WriteLine($"[{Name}] 玩家 {playerName} 使用了 {abilityName} (槽位 {slot})，冷却: {remainingCooldown} 秒");
 
         var capturedPawn = pawn;
         var capturedSlot = slot;
@@ -447,7 +459,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             var currentAbility = capturedPawn.AbilityComponent?.GetAbilityBySlot(capturedSlot);
             if (currentAbility == null || !currentAbility.IsValid)
             {
-                Console.WriteLine($"[{Name}] 技能已被移除，跳过替换");
+                //Console.WriteLine($"[{Name}] 技能已被移除，跳过替换");
                 return;
             }
 
@@ -456,14 +468,14 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             float currentRemaining = currentCooldownEnd - currentCooldownStart;
             if (currentRemaining < 0) currentRemaining = 0;
 
-            Console.WriteLine($"[{Name}] 8 tick 后，{capturedAbilityName} 剩余冷却: {currentRemaining} 秒");
+            //Console.WriteLine($"[{Name}] 8 tick 后，{capturedAbilityName} 剩余冷却: {currentRemaining} 秒");
 
             if (currentRemaining > 0)
             {
                 float waitTime = currentRemaining - 0.5f;
                 if (waitTime < 0.1f) waitTime = 0.1f;
 
-                Console.WriteLine($"[{Name}] 等待 {(int)(waitTime * 1000)} 毫秒后替换技能");
+                //Console.WriteLine($"[{Name}] 等待 {(int)(waitTime * 1000)} 毫秒后替换技能");
 
                 string nextSkill = capturedIsUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
 
@@ -477,21 +489,21 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
                 Timer.Once(waitMilliseconds.Milliseconds(), () =>
                 {
-                    Console.WriteLine($"[{Name}] 等待结束，执行替换");
+                    //Console.WriteLine($"[{Name}] 等待结束，执行替换");
                     var finalAbility = waitPawn.AbilityComponent?.GetAbilityBySlot(waitSlot);
                     if (finalAbility != null && finalAbility.IsValid)
                     {
                         float finalRemaining = finalAbility.CooldownEnd - finalAbility.CooldownStart;
                         if (finalRemaining > 0)
                         {
-                            Console.WriteLine($"[{Name}] 技能仍在冷却中 ({finalRemaining} 秒)，强制替换");
+                            //Console.WriteLine($"[{Name}] 技能仍在冷却中 ({finalRemaining} 秒)，强制替换");
                         }
                         int finalUpgradeBits = finalAbility.UpgradeBits;
                         ExecuteSwap(waitPawn, waitSlot, nextSkill, finalUpgradeBits);
 
                         if (_passiveSkills.Contains(nextSkill))
                         {
-                            Console.WriteLine($"[{Name}] 新技能 {nextSkill} 是被动技能，启动 10 秒延迟替换");
+                            //Console.WriteLine($"[{Name}] 新技能 {nextSkill} 是被动技能，启动 10 秒延迟替换");
                             ProcessPassiveSkill(waitPawn, waitSlot, nextSkill, finalUpgradeBits, waitIsUltimate);
                         }
                     }
@@ -508,13 +520,13 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             else
             {
                 string nextSkill = capturedIsUltimate ? GetNextUltimateSkill() : GetNextSignatureSkill();
-                Console.WriteLine($"[{Name}] 技能已就绪，立即替换为 {nextSkill}");
+                //Console.WriteLine($"[{Name}] 技能已就绪，立即替换为 {nextSkill}");
 
                 ExecuteSwap(capturedPawn, capturedSlot, nextSkill, capturedUpgradeBits);
 
                 if (_passiveSkills.Contains(nextSkill))
                 {
-                    Console.WriteLine($"[{Name}] 新技能 {nextSkill} 是被动技能，启动 10 秒延迟替换");
+                    //Console.WriteLine($"[{Name}] 新技能 {nextSkill} 是被动技能，启动 10 秒延迟替换");
                     ProcessPassiveSkill(capturedPawn, capturedSlot, nextSkill, capturedUpgradeBits, capturedIsUltimate);
                 }
             }
@@ -537,7 +549,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 delay.DelayTimer?.Cancel();
             }
             _passiveDelays.Clear();
-            Console.WriteLine($"[{Name}] 已停止");
+            //Console.WriteLine($"[{Name}] 已停止");
             if (caller != null) caller.PrintToConsole("[技能替换] 已停止");
             CCitadelPlayerController.PrintToConsoleAll("[技能替换] 已停止");
             return;
@@ -546,7 +558,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         ShuffleSigPool();
         ShuffleUltPool();
         _isActive = true;
-        Console.WriteLine($"[{Name}] 已启动");
+        //Console.WriteLine($"[{Name}] 已启动");
         if (caller != null) caller.PrintToConsole("[技能替换] 已启动，使用技能后将自动替换");
         CCitadelPlayerController.PrintToConsoleAll("[技能替换] 已启动");
     }
@@ -557,7 +569,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         ShuffleSigPool();
         ShuffleUltPool();
-        Console.WriteLine($"[{Name}] 技能池已手动重洗");
+        //Console.WriteLine($"[{Name}] 技能池已手动重洗");
         if (caller != null) caller.PrintToConsole("[技能替换] 技能池已手动重洗");
         CCitadelPlayerController.PrintToConsoleAll("[技能替换] 技能池已手动重洗");
     }
