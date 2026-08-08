@@ -10,10 +10,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 {
     public override string Name => "Skill Shuffle 2";
 
-    public override void OnStartupServer()
-{
-    ConVar.Find("citadel_active_lane")?.SetInt(4);
-}
+
 
 
     // ========== 技能库（1-2技能，共享池） ==========
@@ -279,6 +276,11 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _pendingReplaces.Clear();
         
         //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已卸载");
+    }
+
+    public override void OnStartupServer()
+    {
+        ConVar.Find("citadel_active_lane")?.SetInt(4);
     }
 
     private void ShuffleSigPool()
