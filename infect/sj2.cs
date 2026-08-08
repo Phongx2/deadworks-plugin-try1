@@ -394,12 +394,13 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             var pendingInfo = new PendingReplaceInfo(pawn, slot, newSkillName, upgradeBits, isUltimate);
             
             // 使用 Timer.Every 每2 tick检查一次引导状态
-            pendingInfo.CheckTimer = Timer.Every(2.Ticks(), (timer) =>
+            // Timer.Every 的回调是 Action 类型，不接受参数
+            pendingInfo.CheckTimer = Timer.Every(2.Ticks(), () =>
             {
                 // 检查pawn是否有效
                 if (pawn == null || !pawn.IsValid)
                 {
-                    timer.Cancel();
+                    pendingInfo.CheckTimer?.Cancel();
                     _pendingReplaces.Remove(key);
                     return;
                 }
@@ -412,7 +413,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
                 }
                 
                 // 引导结束，执行替换
-                timer.Cancel();
+                pendingInfo.CheckTimer?.Cancel();
                 _pendingReplaces.Remove(key);
                 
                 var controller2 = GetControllerFromPawn(pawn);
