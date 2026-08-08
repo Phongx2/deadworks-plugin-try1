@@ -95,7 +95,25 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_bookworm_knightbarrier",
         "ability_bookworm_aoemagic",
         "ability_doorman_bomb",
-        "ability_doorman_luggage_cart"
+        "ability_doorman_luggage_cart", 
+            "ability_punkgoat_ult",
+            "ability_punkgoat_goatflip",
+            "ability_punkgoat_blasted",
+            "ability_necro_hauntingskull",
+            "ability_necro_zombiewall",
+            "ability_necro_fear",
+            "ability_fencer_throwblade",
+            "ability_fencer_riposte",
+            "ability_fencer_lunge",
+            "ability_familiar_ability02",
+            "ability_familiar_attach",
+            "ability_familiar_helpinghands",
+            "ability_werewolf_unloadgun",
+            "ability_werewolf_kickflip",
+            "ability_werewolf_netshot",
+            "ability_unicorn_radiantblast",
+            "ability_unicorn_prismaticguard",
+            "ability_unicorn_luminousstrike"
     };
 
     private readonly List<string> _ultimateSkills = new List<string>
@@ -129,7 +147,13 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_priest_weaponswap",
         "ability_frank_revive",
         "ability_bookworm_knightcharge",
-        "ability_doorman_hotel"
+        "ability_doorman_hotel",
+         "ability_punkgoat_tether",
+            "ability_necro_gravestone",
+            "ability_fencer_ultimate",
+            "ability_familiar_ability01",
+            "ability_werewolf_transformation",
+            "ability_unicorn_dazzlingorb"
     };
 
     // ========== 被动技能列表 ==========
@@ -143,6 +167,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_crackshot",
         "ability_vampirebat_lovebites",
         "citadel_ability_tangotether",
+            "ability_necro_fear",
         "ability_drifter_hunger"
     };
 
