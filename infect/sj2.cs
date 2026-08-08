@@ -275,6 +275,11 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         //CCitadelPlayerController.PrintToConsoleAll("[技能替换] 插件已卸载");
     }
 
+    public override void OnStartupServer()
+{
+    ConVar.Find("citadel_active_lane")?.SetInt(4);
+}
+
     private void ShuffleSigPool()
     {
         var random = new Random();
