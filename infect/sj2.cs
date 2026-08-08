@@ -60,7 +60,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "citadel_ability_shiv_dash",
         "citadel_ability_shiv_defer_damage",
         "citadel_ability_tengu_urn",
-        "citadel_ability_tangotether",
+        //"citadel_ability_tangotether",
         "citadel_ability_tengu_stone_form",
         "ability_warden_crowd_control",
         "ability_warden_high_alert",
@@ -77,7 +77,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         "ability_viper_debuffdagger",
         "ability_viper_venom",
         "ability_viper_snakedash",
-        "ability_magician_magicbolt",
+        //"ability_magician_magicbolt",
         "ability_magician_animalhexarea",
         "ability_vampirebat_steallife",
         "ability_vampirebat_batblink",
@@ -467,8 +467,8 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
             // ========== 修改点：判断冷却时间是否低于0.7秒 ==========
             float waitTime;
-            const float MIN_COOLDOWN_THRESHOLD = 0.7f;
-            const float MIN_WAIT_TIME = 0.1f;
+            const float MIN_COOLDOWN_THRESHOLD = 0.9f;
+            const float MIN_WAIT_TIME = 0.5f;
 
             if (currentRemaining > 0)
             {
