@@ -7,99 +7,84 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 {
     public override string Name => "Skill Shuffle 2";
 
-    // ========== 技能库（1-3技能，共享池） ==========
+    // ========== 技能库（1-2技能，共享池） ==========
     private readonly List<string> _signatureSkills = new List<string>
     {
         "ability_incendiary_projectile",
         "ability_flame_dash",
-        "ability_afterburn",
-        "citadel_ability_lightning_ball",
-        "citadel_ability_static_charge",
-        "ability_power_surge",
-        "citadel_ability_hornet_chain",
-        "citadel_ability_hornet_leap",
-        "citadel_ability_hornet_sting",
-        "ability_blood_bomb",
-        "ability_life_drain",
-        "ability_blood_shards",
-        "citadel_ability_bull_heal",
-        "citadel_ability_bull_charge",
-        "citadel_ability_passive_beefy",
-        "citadel_ability_card_toss",
-        "citadel_ability_projectmind",
-        "citadel_ability_wraith_rapidfire",
-        "citadel_ability_shieldedsentry",
-        "citadel_ability_mobile_resupply",
-        "citadel_ability_fissure_wall",
-        "citadel_ability_chrono_pulse_grenade",
-        "citadel_ability_chrono_time_wall",
-        "citadel_ability_chrono_kinetic_carbine",
-        "citadel_ability_stomp",
-        "citadel_ability_void_sphere",
-        "citadel_ability_nikuman",
-        "ability_ice_grenade",
-        "ability_icepath",
-        "ability_icebeam",
-        "ability_sleep_dagger",
-        "ability_smoke_bomb",
-        "ability_stacking_damage",
-        "ability_explosive_barrel",
-        "ability_bounce_pad",
-        "ability_crackshot",
-        "citadel_ability_uppercut",
-        "citadel_ability_sticky_bomb",
-        "citadel_ability_hook",
-        "ability_nano_clustergrenade",
-        "ability_nano_dash",
-        "ability_nano_catform",
-        "ability_charged_shot",
-        "ability_power_jump",
-        "ability_immobilize_trap",
-        "ability_intimidate",
-        "ability_burrow",
-        "ability_throw_sand",
-        "citadel_ability_shiv_dagger",
-        "citadel_ability_shiv_dash",
-        "citadel_ability_shiv_defer_damage",
-        "citadel_ability_tengu_urn",
-        "citadel_ability_tangotether",
-        "citadel_ability_tengu_stone_form",
-        "ability_warden_crowd_control",
-        "ability_warden_high_alert",
-        "ability_warden_lock_down",
-        "citadel_ability_power_slash",
-        "citadel_ability_flying_strike",
-        "citadel_ability_healing_slash",
-        "citadel_ability_lash_down_strike",
-        "citadel_ability_lash",
-        "ability_lash_flog",
-        "viscous_goo_grenade",
-        "viscous_restorative_goo",
-        "viscous_telepunch",
-        "ability_viper_debuffdagger",
-        "ability_viper_venom",
-        "ability_viper_snakedash",
-        "ability_magician_magicbolt",
-        "ability_magician_cloneturret",
-        "ability_magician_animalhexarea",
-        "ability_vampirebat_steallife",
-        "ability_vampirebat_batblink",
-        "ability_vampirebat_lovebites",
-        "drifter_blood_blast",
-        "drifter_shadow_mark",
-        "ability_drifter_hunger",
-        "ability_priest_flashbang",
-        "ability_priest_knockback",
-        "ability_priest_beartrap",
-        "ability_frank_shocktarget2",
-        "ability_frank_selfzap",
-        "ability_frank_painaura",
-        "ability_bookworm_dragonfire",
-        "ability_bookworm_knightbarrier",
-        "ability_bookworm_aoemagic",
-        "ability_doorman_bomb",
-        "ability_doorman_doorway",
-        "ability_doorman_luggage_cart"
+        "citadel_ability_lightning_ball",      // 原第3位，保留
+        "citadel_ability_static_charge",       // 原第4位
+        "ability_power_surge",                  // 原第5位
+        "citadel_ability_hornet_leap",         // 原第7位
+        "citadel_ability_hornet_sting",         // 原第8位
+        "ability_blood_bomb",                  // 原第9位，保留
+        "ability_life_drain",                  // 原第10位
+        "ability_blood_shards",                // 原第11位
+        "citadel_ability_bull_charge",          // 原第13位
+        "citadel_ability_passive_beefy",        // 原第14位
+        "citadel_ability_card_toss",           // 原第15位，保留
+        "citadel_ability_projectmind",         // 原第16位
+        "citadel_ability_wraith_rapidfire",    // 原第17位
+        "citadel_ability_mobile_resupply",     // 原第19位
+        "citadel_ability_fissure_wall",        // 原第20位
+        "citadel_ability_chrono_pulse_grenade", // 原第21位，保留
+        "citadel_ability_chrono_time_wall",     // 原第22位
+        "citadel_ability_chrono_kinetic_carbine", // 原第23位
+        "citadel_ability_stomp",               // 原第25位
+        "citadel_ability_void_sphere",         // 原第26位
+        "citadel_ability_nikuman",             // 原第27位，保留
+        "ability_ice_grenade",                 // 原第28位
+        "ability_icepath",                     // 原第29位
+        "ability_smoke_bomb",                  // 原第31位
+        "ability_stacking_damage",             // 原第32位
+        "ability_explosive_barrel",            // 原第33位，保留
+        "ability_bounce_pad",                  // 原第34位
+        "ability_crackshot",                   // 原第35位
+        "citadel_ability_sticky_bomb",         // 原第37位
+        "citadel_ability_hook",                // 原第38位
+        "ability_nano_clustergrenade",         // 原第39位，保留
+        "ability_nano_dash",                   // 原第40位
+        "ability_nano_catform",                // 原第41位
+        "ability_power_jump",                  // 原第43位
+        "ability_immobilize_trap",             // 原第44位
+        "ability_intimidate",                  // 原第45位，保留
+        "ability_burrow",                      // 原第46位
+        "ability_throw_sand",                  // 原第47位
+        "citadel_ability_shiv_dash",           // 原第49位
+        "citadel_ability_shiv_defer_damage",   // 原第50位
+        "citadel_ability_tengu_urn",           // 原第51位，保留
+        "citadel_ability_tangotether",         // 原第52位
+        "citadel_ability_tengu_stone_form",    // 原第53位
+        "ability_warden_high_alert",           // 原第55位
+        "ability_warden_lock_down",            // 原第56位
+        "citadel_ability_power_slash",         // 原第57位，保留
+        "citadel_ability_flying_strike",       // 原第58位
+        "citadel_ability_healing_slash",       // 原第59位
+        "citadel_ability_lash",                // 原第61位
+        "ability_lash_flog",                   // 原第62位
+        "viscous_goo_grenade",                 // 原第63位，保留
+        "viscous_restorative_goo",             // 原第64位
+        "viscous_telepunch",                   // 原第65位
+        "ability_viper_venom",                 // 原第67位
+        "ability_viper_snakedash",             // 原第68位
+        "ability_magician_magicbolt",          // 原第69位，保留
+        "ability_magician_cloneturret",        // 原第70位
+        "ability_magician_animalhexarea",      // 原第71位
+        "ability_vampirebat_batblink",         // 原第73位
+        "ability_vampirebat_lovebites",        // 原第74位
+        "drifter_blood_blast",                 // 原第75位，保留
+        "drifter_shadow_mark",                 // 原第76位
+        "ability_drifter_hunger",              // 原第77位
+        "ability_priest_knockback",            // 原第79位
+        "ability_priest_beartrap",             // 原第80位
+        "ability_frank_shocktarget2",          // 原第81位，保留
+        "ability_frank_selfzap",               // 原第82位
+        "ability_frank_painaura",              // 原第83位
+        "ability_bookworm_knightbarrier",      // 原第85位
+        "ability_bookworm_aoemagic",           // 原第86位
+        "ability_doorman_bomb",                // 原第87位，保留
+        "ability_doorman_doorway",             // 原第88位
+        "ability_doorman_luggage_cart"         // 原第89位
     };
 
     private readonly List<string> _ultimateSkills = new List<string>
@@ -157,7 +142,7 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
 
     // ========== 状态标志 ==========
     private bool _isActive = false;
-    private bool _sigLuan = false;  // 1-3技能池是否已打乱
+    private bool _sigLuan = false;  // 1-2技能池是否已打乱
     private bool _ultLuan = false;  // 4技能池是否已打乱
 
     // ========== 被动技能延迟信息 ==========
@@ -217,8 +202,8 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
         _shuffledSigQueue = _signatureSkills.OrderBy(x => random.Next()).ToList();
         _sigIndex = 0;
         _sigLuan = true;
-        Console.WriteLine($"[{Name}] 1-3技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
-        CCitadelPlayerController.PrintToConsoleAll($"[技能替换] 1-3技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
+        Console.WriteLine($"[{Name}] 1-2技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
+        CCitadelPlayerController.PrintToConsoleAll($"[技能替换] 1-2技能池已打乱，共 {_shuffledSigQueue.Count} 个技能");
     }
 
     private void ShuffleUltPool()
@@ -235,12 +220,12 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
     {
         if (_sigIndex >= _shuffledSigQueue.Count - 1)
         {
-            Console.WriteLine($"[{Name}] 1-3技能池即将用光，当前索引 {_sigIndex}/{_shuffledSigQueue.Count}");
+            Console.WriteLine($"[{Name}] 1-2技能池即将用光，当前索引 {_sigIndex}/{_shuffledSigQueue.Count}");
             var skill = _shuffledSigQueue[_sigIndex];
             _sigIndex++;
             Timer.Once(8.Ticks(), () =>
             {
-                Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 1-3 技能池");
+                Console.WriteLine($"[{Name}] 8 tick 已到，重新打乱 1-2 技能池");
                 ShuffleSigPool();
             });
             return skill;
@@ -426,9 +411,10 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             }
         }
 
-        if (slot < EAbilitySlot.Signature1 || slot > EAbilitySlot.Signature4)
+        // 修改为只检测 Signature1 和 Signature2
+        if (slot != EAbilitySlot.Signature1 && slot != EAbilitySlot.Signature2 && slot != EAbilitySlot.Signature4)
         {
-            Console.WriteLine($"[{Name}] [DEBUG] 技能槽位 {slot} 不在 1-4 范围内，跳过");
+            Console.WriteLine($"[{Name}] [DEBUG] 技能槽位 {slot} 不在 1,2,4 范围内，跳过");
             return HookResult.Continue;
         }
 
