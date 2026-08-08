@@ -112,7 +112,6 @@ public class SkillShuffle2Plugin : DeadworksPluginBase
             "ability_fencer_riposte",
             "ability_fencer_lunge",
             "ability_familiar_ability02",
-            "ability_familiar_attach",
             "ability_familiar_helpinghands",
             "ability_werewolf_unloadgun",
             "ability_werewolf_kickflip",
