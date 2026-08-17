@@ -9,33 +9,61 @@ public class MysteryBoxPlugin : DeadworksPluginBase
 
     private static readonly Random _rng = new Random();
 
-    // ========== 装备池（示例） ==========
+    // ========== 装备池 ==========
     private readonly string[] _itemPool = new string[]
-{
-   // "upgrade_ancient_shield",
-   // "upgrade_haunting_scream",
-   //"upgrade_apex_combat",
-   // "upgrade_aerial_supremacy",
-   // "upgrade_omnicharge_pendant",
-   // "upgrade_timeless_emblem",
-   // "upgrade_shadow_step",
-    "upgrade_shrink_ray",
-    "upgrade_infinite_rounds",
-    "upgrade_icarus_wings",
-    "upgrade_mystical_piano",
-    "upgrade_nullification_aura",
-    "upgrade_celestial_guidance",
-    "upgrade_eternal_gift",
-    "upgrade_patrons_blessing",
-    "upgrade_eldritch_shot",
-    "upgrade_cloak_of_opportunity",
-    "upgrade_runed_gauntlets",
-    "upgrade_electric_slippers",
-    "upgrade_prism_blast",
-    "upgrade_unstable_concoction",
-    "upgrade_shivas_bracelet",
-    "upgrade_shadow_strike",
-};
+    {
+       // "upgrade_ancient_shield",
+       // "upgrade_haunting_scream",
+       //"upgrade_apex_combat",
+       // "upgrade_aerial_supremacy",
+       "upgrade_omnicharge_pendant",
+       // "upgrade_timeless_emblem",
+       // "upgrade_shadow_step",
+        "upgrade_shrink_ray",
+        "upgrade_infinite_rounds",
+        "upgrade_icarus_wings",
+        "upgrade_mystical_piano",
+        "upgrade_nullification_aura",
+        "upgrade_celestial_guidance",
+        "upgrade_eternal_gift",
+        "upgrade_patrons_blessing",
+        "upgrade_eldritch_shot",
+        "upgrade_cloak_of_opportunity",
+        "upgrade_runed_gauntlets",
+        "upgrade_electric_slippers",
+        "upgrade_prism_blast",
+        "upgrade_unstable_concoction",
+        "upgrade_shivas_bracelet",
+        "upgrade_shadow_strike",
+    };
+
+    // ========== 装备中文名称 ==========
+    private readonly string[] _itemChinese = new string[]
+    {
+       // "upgrade_ancient_shield",
+       // "upgrade_haunting_scream",
+       //"upgrade_apex_combat",
+       // "upgrade_aerial_supremacy",
+        "灭霸的无限宝石",
+       // "upgrade_timeless_emblem",
+       // "upgrade_shadow_step",
+        "？！小小！？",
+        "？！射射！？",
+        "超级烤鸡翅",
+        "？！控控？！",
+        "我让你用技能了么",
+        "快看是流星",
+        "房主给的礼物",
+        "导管时间到",
+        "？！弹弹？！",
+        "魔法披风",
+        "胆汁喷涌虫的最爱",
+        "我的滑板鞋",
+        "夜店蹦迪",
+        "绷绷炸弹",
+        "原神星超导加强过后的七七减了E技能15s冷却已经王朝",
+        "我很神秘",
+    };
 
     public override void OnLoad(bool isReload)
     {
@@ -56,21 +84,23 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         public IHandle? RotationTimer;
         public IHandle? FinalizeTimer;
         public int CurrentItemIndex;
+        public int SelectedSlot;  // 0, 1, 2 对应不同的物品
 
-        public BoxState(CCitadelPlayerPawn pawn, CCitadelPlayerController controller)
+        public BoxState(CCitadelPlayerPawn pawn, CCitadelPlayerController controller, int slot)
         {
             Pawn = pawn;
             Controller = controller;
             RotationTimer = null;
             FinalizeTimer = null;
             CurrentItemIndex = 0;
+            SelectedSlot = slot;
         }
     }
 
     private readonly Dictionary<CCitadelPlayerPawn, BoxState> _pendingBoxes = new();
 
     // ========== 核心盲盒逻辑 ==========
-    private void StartMysteryBox(CCitadelPlayerController caller)
+    private void StartMysteryBox(CCitadelPlayerController caller, int slot)
     {
         if (caller == null) return;
 
@@ -111,10 +141,10 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         };
         NetMessages.Send(startMsg, RecipientFilter.Single(caller.Slot));
 
-        var state = new BoxState(pawn, caller);
+        var state = new BoxState(pawn, caller, slot);
         _pendingBoxes[pawn] = state;
 
-        state.RotationTimer = Timer.Every(500.Milliseconds(), () =>
+        state.RotationTimer = Timer.Every(50.Milliseconds(), () =>
         {
             if (!pawn.IsValid)
             {
@@ -149,16 +179,40 @@ public class MysteryBoxPlugin : DeadworksPluginBase
 
             int finalIndex = _rng.Next(0, _itemPool.Length);
             string finalItem = _itemPool[finalIndex];
-            pawn.AddItem(finalItem, false);
+            string chineseName = _itemChinese[finalIndex];
+            bool isEnhanced = _rng.NextDouble() < 0.1;
+
+            // ========== 根据 slot 决定给哪个物品 ==========
+            // slot 0, 1, 2 对应不同的物品，这里用 finalItem + slot 后缀
+            // 或者你可以根据 slot 选择不同的物品逻辑
+            string finalItemWithSlot = slot == 0 ? finalItem : 
+                                       slot == 1 ? $"{finalItem}_1" : 
+                                       $"{finalItem}_2";
+
+            // 实际使用：根据 slot 决定是否加后缀，或者使用不同物品
+            // 这里示例使用不同的逻辑，你可以根据需要修改
+            if (slot == 0)
+            {
+                pawn.AddItem(finalItem, false);
+            }
+            else if (slot == 1)
+            {
+                pawn.AddItem(finalItem, true);
+            }
+            else // slot == 2
+            {
+                // 这里可以执行不同的逻辑，比如添加另一个物品
+                pawn.AddItem(finalItem, false);
+            }
 
             var resultMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "🎉 恭喜获得！",
-                DescriptionLocstring = $"你获得了: {finalItem}"
+                DescriptionLocstring = isEnhanced ? $"你获得了强化的 {chineseName} ✨" : $"你获得了: {chineseName}"
             };
             NetMessages.Send(resultMsg, RecipientFilter.Single(caller.Slot));
 
-            caller.PrintToConsole($"[神秘盲盒] 你获得了: {finalItem}");
+            caller.PrintToConsole($"[神秘盲盒] 你获得了{(isEnhanced ? "强化的 " : " ")}{chineseName} (槽位 {slot})");
 
             CleanupBox(state);
         });
@@ -206,7 +260,7 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         if (controller == null) return HookResult.Continue;
 
         Console.WriteLine($"[神秘盲盒] 玩家 {controller.PlayerName} 按下了 G 键 (Cosmetic1)");
-        StartMysteryBox(controller);
+        StartMysteryBox(controller, 0); // G 键默认使用 slot 0
 
         return HookResult.Continue;
     }
@@ -224,17 +278,22 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     }
 
     // ========== 命令：!mh ==========
-    [Command("mh", Description = "开启一个神秘盲盒", SuppressChat = true)]
-public void CmdMysteryBox(CCitadelPlayerController caller)
-{
-        Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh");
-        StartMysteryBox(caller);
+    [Command("mh", Description = "开启一个神秘盲盒 (0, 1, 2 对应不同物品)")]
+    public void CmdMysteryBox(CCitadelPlayerController caller, int slot = 0)
+    {
+        if (slot < 0 || slot > 2)
+        {
+            caller?.PrintToConsole("[神秘盲盒] 参数错误！请使用 !mh 0, !mh 1 或 !mh 2");
+            return;
+        }
+        Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh {slot}");
+        StartMysteryBox(caller, slot);
     }
 
     // ========== 命令：!give ==========
     [Command("give", Description = "给自己添加指定物品（增强版本）", SuppressChat = true)]
-public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
-{
+    public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
+    {
         if (caller == null) return;
 
         var pawn = caller.GetHeroPawn();
@@ -246,7 +305,7 @@ public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
 
         if (string.IsNullOrEmpty(itemName))
         {
-            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give item_health_pack");
+            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield");
             return;
         }
 
