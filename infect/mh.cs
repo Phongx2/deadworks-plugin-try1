@@ -84,23 +84,21 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         public IHandle? RotationTimer;
         public IHandle? FinalizeTimer;
         public int CurrentItemIndex;
-        public string SlotSuffix;  // 用户输入的 x 字符串
 
-        public BoxState(CCitadelPlayerPawn pawn, CCitadelPlayerController controller, string suffix)
+        public BoxState(CCitadelPlayerPawn pawn, CCitadelPlayerController controller)
         {
             Pawn = pawn;
             Controller = controller;
             RotationTimer = null;
             FinalizeTimer = null;
             CurrentItemIndex = 0;
-            SlotSuffix = suffix;
         }
     }
 
     private readonly Dictionary<CCitadelPlayerPawn, BoxState> _pendingBoxes = new();
 
     // ========== 核心盲盒逻辑 ==========
-    private void StartMysteryBox(CCitadelPlayerController caller, string suffix)
+    private void StartMysteryBox(CCitadelPlayerController caller)
     {
         if (caller == null) return;
 
@@ -141,7 +139,7 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         };
         NetMessages.Send(startMsg, RecipientFilter.Single(caller.Slot));
 
-        var state = new BoxState(pawn, caller, suffix);
+        var state = new BoxState(pawn, caller);
         _pendingBoxes[pawn] = state;
 
         state.RotationTimer = Timer.Every(50.Milliseconds(), () =>
@@ -182,26 +180,24 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             string chineseName = _itemChinese[finalIndex];
             bool isEnhanced = _rng.NextDouble() < 0.1;
 
-            // ========== 核心修改：finalItem 拼接用户输入的 suffix ==========
-            string finalItemWithSuffix = $"{finalItem} {suffix}";
-
+            // ========== 直接添加物品，不加后缀 ==========
             if (isEnhanced)
             {
-                pawn.AddItem(finalItemWithSuffix, true);
+                pawn.AddItem(finalItem, true);
             }
             else
             {
-                pawn.AddItem(finalItemWithSuffix, false);
+                pawn.AddItem(finalItem, false);
             }
 
             var resultMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "🎉 恭喜获得！",
-                DescriptionLocstring = isEnhanced ? $"你获得了强化的 {chineseName} (后缀: {suffix}) ✨" : $"你获得了: {chineseName} (后缀: {suffix})"
+                DescriptionLocstring = isEnhanced ? $"你获得了强化的 {chineseName} ✨" : $"你获得了: {chineseName}"
             };
             NetMessages.Send(resultMsg, RecipientFilter.Single(caller.Slot));
 
-            caller.PrintToConsole($"[神秘盲盒] 你获得了{(isEnhanced ? "强化的 " : " ")}{chineseName} (后缀: {suffix})");
+            caller.PrintToConsole($"[神秘盲盒] 你获得了{(isEnhanced ? "强化的 " : " ")}{chineseName}");
 
             CleanupBox(state);
         });
@@ -249,7 +245,7 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         if (controller == null) return HookResult.Continue;
 
         Console.WriteLine($"[神秘盲盒] 玩家 {controller.PlayerName} 按下了 G 键 (Cosmetic1)");
-        StartMysteryBox(controller, "0"); // G 键默认后缀为 "0"
+        StartMysteryBox(controller);
 
         return HookResult.Continue;
     }
@@ -267,20 +263,16 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     }
 
     // ========== 命令：!mh ==========
-    [Command("mh", Description = "开启一个神秘盲盒，后缀会拼接到物品名称上")]
-    public void CmdMysteryBox(CCitadelPlayerController caller, string suffix = "0")
+    [Command("mh", Description = "开启一个神秘盲盒", SuppressChat = true)]
+    public void CmdMysteryBox(CCitadelPlayerController caller)
     {
-        if (string.IsNullOrEmpty(suffix))
-        {
-            suffix = "0";
-        }
-        Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh {suffix}");
-        StartMysteryBox(caller, suffix);
+        Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh");
+        StartMysteryBox(caller);
     }
 
     // ========== 命令：!give ==========
-    [Command("give", Description = "给自己添加指定物品（增强版本）", SuppressChat = true)]
-    public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
+    [Command("give", Description = "添加物品: !give <物品名> <true/false> <0-2>", SuppressChat = true)]
+    public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string enhanced, string suffix)
     {
         if (caller == null) return;
 
@@ -293,20 +285,32 @@ public class MysteryBoxPlugin : DeadworksPluginBase
 
         if (string.IsNullOrEmpty(itemName))
         {
-            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield");
+            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield true 0");
             return;
         }
 
-        var result = pawn.AddItem(itemName, true);
+        // 解析 enhanced 参数
+        bool isEnhanced = enhanced.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+        // 解析 suffix 参数（0-2）
+        if (string.IsNullOrEmpty(suffix))
+        {
+            suffix = "0";
+        }
+
+        // 构建带后缀的物品名
+        string finalItemName = $"{itemName} {suffix}";
+
+        var result = pawn.AddItem(finalItemName, isEnhanced);
         if (result != null)
         {
-            caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强版)");
-            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强版)");
+            caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {finalItemName} (增强: {isEnhanced})");
+            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {finalItemName} (增强: {isEnhanced})");
         }
         else
         {
-            caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
-            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
+            caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {finalItemName}，请检查物品名称是否正确");
+            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {finalItemName}");
         }
     }
 }
