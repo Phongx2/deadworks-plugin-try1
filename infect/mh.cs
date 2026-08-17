@@ -239,7 +239,7 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             int finalIndex = _rng.Next(0, _itemPool.Length);
             string finalItem = _itemPool[finalIndex];
             string chineseName = _itemChinese[finalIndex];
-            bool isEnhanced = _rng.NextDouble() < 0.1;
+            bool isEnhanced = _rng.NextDouble() < 0.3;
 
             if (isEnhanced)
             {
