@@ -271,46 +271,55 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     }
 
     // ========== 命令：!give ==========
-    [Command("give", Description = "添加物品: !give <物品名> <true/false> <0-2>", SuppressChat = true)]
-    public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string enhanced, string suffix)
+    [Command("give", Description = "添加物品: !give <物品名> <0-2> <true/false>", SuppressChat = true)]
+public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string suffix, string enhanced)
+{
+    if (caller == null) return;
+
+    var pawn = caller.GetHeroPawn();
+    if (pawn == null)
     {
-        if (caller == null) return;
-
-        var pawn = caller.GetHeroPawn();
-        if (pawn == null)
-        {
-            caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
-            return;
-        }
-
-        if (string.IsNullOrEmpty(itemName))
-        {
-            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield true 0");
-            return;
-        }
-
-        // 解析 enhanced 参数
-        bool isEnhanced = enhanced.Equals("true", StringComparison.OrdinalIgnoreCase);
-
-        // 解析 suffix 参数（0-2）
-        if (string.IsNullOrEmpty(suffix))
-        {
-            suffix = "0";
-        }
-
-        // 构建带后缀的物品名
-        string finalItemName = $"{itemName} {suffix}";
-
-        var result = pawn.AddItem(finalItemName, isEnhanced);
-        if (result != null)
-        {
-            caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {finalItemName} (增强: {isEnhanced})");
-            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {finalItemName} (增强: {isEnhanced})");
-        }
-        else
-        {
-            caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {finalItemName}，请检查物品名称是否正确");
-            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {finalItemName}");
-        }
+        caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
+        return;
     }
+
+    if (string.IsNullOrEmpty(itemName))
+    {
+        caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield 0 true");
+        return;
+    }
+
+    // 解析 enhanced 参数
+    bool isEnhanced = enhanced.Equals("true", StringComparison.OrdinalIgnoreCase);
+
+    // 解析 suffix 参数（0-2）
+    if (string.IsNullOrEmpty(suffix))
+    {
+        suffix = "0";
+    }
+
+    // 尝试将 suffix 解析为 int，用于 AddItem 的第三个参数
+    if (!int.TryParse(suffix, out int suffixInt))
+    {
+        suffixInt = 0;
+    }
+    if (suffixInt < 0 || suffixInt > 2)
+    {
+        suffixInt = 0;
+    }
+
+    // ========== 使用三个参数调用 AddItem ==========
+    var result = pawn.AddItem(itemName, isEnhanced, suffixInt);
+
+    if (result != null)
+    {
+        caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强: {isEnhanced}, 后缀: {suffixInt})");
+        Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强: {isEnhanced}, 后缀: {suffixInt})");
+    }
+    else
+    {
+        caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
+        Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
+    }
+}
 }
