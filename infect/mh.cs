@@ -263,17 +263,9 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     }
 
     // ========== 命令：!mh ==========
-    [Command("mh", Description = "开启一个神秘盲盒", SuppressChat = true)]
-    public void CmdMysteryBox(CCitadelPlayerController caller)
-    {
-        Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh");
-        StartMysteryBox(caller);
-    }
-
-    // ========== 命令：!give ==========
     [Command("give", Description = "添加物品: !give <物品名> <0-2> <true/false>", SuppressChat = true)]
-public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string suffix, string enhanced)
-{
+    public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string suffix, string enhanced)
+    {
     if (caller == null) return;
 
     var pawn = caller.GetHeroPawn();
@@ -321,5 +313,5 @@ public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string
         caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
         Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
     }
-}
+    }
 }
