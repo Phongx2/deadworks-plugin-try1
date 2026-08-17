@@ -12,13 +12,13 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     // ========== 装备池（示例） ==========
     private readonly string[] _itemPool = new string[]
 {
-    "upgrade_ancient_shield",
-    "upgrade_haunting_scream",
-    "upgrade_apex_combat",
-    "upgrade_aerial_supremacy",
-    "upgrade_omnicharge_pendant",
-    "upgrade_timeless_emblem",
-    "upgrade_shadow_step",
+   // "upgrade_ancient_shield",
+   // "upgrade_haunting_scream",
+   //"upgrade_apex_combat",
+   // "upgrade_aerial_supremacy",
+   // "upgrade_omnicharge_pendant",
+   // "upgrade_timeless_emblem",
+   // "upgrade_shadow_step",
     "upgrade_shrink_ray",
     "upgrade_infinite_rounds",
     "upgrade_icarus_wings",
