@@ -11,16 +11,31 @@ public class MysteryBoxPlugin : DeadworksPluginBase
 
     // ========== 装备池（示例） ==========
     private readonly string[] _itemPool = new string[]
-    {
-        "item_health_pack",
-        "item_ammo_pack",
-        "item_armor_vest",
-        "item_speed_boost",
-        "item_shield_generator",
-        "item_energy_drink",
-        "item_repair_kit",
-        // 在这里添加更多装备名称...
-    };
+{
+    "upgrade_ancient_shield",
+    "upgrade_haunting_scream",
+    "upgrade_apex_combat",
+    "upgrade_aerial_supremacy",
+    "upgrade_omnicharge_pendant",
+    "upgrade_timeless_emblem",
+    "upgrade_shadow_step",
+    "upgrade_shrink_ray",
+    "upgrade_infinite_rounds",
+    "upgrade_icarus_wings",
+    "upgrade_mystical_piano",
+    "upgrade_nullification_aura",
+    "upgrade_celestial_guidance",
+    "upgrade_eternal_gift",
+    "upgrade_patrons_blessing",
+    "upgrade_eldritch_shot",
+    "upgrade_cloak_of_opportunity",
+    "upgrade_runed_gauntlets",
+    "upgrade_electric_slippers",
+    "upgrade_prism_blast",
+    "upgrade_unstable_concoction",
+    "upgrade_shivas_bracelet",
+    "upgrade_shadow_strike",
+};
 
     public override void OnLoad(bool isReload)
     {
