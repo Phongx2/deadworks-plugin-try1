@@ -30,7 +30,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     public override void OnUnload()
     {
         Console.WriteLine("[神秘盲盒] 已卸载！");
-        // 清理所有正在进行的盲盒计时器
         _pendingBoxes.Clear();
     }
 
@@ -67,14 +66,12 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             return;
         }
 
-        // 检查是否已有进行中的盲盒
         if (_pendingBoxes.ContainsKey(pawn))
         {
             caller.PrintToConsole("[神秘盲盒] 你已经在开启盲盒了！");
             return;
         }
 
-        // ========== 1. 检查并扣除 3200 金钱（使用 GetCurrency + SetCurrency） ==========
         int currentGold = pawn.GetCurrency(ECurrencyType.EGold);
         if (currentGold < 3200)
         {
@@ -88,13 +85,10 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             return;
         }
 
-        // 扣除 3200 金币
         int newGold = currentGold - 3200;
         pawn.SetCurrency(ECurrencyType.EGold, newGold);
         caller.PrintToConsole($"[神秘盲盒] 已扣除 3200 金币，剩余 {newGold}");
-        // ========== 金钱扣除结束 ==========
 
-        // 2. 显示 HUD 公告
         var startMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🎁 神秘盲盒",
@@ -102,33 +96,27 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         };
         NetMessages.Send(startMsg, RecipientFilter.Single(caller.Slot));
 
-        // 3. 创建状态
         var state = new BoxState(pawn, caller);
         _pendingBoxes[pawn] = state;
 
-        // 4. 开始轮换物品（每 0.5 秒）
         state.RotationTimer = Timer.Every(500.Milliseconds(), () =>
         {
             if (!pawn.IsValid)
             {
-                // 玩家已失效，清理状态
                 CleanupBox(state);
                 return;
             }
 
-            // 移除当前物品（如果有）
             if (!string.IsNullOrEmpty(_itemPool[state.CurrentItemIndex]))
             {
                 pawn.RemoveItem(_itemPool[state.CurrentItemIndex]);
             }
 
-            // 随机选取下一个物品索引进行展示
             state.CurrentItemIndex = _rng.Next(0, _itemPool.Length);
             string itemName = _itemPool[state.CurrentItemIndex];
             pawn.AddItem(itemName, false);
         });
 
-        // 5. 3秒后确定最终物品
         state.FinalizeTimer = Timer.Once(3000.Milliseconds(), () =>
         {
             if (!pawn.IsValid)
@@ -137,21 +125,17 @@ public class MysteryBoxPlugin : DeadworksPluginBase
                 return;
             }
 
-            // 停止轮换
             state.RotationTimer?.Cancel();
 
-            // 移除当前展示的物品
             if (!string.IsNullOrEmpty(_itemPool[state.CurrentItemIndex]))
             {
                 pawn.RemoveItem(_itemPool[state.CurrentItemIndex]);
             }
 
-            // 随机确定最终物品
             int finalIndex = _rng.Next(0, _itemPool.Length);
             string finalItem = _itemPool[finalIndex];
             pawn.AddItem(finalItem, false);
 
-            // 显示最终结果 HUD
             var resultMsg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "🎉 恭喜获得！",
@@ -161,7 +145,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
 
             caller.PrintToConsole($"[神秘盲盒] 你获得了: {finalItem}");
 
-            // 清理状态
             CleanupBox(state);
         });
     }
@@ -186,11 +169,9 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
-        // 获取技能名称和槽位
         string abilityName = ev.GetString("abilityname", "");
         var slot = EAbilitySlot.Invalid;
 
-        // 查找该技能对应的槽位
         var abilities = pawn.AbilityComponent?.Abilities;
         if (abilities != null)
         {
@@ -204,7 +185,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             }
         }
 
-        // 只处理 Cosmetic1 (G 键)
         if (slot != EAbilitySlot.Cosmetic1) return HookResult.Continue;
 
         var controller = GetControllerFromPawn(pawn);
@@ -234,5 +214,37 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     {
         Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh");
         StartMysteryBox(caller);
+    }
+
+    // ========== 命令：!give ==========
+    [Command("give", Description = "给自己添加指定物品（增强版本）")]
+    public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
+    {
+        if (caller == null) return;
+
+        var pawn = caller.GetHeroPawn();
+        if (pawn == null)
+        {
+            caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(itemName))
+        {
+            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give item_health_pack");
+            return;
+        }
+
+        var result = pawn.AddItem(itemName, true);
+        if (result != null)
+        {
+            caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强版)");
+            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强版)");
+        }
+        else
+        {
+            caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
+            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
+        }
     }
 }
