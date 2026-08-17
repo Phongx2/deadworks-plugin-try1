@@ -177,21 +177,21 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         // ========== 检测并移除结束 ==========
 
         int currentGold = pawn.GetCurrency(ECurrencyType.EGold);
-        if (currentGold < 3200)
+        if (currentGold < 6400)
         {
-            caller.PrintToConsole($"[神秘盲盒] 金钱不足！需要 3200，当前只有 {currentGold}");
+            caller.PrintToConsole($"[神秘盲盒] 金钱不足！需要 6400，当前只有 {currentGold}");
             var msg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "❌ 金钱不足",
-                DescriptionLocstring = $"需要 3200 金币，你只有 {currentGold}"
+                DescriptionLocstring = $"需要 6400 金币，你只有 {currentGold}"
             };
             NetMessages.Send(msg, RecipientFilter.Single(caller.Slot));
             return;
         }
 
-        int newGold = currentGold - 3200;
+        int newGold = currentGold - 6400;
         pawn.SetCurrency(ECurrencyType.EGold, newGold);
-        caller.PrintToConsole($"[神秘盲盒] 已扣除 3200 金币，剩余 {newGold}");
+        caller.PrintToConsole($"[神秘盲盒] 已扣除 6400 金币，剩余 {newGold}");
 
         var startMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
