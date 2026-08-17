@@ -37,6 +37,9 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         "upgrade_shadow_strike",
     };
 
+    // ========== 用于快速查找的 HashSet ==========
+    private readonly HashSet<string> _protectedItems = new HashSet<string>();
+
     // ========== 装备中文名称 ==========
     private readonly string[] _itemChinese = new string[]
     {
@@ -68,12 +71,55 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine(isReload ? "[神秘盲盒] 热重载完成！" : "[神秘盲盒] 已加载！");
+        
+        // ========== 初始化受保护物品列表 ==========
+        _protectedItems.Clear();
+        foreach (var item in _itemPool)
+        {
+            if (!string.IsNullOrEmpty(item))
+            {
+                _protectedItems.Add(item);
+            }
+        }
+        Console.WriteLine($"[神秘盲盒] 已加载 {_protectedItems.Count} 个受保护物品");
+        // ========== 初始化结束 ==========
     }
 
     public override void OnUnload()
     {
         Console.WriteLine("[神秘盲盒] 已卸载！");
         _pendingBoxes.Clear();
+    }
+
+    // ========== 拦截出售事件 ==========
+    [GameEventHandler("item_sold")]
+    public HookResult OnItemSold(GameEvent ev)
+    {
+        // 获取出售的物品名称
+        string itemName = ev.GetString("itemname", "");
+        if (string.IsNullOrEmpty(itemName))
+        {
+            return HookResult.Continue;
+        }
+
+        // 检查是否在受保护列表中
+        if (_protectedItems.Contains(itemName))
+        {
+            Console.WriteLine($"[神秘盲盒] 阻止出售受保护物品: {itemName}");
+            
+            // 获取出售的玩家
+            var pawn = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
+            if (pawn != null)
+            {
+                var controller = GetControllerFromPawn(pawn);
+                controller?.PrintToConsole($"[神秘盲盒] 该物品被禁止出售: {itemName}");
+            }
+
+            // 阻止出售
+            return HookResult.Stop;
+        }
+
+        return HookResult.Continue;
     }
 
     // ========== 存储每个玩家正在进行的盲盒状态 ==========
@@ -180,7 +226,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             string chineseName = _itemChinese[finalIndex];
             bool isEnhanced = _rng.NextDouble() < 0.1;
 
-            // ========== 直接添加物品，不加后缀 ==========
             if (isEnhanced)
             {
                 pawn.AddItem(finalItem, true);
@@ -263,35 +308,42 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     }
 
     // ========== 命令：!mh ==========
-   // ========== 命令：!give ==========
-[Command("give", Description = "给自己添加指定物品（增强版本）", SuppressChat = true)]
-public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
-{
-    if (caller == null) return;
-
-    var pawn = caller.GetHeroPawn();
-    if (pawn == null)
+    [Command("mh", Description = "开启一个神秘盲盒", SuppressChat = true)]
+    public void CmdMysteryBox(CCitadelPlayerController caller)
     {
-        caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
-        return;
+        Console.WriteLine($"[神秘盲盒] 玩家 {caller?.PlayerName} 输入了 !mh");
+        StartMysteryBox(caller);
     }
 
-    if (string.IsNullOrEmpty(itemName))
+    // ========== 命令：!give ==========
+    [Command("give", Description = "给自己添加指定物品（增强版本）", SuppressChat = true)]
+    public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
     {
-        caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield");
-        return;
-    }
+        if (caller == null) return;
 
-    var result = pawn.AddItem(itemName, true);
-    if (result != null)
-    {
-        caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强版)");
-        Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强版)");
+        var pawn = caller.GetHeroPawn();
+        if (pawn == null)
+        {
+            caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
+            return;
+        }
+
+        if (string.IsNullOrEmpty(itemName))
+        {
+            caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield");
+            return;
+        }
+
+        var result = pawn.AddItem(itemName, true);
+        if (result != null)
+        {
+            caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强版)");
+            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强版)");
+        }
+        else
+        {
+            caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
+            Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
+        }
     }
-    else
-    {
-        caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
-        Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
-    }
-}
 }
