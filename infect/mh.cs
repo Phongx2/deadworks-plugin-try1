@@ -72,7 +72,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     {
         Console.WriteLine(isReload ? "[神秘盲盒] 热重载完成！" : "[神秘盲盒] 已加载！");
         
-        // ========== 初始化受保护物品列表 ==========
         _protectedItems.Clear();
         foreach (var item in _itemPool)
         {
@@ -82,7 +81,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             }
         }
         Console.WriteLine($"[神秘盲盒] 已加载 {_protectedItems.Count} 个受保护物品");
-        // ========== 初始化结束 ==========
     }
 
     public override void OnUnload()
@@ -95,19 +93,16 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     [GameEventHandler("item_sold")]
     public HookResult OnItemSold(GameEvent ev)
     {
-        // 获取出售的物品名称
         string itemName = ev.GetString("itemname", "");
         if (string.IsNullOrEmpty(itemName))
         {
             return HookResult.Continue;
         }
 
-        // 检查是否在受保护列表中
         if (_protectedItems.Contains(itemName))
         {
             Console.WriteLine($"[神秘盲盒] 阻止出售受保护物品: {itemName}");
             
-            // 获取出售的玩家
             var pawn = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
             if (pawn != null)
             {
@@ -115,7 +110,6 @@ public class MysteryBoxPlugin : DeadworksPluginBase
                 controller?.PrintToConsole($"[神秘盲盒] 该物品被禁止出售: {itemName}");
             }
 
-            // 阻止出售
             return HookResult.Stop;
         }
 
@@ -160,6 +154,27 @@ public class MysteryBoxPlugin : DeadworksPluginBase
             caller.PrintToConsole("[神秘盲盒] 你已经在开启盲盒了！");
             return;
         }
+
+        // ========== 新增：检测并移除已有装备 ==========
+        int removedCount = 0;
+        foreach (var itemName in _itemPool)
+        {
+            if (string.IsNullOrEmpty(itemName)) continue;
+            
+            // 尝试移除物品（不检查是否存在，直接移除）
+            bool removed = pawn.RemoveItem(itemName);
+            if (removed)
+            {
+                removedCount++;
+            }
+        }
+        
+        if (removedCount > 0)
+        {
+            Console.WriteLine($"[神秘盲盒] 移除了玩家 {caller.PlayerName} 的 {removedCount} 件已有装备");
+            // 不输出到玩家控制台，只记录服务器日志
+        }
+        // ========== 检测并移除结束 ==========
 
         int currentGold = pawn.GetCurrency(ECurrencyType.EGold);
         if (currentGold < 3200)
