@@ -263,9 +263,10 @@ public class MysteryBoxPlugin : DeadworksPluginBase
     }
 
     // ========== 命令：!mh ==========
-    [Command("give", Description = "添加物品: !give <物品名> <0-2> <true/false>", SuppressChat = true)]
-    public void CmdGiveItem(CCitadelPlayerController caller, string itemName, string suffix, string enhanced)
-    {
+   // ========== 命令：!give ==========
+[Command("give", Description = "给自己添加指定物品（增强版本）", SuppressChat = true)]
+public void CmdGiveItem(CCitadelPlayerController caller, string itemName)
+{
     if (caller == null) return;
 
     var pawn = caller.GetHeroPawn();
@@ -277,41 +278,20 @@ public class MysteryBoxPlugin : DeadworksPluginBase
 
     if (string.IsNullOrEmpty(itemName))
     {
-        caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield 0 true");
+        caller.PrintToConsole("[神秘盲盒] 请指定物品名称，例如: !give upgrade_ancient_shield");
         return;
     }
 
-    // 解析 enhanced 参数
-    bool isEnhanced = enhanced.Equals("true", StringComparison.OrdinalIgnoreCase);
-
-    // 解析 suffix 参数（0-2）
-    if (string.IsNullOrEmpty(suffix))
-    {
-        suffix = "0";
-    }
-
-    // 尝试将 suffix 解析为 int，用于 AddItem 的第三个参数
-    if (!int.TryParse(suffix, out int suffixInt))
-    {
-        suffixInt = 0;
-    }
-    if (suffixInt < 0 || suffixInt > 2)
-    {
-        suffixInt = 0;
-    }
-
-    // ========== 使用三个参数调用 AddItem ==========
-    var result = pawn.AddItem(itemName, isEnhanced, suffixInt);
-
+    var result = pawn.AddItem(itemName, true);
     if (result != null)
     {
-        caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强: {isEnhanced}, 后缀: {suffixInt})");
-        Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强: {isEnhanced}, 后缀: {suffixInt})");
+        caller.PrintToConsole($"[神秘盲盒] 成功添加物品: {itemName} (增强版)");
+        Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加了物品: {itemName} (增强版)");
     }
     else
     {
         caller.PrintToConsole($"[神秘盲盒] 添加物品失败: {itemName}，请检查物品名称是否正确");
         Console.WriteLine($"[神秘盲盒] 玩家 {caller.PlayerName} 添加物品失败: {itemName}");
     }
-    }
+}
 }
