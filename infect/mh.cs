@@ -135,130 +135,133 @@ public class MysteryBoxPlugin : DeadworksPluginBase
         }
     }
 
+    private readonly Dictionary<CCitadelPlayerPawn, BoxState> _pendingBoxes = new();
+
+    // ========== 核心盲盒逻辑 ==========
     private void StartMysteryBox(CCitadelPlayerController caller)
-{
-    if (caller == null) return;
-
-    var pawn = caller.GetHeroPawn();
-    if (pawn == null)
     {
-        caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
-        return;
-    }
+        if (caller == null) return;
 
-    if (_pendingBoxes.ContainsKey(pawn))
-    {
-        caller.PrintToConsole("[神秘盲盒] 你已经在开启盲盒了！");
-        return;
-    }
-
-    // ========== 1. 先检查金钱 ==========
-    int currentGold = pawn.GetCurrency(ECurrencyType.EGold);
-    if (currentGold < 3200)
-    {
-        caller.PrintToConsole($"[神秘盲盒] 金钱不足！需要 3200，当前只有 {currentGold}");
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        var pawn = caller.GetHeroPawn();
+        if (pawn == null)
         {
-            TitleLocstring = "❌ 金钱不足",
-            DescriptionLocstring = $"需要 3200 金币，你只有 {currentGold}"
-        };
-        NetMessages.Send(msg, RecipientFilter.Single(caller.Slot));
-        return;
-    }
+            caller.PrintToConsole("[神秘盲盒] 无法获取英雄实体");
+            return;
+        }
 
-    // ========== 2. 扣除金钱 ==========
-    int newGold = currentGold - 3200;
-    pawn.SetCurrency(ECurrencyType.EGold, newGold);
-    caller.PrintToConsole($"[神秘盲盒] 已扣除 3200 金币，剩余 {newGold}");
+        if (_pendingBoxes.ContainsKey(pawn))
+        {
+            caller.PrintToConsole("[神秘盲盒] 你已经在开启盲盒了！");
+            return;
+        }
 
-    // ========== 3. 检测并移除已有装备 ==========
-    int removedCount = 0;
-    foreach (var itemName in _itemPool)
-    {
-        if (string.IsNullOrEmpty(itemName)) continue;
+        // ========== 1. 先检查金钱 ==========
+        int currentGold = pawn.GetCurrency(ECurrencyType.EGold);
+        if (currentGold < 3200)
+        {
+            caller.PrintToConsole($"[神秘盲盒] 金钱不足！需要 3200，当前只有 {currentGold}");
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "❌ 金钱不足",
+                DescriptionLocstring = $"需要 3200 金币，你只有 {currentGold}"
+            };
+            NetMessages.Send(msg, RecipientFilter.Single(caller.Slot));
+            return;
+        }
+
+        // ========== 2. 扣除金钱 ==========
+        int newGold = currentGold - 3200;
+        pawn.SetCurrency(ECurrencyType.EGold, newGold);
+        caller.PrintToConsole($"[神秘盲盒] 已扣除 3200 金币，剩余 {newGold}");
+
+        // ========== 3. 检测并移除已有装备 ==========
+        int removedCount = 0;
+        foreach (var itemName in _itemPool)
+        {
+            if (string.IsNullOrEmpty(itemName)) continue;
+            
+            bool removed = pawn.RemoveItem(itemName);
+            if (removed)
+            {
+                removedCount++;
+            }
+        }
         
-        bool removed = pawn.RemoveItem(itemName);
-        if (removed)
+        if (removedCount > 0)
         {
-            removedCount++;
-        }
-    }
-    
-    if (removedCount > 0)
-    {
-        Console.WriteLine($"[神秘盲盒] 移除了玩家 {caller.PlayerName} 的 {removedCount} 件已有装备");
-    }
-
-    // ========== 4. 显示 HUD 公告 ==========
-    var startMsg = new CCitadelUserMsg_HudGameAnnouncement
-    {
-        TitleLocstring = "🎁 神秘盲盒",
-        DescriptionLocstring = "正在打开神秘盲盒……"
-    };
-    NetMessages.Send(startMsg, RecipientFilter.Single(caller.Slot));
-
-    var state = new BoxState(pawn, caller);
-    _pendingBoxes[pawn] = state;
-
-    state.RotationTimer = Timer.Every(50.Milliseconds(), () =>
-    {
-        if (!pawn.IsValid)
-        {
-            CleanupBox(state);
-            return;
+            Console.WriteLine($"[神秘盲盒] 移除了玩家 {caller.PlayerName} 的 {removedCount} 件已有装备");
         }
 
-        if (!string.IsNullOrEmpty(_itemPool[state.CurrentItemIndex]))
+        // ========== 4. 显示 HUD 公告 ==========
+        var startMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
-            pawn.RemoveItem(_itemPool[state.CurrentItemIndex]);
-        }
-
-        state.CurrentItemIndex = _rng.Next(0, _itemPool.Length);
-        string itemName = _itemPool[state.CurrentItemIndex];
-        pawn.AddItem(itemName, false);
-    });
-
-    state.FinalizeTimer = Timer.Once(3000.Milliseconds(), () =>
-    {
-        if (!pawn.IsValid)
-        {
-            CleanupBox(state);
-            return;
-        }
-
-        state.RotationTimer?.Cancel();
-
-        if (!string.IsNullOrEmpty(_itemPool[state.CurrentItemIndex]))
-        {
-            pawn.RemoveItem(_itemPool[state.CurrentItemIndex]);
-        }
-
-        int finalIndex = _rng.Next(0, _itemPool.Length);
-        string finalItem = _itemPool[finalIndex];
-        string chineseName = _itemChinese[finalIndex];
-        bool isEnhanced = _rng.NextDouble() < 0.1;
-
-        if (isEnhanced)
-        {
-            pawn.AddItem(finalItem, true);
-        }
-        else
-        {
-            pawn.AddItem(finalItem, false);
-        }
-
-        var resultMsg = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "🎉 恭喜获得！",
-            DescriptionLocstring = isEnhanced ? $"你获得了强化的 {chineseName} ✨" : $"你获得了: {chineseName}"
+            TitleLocstring = "🎁 神秘盲盒",
+            DescriptionLocstring = "正在打开神秘盲盒……"
         };
-        NetMessages.Send(resultMsg, RecipientFilter.Single(caller.Slot));
+        NetMessages.Send(startMsg, RecipientFilter.Single(caller.Slot));
 
-        caller.PrintToConsole($"[神秘盲盒] 你获得了{(isEnhanced ? "强化的 " : " ")}{chineseName}");
+        var state = new BoxState(pawn, caller);
+        _pendingBoxes[pawn] = state;
 
-        CleanupBox(state);
-    });
-}
+        state.RotationTimer = Timer.Every(50.Milliseconds(), () =>
+        {
+            if (!pawn.IsValid)
+            {
+                CleanupBox(state);
+                return;
+            }
+
+            if (!string.IsNullOrEmpty(_itemPool[state.CurrentItemIndex]))
+            {
+                pawn.RemoveItem(_itemPool[state.CurrentItemIndex]);
+            }
+
+            state.CurrentItemIndex = _rng.Next(0, _itemPool.Length);
+            string itemName = _itemPool[state.CurrentItemIndex];
+            pawn.AddItem(itemName, false);
+        });
+
+        state.FinalizeTimer = Timer.Once(3000.Milliseconds(), () =>
+        {
+            if (!pawn.IsValid)
+            {
+                CleanupBox(state);
+                return;
+            }
+
+            state.RotationTimer?.Cancel();
+
+            if (!string.IsNullOrEmpty(_itemPool[state.CurrentItemIndex]))
+            {
+                pawn.RemoveItem(_itemPool[state.CurrentItemIndex]);
+            }
+
+            int finalIndex = _rng.Next(0, _itemPool.Length);
+            string finalItem = _itemPool[finalIndex];
+            string chineseName = _itemChinese[finalIndex];
+            bool isEnhanced = _rng.NextDouble() < 0.3;
+
+            if (isEnhanced)
+            {
+                pawn.AddItem(finalItem, true);
+            }
+            else
+            {
+                pawn.AddItem(finalItem, false);
+            }
+
+            var resultMsg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "🎉 恭喜获得！",
+                DescriptionLocstring = isEnhanced ? $"你获得了强化的 {chineseName} ✨" : $"你获得了: {chineseName}"
+            };
+            NetMessages.Send(resultMsg, RecipientFilter.Single(caller.Slot));
+
+            caller.PrintToConsole($"[神秘盲盒] 你获得了{(isEnhanced ? "强化的 " : " ")}{chineseName}");
+
+            CleanupBox(state);
+        });
+    }
 
     private void CleanupBox(BoxState state)
     {
