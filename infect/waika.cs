@@ -82,6 +82,46 @@ public class WaikaPlugin : DeadworksPluginBase
         NetMessages.Send(stopMsg, RecipientFilter.All);
     }
 
+// ========== 新增：/m 命令 ==========
+[Command("m", Description = "切换玩家身上的 modifier: /m <玩家名> <modifier名称>")]
+public void CmdToggleModifier(CCitadelPlayerController caller, string targetName, string modifierName)
+{
+    if (caller == null) return;
+
+    var targetController = Players.GetAll()
+        .FirstOrDefault(p => p.PlayerName.Equals(targetName, StringComparison.OrdinalIgnoreCase));
+
+    if (targetController == null)
+    {
+        caller.PrintToConsole($"[Waika] 未找到玩家: {targetName}");
+        return;
+    }
+
+    var pawn = targetController.GetHeroPawn();
+    if (pawn == null)
+    {
+        caller.PrintToConsole($"[Waika] 目标玩家 {targetName} 没有英雄实体");
+        return;
+    }
+
+    bool hasModifier = pawn.ModifierProp?.HasModifier(modifierName) ?? false;
+
+    if (hasModifier)
+    {
+        pawn.RemoveModifier(modifierName);
+        caller.PrintToConsole($"[Waika] 已从玩家 {targetName} 身上移除 modifier: {modifierName}");
+        Console.WriteLine($"[Waika] {caller.PlayerName} 移除了 {targetName} 的 modifier: {modifierName}");
+    }
+    else
+    {
+        using var kv = new KeyValues3();
+        kv.SetFloat("duration", 5.0f);
+        pawn.AddModifier(modifierName, kv);
+        caller.PrintToConsole($"[Waika] 已为玩家 {targetName} 添加 modifier: {modifierName} (持续 5 秒)");
+        Console.WriteLine($"[Waika] {caller.PlayerName} 为 {targetName} 添加了 modifier: {modifierName}");
+    }
+}   // ← 这里只有一个 }
+
     [Command("t", Description = "功能开关: /t lava (启动/停止地面灼烧)")]
     public void CmdToggle(CCitadelPlayerController caller, string feature)
     {
