@@ -168,37 +168,38 @@ public void CmdToggleModifier(CCitadelPlayerController caller, string modifierNa
     }
 }
 
-    [Command("t", Description = "功能开关: /t lava (启动/停止地面灼烧)")]
-    public void CmdToggle(CCitadelPlayerController caller, string feature)
-    {
-        string playerName = caller?.PlayerName ?? "Server Console";
-        Console.WriteLine($"[Waika] {playerName} 执行了命令: /t {feature}");
+    [Command("t", Description = "功能: /t lava (开关) | /t fight")]
+public void CmdToggle(CCitadelPlayerController caller, string feature)
+{
+    string playerName = caller?.PlayerName ?? "Server Console";
+    Console.WriteLine($"[Waika] {playerName} 执行了命令: /t {feature}");
 
-        if (feature?.ToLower() == "lava")
+    if (feature?.ToLower() == "lava")
+    {
+        if (_isLavaActive)
         {
-            if (_isLavaActive)
-            {
-                StopLava();
-                if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已停止");
-                CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已停止");
-            }
-            else if (feature?.ToLower() == "fight")
-        {
-            StartFight();
-            if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
-        }
-            else
-            {
-                StartLava();
-                if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已启动");
-                CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已启动！站在地面上会受到伤害");
-            }
+            StopLava();
+            if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已停止");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已停止");
         }
         else
         {
-            string msg = $"[Waika] 未知功能: {feature}。可用功能: lava";
-            Console.WriteLine(msg);
-            if (caller != null) caller.PrintToConsole(msg);
+            StartLava();
+            if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已启动");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已启动！站在地面上会受到伤害");
         }
     }
+    else if (feature?.ToLower() == "fight")
+    {
+        StartFight();
+        if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
+        CCitadelPlayerController.PrintToConsoleAll("[Waika] 时空扭曲已触发！5秒后生效");
+    }
+    else
+    {
+        string msg = $"[Waika] 未知功能: {feature}。可用功能: lava, fight";
+        Console.WriteLine(msg);
+        if (caller != null) caller.PrintToConsole(msg);
+    }
+}
 }
