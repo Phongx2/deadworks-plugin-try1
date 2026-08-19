@@ -21,6 +21,57 @@ public class WaikaPlugin : DeadworksPluginBase
         StopLava();
     }
 
+
+
+// ========== 新增：/t fight ==========
+    private void StartFight()
+    {
+        Console.WriteLine("[Waika] 执行 Fight 模式");
+
+        // 1. 显示 HUD 公告
+        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "⚠️ 时空异常",
+            DescriptionLocstring = "纽约出现异常，即将发生时空扭曲！"
+        };
+        NetMessages.Send(msg, RecipientFilter.All);
+
+        // 2. 延迟 5 秒后执行
+        Timer.Once(5.Seconds(), () =>
+        {
+            Console.WriteLine("[Waika] 时空扭曲生效");
+
+            // 给所有玩家添加 modifier
+            foreach (var pawn in Players.GetAllPawns())
+            {
+                if (pawn == null || !pawn.IsValid) continue;
+                if (!pawn.IsAlive) continue;
+
+                using var kv = new KeyValues3();
+                kv.SetFloat("duration", 1.0f);
+                pawn.AddModifier("modifier_chrono_swap_bubble_move", kv);
+            }
+
+            // 3. 延迟 1 秒后移除所有玩家的 modifier
+            Timer.Once(1.Seconds(), () =>
+            {
+                Console.WriteLine("[Waika] 移除时空扭曲效果");
+                foreach (var pawn in Players.GetAllPawns())
+                {
+                    if (pawn == null || !pawn.IsValid) continue;
+                    pawn.RemoveModifier("modifier_chrono_swap_bubble_move");
+                }
+            });
+        });
+    }
+
+
+
+
+
+
+
+
     private void StartLava()
     {
         if (_isLavaActive)
@@ -82,7 +133,7 @@ public class WaikaPlugin : DeadworksPluginBase
         NetMessages.Send(stopMsg, RecipientFilter.All);
     }
 
-// ========== 新增：/m 命令 ==========
+
 // ========== 新增：/m 命令（只对输入者自己生效） ==========
 [Command("m", Description = "切换自己身上的 modifier: /m <modifier名称>")]
 public void CmdToggleModifier(CCitadelPlayerController caller, string modifierName)
@@ -131,6 +182,11 @@ public void CmdToggleModifier(CCitadelPlayerController caller, string modifierNa
                 if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已停止");
                 CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已停止");
             }
+            else if (feature?.ToLower() == "fight")
+        {
+            StartFight();
+            if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
+        }
             else
             {
                 StartLava();
