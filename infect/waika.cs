@@ -121,7 +121,7 @@ public class WaikaPlugin : DeadworksPluginBase
         var startMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🌋 熔岩模式已启动",
-            DescriptionLocstring = "站在地面上会受到灼烧伤害！"
+            DescriptionLocstring = "站在地面上会受到每秒5%最大生命值灼烧伤害！"
         };
         NetMessages.Send(startMsg, RecipientFilter.All);
 
@@ -142,7 +142,7 @@ public class WaikaPlugin : DeadworksPluginBase
                 if (pawn.IsOnGround)
                 {
                     float maxHealth = pawn.GetMaxHealth();
-                    float damage = Math.Max(1f, maxHealth * 0.05f);
+                    float damage = Math.Max(1f, maxHealth * 0.025f);
                     pawn.Hurt(damage, attacker: null, inflictor: null, ability: null, damageType: 8);
                 }
             }
