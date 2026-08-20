@@ -68,6 +68,57 @@ public class WaikaPlugin : DeadworksPluginBase
         return null;
     }
 
+
+
+
+
+// ========== /t swap ==========
+private void StartSwap()
+{
+    Console.WriteLine("[Waika] 执行 Swap 模式");
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🔄 风水轮流转",
+        DescriptionLocstring = "所有人将会交换队伍！"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
+
+    Timer.Once(3.Seconds(), () =>
+    {
+        Console.WriteLine("[Waika] 开始交换队伍");
+
+        foreach (var controller in Players.GetAll())
+        {
+            if (controller == null) continue;
+
+            var pawn = controller.GetHeroPawn();
+            if (pawn == null || !pawn.IsValid) continue;
+            if (pawn.LifeState != LifeState.Alive) continue;
+
+            int currentTeam = pawn.TeamNum;
+            int newTeam = (currentTeam == 2) ? 3 : 2;  // 如果当前是2就变3，否则变2
+
+            // 使用 ChangeTeam 交换队伍
+            controller.ChangeTeam(newTeam);
+            Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 {currentTeam} -> {newTeam}");
+        }
+
+        var doneMsg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "🔄 队伍已交换",
+            DescriptionLocstring = "风水轮流转，大家已交换队伍！"
+        };
+        NetMessages.Send(doneMsg, RecipientFilter.All);
+    });
+}
+
+
+
+
+
+
+
     // ========== /t fight ==========
     private void StartFight()
     {
@@ -306,6 +357,15 @@ public class WaikaPlugin : DeadworksPluginBase
                 CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已启动！站在地面上会受到伤害");
             }
         }
+
+        else if (feat == "swap")
+{
+    StartSwap();
+    if (caller != null) caller.PrintToConsole("[Waika] 队伍交换已触发");
+    CCitadelPlayerController.PrintToConsoleAll("[Waika] 队伍交换已触发！3秒后执行");
+}
+
+
         else if (feat == "fight")
         {
             StartFight();
