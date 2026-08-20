@@ -94,12 +94,18 @@ private void StartSwap()
 
             var pawn = controller.GetHeroPawn();
             if (pawn == null || !pawn.IsValid) continue;
-            if (pawn.LifeState != LifeState.Alive) continue;
 
+            // 不检查 LifeState，所有玩家都交换
             int currentTeam = pawn.TeamNum;
-            int newTeam = (currentTeam == 2) ? 3 : 2;  // 如果当前是2就变3，否则变2
+            int newTeam;
 
-            // 使用 ChangeTeam 交换队伍
+            if (currentTeam == 2)
+                newTeam = 3;
+            else if (currentTeam == 3)
+                newTeam = 2;
+            else
+                continue;  // 跳过队伍 0 和 1（观战/未分配）
+
             controller.ChangeTeam(newTeam);
             Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 {currentTeam} -> {newTeam}");
         }
@@ -107,7 +113,7 @@ private void StartSwap()
         var doneMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🔄 队伍已交换",
-            DescriptionLocstring = "风水轮流转，大家已交换队伍！"
+            DescriptionLocstring = "风水轮流转，祝你们好运！"
         };
         NetMessages.Send(doneMsg, RecipientFilter.All);
     });
