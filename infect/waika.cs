@@ -260,37 +260,40 @@ public class WaikaPlugin : DeadworksPluginBase
 
     // ========== /t swap ==========
     private void StartSwap()
+{
+    Console.WriteLine("[Waika] 执行 Swap 模式");
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
-        Console.WriteLine("[Waika] 执行 Swap 模式");
+        TitleLocstring = "🔄 风水轮流转",
+        DescriptionLocstring = "所有人将会交换队伍！"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
 
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
+    Timer.Once(3.Seconds(), () =>
+    {
+        Console.WriteLine("[Waika] 开始交换队伍");
+
+        foreach (var controller in Players.GetAll())
         {
-            TitleLocstring = "🔄 风水轮流转",
-            DescriptionLocstring = "所有人将会交换队伍！"
-        };
-        NetMessages.Send(msg, RecipientFilter.All);
+            if (controller == null) continue;
 
-        Timer.Once(3.Seconds(), () =>
-        {
-            Console.WriteLine("[Waika] 开始交换队伍");
+            int currentTeam = controller.TeamNum;
+            int newTeam;
 
-            foreach (var controller in Players.GetAll())
+            if (currentTeam == 2)
+                newTeam = 3;
+            else if (currentTeam == 3)
+                newTeam = 2;
+            else
+                continue;
+
+            var pawn = controller.GetHeroPawn();
+
+            // ========== 判断玩家状态 ==========
+            if (pawn != null && pawn.IsValid && pawn.LifeState == LifeState.Alive)
             {
-                if (controller == null) continue;
-
-                var pawn = controller.GetHeroPawn();
-                if (pawn == null || !pawn.IsValid) continue;
-
-                int currentTeam = pawn.TeamNum;
-                int newTeam;
-
-                if (currentTeam == 2)
-                    newTeam = 3;
-                else if (currentTeam == 3)
-                    newTeam = 2;
-                else
-                    continue;
-
+                // 活着的玩家：使用 modifier 换队伍
                 using var kv = new KeyValues3();
                 kv.SetInt("team", newTeam);
                 pawn.AddModifier("citadel_change_team", kv);
@@ -301,19 +304,26 @@ public class WaikaPlugin : DeadworksPluginBase
                     if (pawnRef != null && pawnRef.IsValid)
                     {
                         pawnRef.RemoveModifier("citadel_change_team");
-                        Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 -> {newTeam}");
+                        Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 -> {newTeam} (modifier)");
                     }
                 });
             }
-
-            var doneMsg = new CCitadelUserMsg_HudGameAnnouncement
+            else
             {
-                TitleLocstring = "🔄 队伍已交换",
-                DescriptionLocstring = "风水轮流转，大家已交换队伍！"
-            };
-            NetMessages.Send(doneMsg, RecipientFilter.All);
-        });
-    }
+                // 死亡的玩家：直接使用 ChangeTeam
+                controller.ChangeTeam(newTeam);
+                Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 {currentTeam} -> {newTeam} (ChangeTeam)");
+            }
+        }
+
+        var doneMsg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "🔄 队伍已交换",
+            DescriptionLocstring = "风水轮流转，大家已交换队伍！"
+        };
+        NetMessages.Send(doneMsg, RecipientFilter.All);
+    });
+}
 
     // ========== /t cheat ==========
     private void StartCheatMode()
