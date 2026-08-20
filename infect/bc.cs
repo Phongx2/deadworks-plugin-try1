@@ -179,8 +179,8 @@ public HookResult OnPlayerUsedAbility(GameEvent ev)
 
         Vector3 attackerPos = attacker.Position;
         Vector3 forward = GetForwardVector(attacker.EyeAngles);
-        float meleeRange = 180f;
-        float angleThreshold = 0.1f;
+        float meleeRange = 150f;        // 距离 150
+float angleThreshold = 0.6428f; // cos(50°) ≈ 0.6428
 
         bool hitAny = false;
 
