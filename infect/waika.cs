@@ -95,7 +95,6 @@ private void StartSwap()
             var pawn = controller.GetHeroPawn();
             if (pawn == null || !pawn.IsValid) continue;
 
-            // 不检查 LifeState，所有玩家都交换
             int currentTeam = pawn.TeamNum;
             int newTeam;
 
@@ -104,21 +103,34 @@ private void StartSwap()
             else if (currentTeam == 3)
                 newTeam = 2;
             else
-                continue;  // 跳过队伍 0 和 1（观战/未分配）
+                continue;
 
-            controller.ChangeTeam(newTeam);
-            Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 {currentTeam} -> {newTeam}");
+            // ========== 使用 citadel_change_team modifier（和 InfectPlayer 一样） ==========
+            using var kv = new KeyValues3();
+            kv.SetInt("team", newTeam);
+            pawn.AddModifier("citadel_change_team", kv);
+
+            var pawnRef = pawn;
+            var team = newTeam;
+            Timer.Once(1.Seconds(), () =>
+            {
+                if (pawnRef != null && pawnRef.IsValid)
+                {
+                    pawnRef.RemoveModifier("citadel_change_team");
+                    Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 -> {team}");
+                }
+            });
+            // ========== 结束 ==========
         }
 
         var doneMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🔄 队伍已交换",
-            DescriptionLocstring = "风水轮流转，祝你们好运！"
+            DescriptionLocstring = "风水轮流转，大家已交换队伍！"
         };
         NetMessages.Send(doneMsg, RecipientFilter.All);
     });
 }
-
 
 
 
