@@ -42,8 +42,8 @@ public class WaikaPlugin : DeadworksPluginBase
 
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
-            TitleLocstring = "欢迎游玩本服务器！插件是由匿名黑用AI写的",
-            DescriptionLocstring = "哔哩哔哩@不爱搞事情的匿名黑，点点关注谢谢喵！"
+            TitleLocstring = "今天是疯狂星期四",
+            DescriptionLocstring = "V我50"
         };
         NetMessages.Send(msg, RecipientFilter.Single(controller.Slot));
 
