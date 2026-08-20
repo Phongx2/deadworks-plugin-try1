@@ -398,114 +398,119 @@ public class WaikaPlugin : DeadworksPluginBase
         _cheatUsed.Clear();
     }
 
-    // ========== 监听近战攻击（内鬼专用 - 完全复制 NeiGuiPlugin 逻辑） ==========
-    [GameEventHandler("player_used_ability")]
-    public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
+    // ========== 监听近战攻击（内鬼专用 - 移除 break，可击杀多个队友） ==========
+[GameEventHandler("player_used_ability")]
+public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
+{
+    if (!_isCheatModeActive) return HookResult.Continue;
+
+    var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
+    if (pawn == null) return HookResult.Continue;
+
+    var controller = GetControllerFromPawn(pawn);
+    if (controller == null) return HookResult.Continue;
+
+    if (!_cheatPlayers.Contains(controller)) return HookResult.Continue;
+    if (_cheatUsed.Contains(controller)) return HookResult.Continue;
+
+    string abilityName = ev.GetString("abilityname", "");
+    if (!abilityName.StartsWith("ability_melee")) return HookResult.Continue;
+
+    Console.WriteLine($"[Waika] [重要] 内鬼 {controller.PlayerName} 使用了近战攻击！");
+
+    var attacker = pawn;
+    var attackerController = controller;
+    
+    var meleeAbility = pawn.AbilityComponent?.Abilities
+        .FirstOrDefault(a => a?.AbilityName == abilityName);
+
+    Timer.Once(100.Milliseconds(), () =>
     {
-        if (!_isCheatModeActive) return HookResult.Continue;
+        if (!_isCheatModeActive) return;
+        if (attacker == null || !attacker.IsValid) return;
+        if (attackerController == null) return;
+        if (!_cheatPlayers.Contains(attackerController)) return;
+        if (_cheatUsed.Contains(attackerController)) return;
 
-        var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
-        if (pawn == null) return HookResult.Continue;
+        var teammates = Players.GetAllPawns()
+            .Where(p => p != null && p.IsValid && p.TeamNum == attacker.TeamNum && p != attacker)
+            .ToList();
 
-        var controller = GetControllerFromPawn(pawn);
-        if (controller == null) return HookResult.Continue;
+        Vector3 attackerPos = attacker.Position;
+        Vector3 forward = GetForwardVector(attacker.EyeAngles);
+        float meleeRange = 180f;
+        float angleThreshold = 0.6428f;
 
-        if (!_cheatPlayers.Contains(controller)) return HookResult.Continue;
-        if (_cheatUsed.Contains(controller)) return HookResult.Continue;
+        bool hasHitAny = false;  // 标记是否至少命中了一个队友
 
-        string abilityName = ev.GetString("abilityname", "");
-        if (!abilityName.StartsWith("ability_melee")) return HookResult.Continue;
-
-        Console.WriteLine($"[Waika] [重要] 内鬼 {controller.PlayerName} 使用了近战攻击！");
-
-        var attacker = pawn;
-        var attackerController = controller;
-        
-        // 获取当前使用的近战技能实体
-        var meleeAbility = pawn.AbilityComponent?.Abilities
-            .FirstOrDefault(a => a?.AbilityName == abilityName);
-
-        Timer.Once(100.Milliseconds(), () =>
+        foreach (var victim in teammates)
         {
-            if (!_isCheatModeActive) return;
-            if (attacker == null || !attacker.IsValid) return;
-            if (attackerController == null) return;
-            if (!_cheatPlayers.Contains(attackerController)) return;
-            if (_cheatUsed.Contains(attackerController)) return;
+            if (victim == null || !victim.IsValid) continue;
 
-            var teammates = Players.GetAllPawns()
-                .Where(p => p != null && p.IsValid && p.TeamNum == attacker.TeamNum && p != attacker)
-                .ToList();
+            float distance = Vector3.Distance(attackerPos, victim.Position);
+            if (distance > meleeRange) continue;
 
-            Vector3 attackerPos = attacker.Position;
-            Vector3 forward = GetForwardVector(attacker.EyeAngles);
-            float meleeRange = 180f;
-            float angleThreshold = 0.6428f;
+            Vector3 toTarget = victim.Position - attackerPos;
+            Vector3 normalizedToTarget = Vector3.Normalize(toTarget);
+            float dotProduct = Vector3.Dot(forward, normalizedToTarget);
 
-            foreach (var victim in teammates)
+            if (dotProduct < angleThreshold) continue;
+
+            var victimController = GetControllerFromPawn(victim);
+            if (victimController == null) continue;
+
+            Console.WriteLine($"[Waika] [重要] 内鬼 {attackerController.PlayerName} 近战命中了队友 {victimController.PlayerName}！");
+            hasHitAny = true;
+
+            // 秒杀队友
+            victim.Hurt(
+                damage: 999999f,
+                attacker: attacker,
+                inflictor: null,
+                ability: meleeAbility,
+                damageType: 4
+            );
+            Console.WriteLine($"[Waika] [DEBUG] 队友 {victimController.PlayerName} 已被 {attackerController.PlayerName} 秒杀");
+
+            // ========== 不 break，继续检测下一个队友 ==========
+        }
+
+        // 只要命中过至少一个队友，就执行叛变逻辑
+        if (hasHitAny)
+        {
+            // 标记内鬼已使用
+            _cheatUsed.Add(attackerController);
+
+            // 内鬼换到敌方队伍
+            int newTeam = (attacker.TeamNum == 2) ? 3 : 2;
+            using var kv = new KeyValues3();
+            kv.SetInt("team", newTeam);
+            attacker.AddModifier("citadel_change_team", kv);
+            Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} 正在切换到 Team {newTeam}");
+
+            var pawnRef = attacker;
+            Timer.Once(1.Seconds(), () =>
             {
-                if (victim == null || !victim.IsValid) continue;
-
-                float distance = Vector3.Distance(attackerPos, victim.Position);
-                if (distance > meleeRange) continue;
-
-                Vector3 toTarget = victim.Position - attackerPos;
-                Vector3 normalizedToTarget = Vector3.Normalize(toTarget);
-                float dotProduct = Vector3.Dot(forward, normalizedToTarget);
-
-                if (dotProduct < angleThreshold) continue;
-
-                var victimController = GetControllerFromPawn(victim);
-                if (victimController == null) continue;
-
-                Console.WriteLine($"[Waika] [重要] 内鬼 {attackerController.PlayerName} 近战命中了队友 {victimController.PlayerName}！");
-
-                // 标记已使用
-                _cheatUsed.Add(attackerController);
-
-                // 秒杀队友
-                Console.WriteLine($"[Waika] [重要] 正在秒杀队友 {victimController.PlayerName}");
-                victim.Hurt(
-                    damage: 999999f,
-                    attacker: attacker,
-                    inflictor: null,
-                    ability: meleeAbility,
-                    damageType: 4
-                );
-                Console.WriteLine($"[Waika] [DEBUG] 队友 {victimController.PlayerName} 已被 {attackerController.PlayerName} 秒杀");
-
-                // 内鬼换到敌方队伍
-                int newTeam = (attacker.TeamNum == 2) ? 3 : 2;
-                using var kv = new KeyValues3();
-                kv.SetInt("team", newTeam);
-                attacker.AddModifier("citadel_change_team", kv);
-                Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} 正在切换到 Team {newTeam}");
-
-                var pawnRef = attacker;
-                Timer.Once(1.Seconds(), () =>
+                if (pawnRef != null && pawnRef.IsValid)
                 {
-                    if (pawnRef != null && pawnRef.IsValid)
-                    {
-                        pawnRef.RemoveModifier("citadel_change_team");
-                        Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} -> Team {newTeam} 完成");
-                    }
-                });
+                    pawnRef.RemoveModifier("citadel_change_team");
+                    Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} -> Team {newTeam} 完成");
+                }
+            });
 
-                // 广播消息
-                var msg = new CCitadelUserMsg_HudGameAnnouncement
-                {
-                    TitleLocstring = "🔪 内鬼暴露！",
-                    DescriptionLocstring = $"{attackerController.PlayerName} 击杀了队友，已叛变到敌方队伍！"
-                };
-                NetMessages.Send(msg, RecipientFilter.All);
-                Console.WriteLine($"[Waika] [DEBUG] 已广播击杀消息");
+            // 广播消息
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "🔪 内鬼暴露！",
+                DescriptionLocstring = $"{attackerController.PlayerName} 击杀了队友，已叛变到敌方队伍！"
+            };
+            NetMessages.Send(msg, RecipientFilter.All);
+            Console.WriteLine($"[Waika] [DEBUG] 已广播击杀消息");
+        }
+    });
 
-                break;
-            }
-        });
-
-        return HookResult.Continue;
-    }
+    return HookResult.Continue;
+}
 
     // ========== /m 命令 ==========
     [Command("m", Description = "切换自己身上的 modifier: /m <modifier名称>")]
