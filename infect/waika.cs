@@ -11,6 +11,10 @@ public class WaikaPlugin : DeadworksPluginBase
     private IHandle? _lavaTimer = null;
     private readonly HashSet<string> _welcomedPlayers = new HashSet<string>();
 
+    // ========== /t team 相关字段 ==========
+    private bool _isTeamModeActive = false;
+    private bool _teamModeTriggered = false;
+
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine(isReload ? "[Waika] 热重载完成！" : "[Waika] 已加载！");
@@ -20,6 +24,7 @@ public class WaikaPlugin : DeadworksPluginBase
     {
         Console.WriteLine("[Waika] 已卸载！");
         StopLava();
+        StopTeamMode();
         _welcomedPlayers.Clear();
     }
 
@@ -33,7 +38,6 @@ public class WaikaPlugin : DeadworksPluginBase
         var controller = GetControllerFromPawn(pawn);
         if (controller == null) return HookResult.Continue;
 
-        // ========== 修复：使用 PlayerSteamId ==========
         string playerKey = controller.PlayerSteamId.ToString();
         if (_welcomedPlayers.Contains(playerKey))
             return HookResult.Continue;
@@ -83,7 +87,7 @@ public class WaikaPlugin : DeadworksPluginBase
             foreach (var pawn in Players.GetAllPawns())
             {
                 if (pawn == null || !pawn.IsValid) continue;
-                if (!pawn.IsAlive) continue;
+                if (pawn.LifeState != LifeState.Alive) continue;
 
                 using var kv = new KeyValues3();
                 kv.SetFloat("duration", 1.0f);
@@ -133,7 +137,7 @@ public class WaikaPlugin : DeadworksPluginBase
             foreach (var pawn in Players.GetAllPawns())
             {
                 if (pawn == null || !pawn.IsValid) continue;
-                if (!pawn.IsAlive) continue;
+                if (pawn.LifeState != LifeState.Alive) continue;
 
                 if (pawn.IsOnGround)
                 {
@@ -160,6 +164,86 @@ public class WaikaPlugin : DeadworksPluginBase
             DescriptionLocstring = "地面灼烧效果已关闭"
         };
         NetMessages.Send(stopMsg, RecipientFilter.All);
+    }
+
+    // ========== /t team ==========
+    private void StartTeamMode()
+    {
+        if (_isTeamModeActive)
+        {
+            Console.WriteLine("[Waika] Team 模式已在运行中");
+            return;
+        }
+
+        Console.WriteLine("[Waika] 启动 Team 模式");
+        _isTeamModeActive = true;
+        _teamModeTriggered = false;
+
+        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "⚔️ 有难同当",
+            DescriptionLocstring = "如果你的队友死亡了，整个队伍的所有人都会死亡！"
+        };
+        NetMessages.Send(msg, RecipientFilter.All);
+
+        Timer.Once(1.Seconds(), () =>
+        {
+            if (!_isTeamModeActive) return;
+            Console.WriteLine("[Waika] Team 模式监听已启动");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已激活！");
+        });
+    }
+
+    private void StopTeamMode()
+    {
+        if (!_isTeamModeActive && !_teamModeTriggered) return;
+
+        Console.WriteLine($"[Waika] 停止 Team 模式 (触发状态: {_teamModeTriggered})");
+        _isTeamModeActive = false;
+        _teamModeTriggered = false;
+    }
+
+    // ========== Team 模式的死亡事件处理 ==========
+    [GameEventHandler("player_death")]
+    public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
+    {
+        if (!_isTeamModeActive || _teamModeTriggered) return HookResult.Continue;
+
+        var victim = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
+        if (victim == null) return HookResult.Continue;
+
+        int victimTeam = victim.TeamNum;
+        Console.WriteLine($"[Waika] 检测到玩家死亡，队伍: {victimTeam}");
+
+        var allPawns = Players.GetAllPawns().ToList();
+
+        // 使用 LifeState 判断存活
+        var teammatesToKill = allPawns
+            .Where(p => p != null && p.IsValid && p.LifeState == LifeState.Alive && p.TeamNum == victimTeam && p != victim)
+            .ToList();
+
+        if (teammatesToKill.Count > 0)
+        {
+            Console.WriteLine($"[Waika] 队伍 {victimTeam} 有 {teammatesToKill.Count} 名队友被连带死亡");
+
+            foreach (var teammate in teammatesToKill)
+            {
+                teammate.Hurt(999999f, attacker: null, inflictor: null, ability: null, damageType: 0);
+                Console.WriteLine($"[Waika] 队友已死亡");
+            }
+
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "💀 有难同当",
+                DescriptionLocstring = $"队伍 {victimTeam} 的队友被连带死亡！"
+            };
+            NetMessages.Send(msg, RecipientFilter.All);
+        }
+
+        _teamModeTriggered = true;
+        StopTeamMode();
+
+        return HookResult.Continue;
     }
 
     // ========== /m 命令 ==========
@@ -194,7 +278,7 @@ public class WaikaPlugin : DeadworksPluginBase
     }
 
     // ========== /t 命令 ==========
-    [Command("t", Description = "功能: /t lava (开关) | /t fight")]
+    [Command("t", Description = "功能: /t lava (开关) | /t fight | /t team")]
     public void CmdToggle(CCitadelPlayerController caller, string feature)
     {
         string playerName = caller?.PlayerName ?? "Server Console";
@@ -221,9 +305,24 @@ public class WaikaPlugin : DeadworksPluginBase
             if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
             CCitadelPlayerController.PrintToConsoleAll("[Waika] 时空扭曲已触发！5秒后生效");
         }
+        else if (feature?.ToLower() == "team")
+        {
+            if (_isTeamModeActive)
+            {
+                StopTeamMode();
+                if (caller != null) caller.PrintToConsole("[Waika] Team 模式已停止");
+                CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已停止");
+            }
+            else
+            {
+                StartTeamMode();
+                if (caller != null) caller.PrintToConsole("[Waika] Team 模式已启动");
+                CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已启动！队友死亡将连带全队");
+            }
+        }
         else
         {
-            string msg = $"[Waika] 未知功能: {feature}。可用功能: lava, fight";
+            string msg = $"[Waika] 未知功能: {feature}。可用功能: lava, fight, team";
             Console.WriteLine(msg);
             if (caller != null) caller.PrintToConsole(msg);
         }
