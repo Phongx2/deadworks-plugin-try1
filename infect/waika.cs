@@ -9,7 +9,7 @@ public class WaikaPlugin : DeadworksPluginBase
 
     private bool _isLavaActive = false;
     private IHandle? _lavaTimer = null;
-    private readonly HashSet<string> _welcomedPlayers = new HashSet<string>();  // 新增：记录已欢迎的玩家
+    private readonly HashSet<string> _welcomedPlayers = new HashSet<string>();
 
     public override void OnLoad(bool isReload)
     {
@@ -20,10 +20,10 @@ public class WaikaPlugin : DeadworksPluginBase
     {
         Console.WriteLine("[Waika] 已卸载！");
         StopLava();
-        _welcomedPlayers.Clear();  // 新增：清理
+        _welcomedPlayers.Clear();
     }
 
-    // ========== 新增：监听玩家选择英雄事件 ==========
+    // ========== 监听玩家选择英雄事件 ==========
     [GameEventHandler("player_hero_changed")]
     public HookResult OnPlayerHeroChanged(PlayerHeroChangedEvent args)
     {
@@ -33,14 +33,13 @@ public class WaikaPlugin : DeadworksPluginBase
         var controller = GetControllerFromPawn(pawn);
         if (controller == null) return HookResult.Continue;
 
-        // 检查是否已经欢迎过该玩家（使用 SteamId 或玩家名称）
-        string playerKey = controller.SteamId.ToString();
+        // ========== 修复：使用 PlayerSteamId ==========
+        string playerKey = controller.PlayerSteamId.ToString();
         if (_welcomedPlayers.Contains(playerKey))
             return HookResult.Continue;
 
         _welcomedPlayers.Add(playerKey);
 
-        // 发送欢迎 HUD
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "欢迎游玩本服务器！插件是由匿名黑用AI写的",
