@@ -546,47 +546,43 @@ public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
     }
 
     // ========== /t 命令 ==========
-    [Command("t", Description = "功能: /t lava (开关) | /t fight | /t team")]
-    public void CmdToggle(CCitadelPlayerController caller, string feature)
-    {
-        string playerName = caller?.PlayerName ?? "Server Console";
-        Console.WriteLine($"[Waika] {playerName} 执行了命令: /t {feature ?? "null"}");
-
-        if (string.IsNullOrEmpty(feature))
-        {
-            Console.WriteLine("[Waika] 错误: 缺少功能参数");
-            if (caller != null) caller.PrintToConsole("[Waika] 请指定功能: /t lava, /t fight, /t team");
-            return;
-        }
-
-        string feat = feature.ToLower().Trim();
-
-        if (feat == "lava")
-        {
-            if (_isLavaActive)
-            {
-                StopLava();
-                if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已停止");
-                CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已停止");
-            }
-            else
-            {
-                StartLava();
-                if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已启动");
-                CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已启动！站在地面上会受到伤害");
-            }
-        }
-
-        else if (feat == "swap")
+    [Command("t", Description = "功能: /t lava (开关) | /t fight | /t team | /t swap | /t cheat")]
+public void CmdToggle(CCitadelPlayerController caller, string feature)
 {
-    StartSwap();
-    if (caller != null) caller.PrintToConsole("[Waika] 队伍交换已触发");
-    CCitadelPlayerController.PrintToConsoleAll("[Waika] 队伍交换已触发！3秒后执行");
-}
+    string playerName = caller?.PlayerName ?? "Server Console";
+    Console.WriteLine($"[Waika] {playerName} 执行了命令: /t {feature ?? "null"}");
 
+    if (string.IsNullOrEmpty(feature))
+    {
+        Console.WriteLine("[Waika] 错误: 缺少功能参数");
+        if (caller != null) caller.PrintToConsole("[Waika] 请指定功能: /t lava, /t fight, /t team, /t swap, /t cheat");
+        return;
+    }
 
+    string feat = feature.ToLower().Trim();
 
- else if (feat == "cheat")
+    if (feat == "lava")
+    {
+        if (_isLavaActive)
+        {
+            StopLava();
+            if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已停止");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已停止");
+        }
+        else
+        {
+            StartLava();
+            if (caller != null) caller.PrintToConsole("[Waika] Lava 模式已启动");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已启动！站在地面上会受到伤害");
+        }
+    }
+    else if (feat == "swap")
+    {
+        StartSwap();
+        if (caller != null) caller.PrintToConsole("[Waika] 队伍交换已触发");
+        CCitadelPlayerController.PrintToConsoleAll("[Waika] 队伍交换已触发！3秒后执行");
+    }
+    else if (feat == "cheat")
     {
         if (_isCheatModeActive)
         {
@@ -601,36 +597,32 @@ public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
             CCitadelPlayerController.PrintToConsoleAll("[Waika] 内鬼模式已启动！小心你的背后");
         }
     }
-
-
-
-
-        else if (feat == "fight")
+    else if (feat == "fight")
+    {
+        StartFight();
+        if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
+        CCitadelPlayerController.PrintToConsoleAll("[Waika] 时空扭曲已触发！5秒后生效");
+    }
+    else if (feat == "team")
+    {
+        if (_isTeamModeActive)
         {
-            StartFight();
-            if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
-            CCitadelPlayerController.PrintToConsoleAll("[Waika] 时空扭曲已触发！5秒后生效");
-        }
-        else if (feat == "team")
-        {
-            if (_isTeamModeActive)
-            {
-                StopTeamMode();
-                if (caller != null) caller.PrintToConsole("[Waika] Team 模式已停止");
-                CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已停止");
-            }
-            else
-            {
-                StartTeamMode();
-                if (caller != null) caller.PrintToConsole("[Waika] Team 模式已启动");
-                CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已启动！队友死亡将连带全队");
-            }
+            StopTeamMode();
+            if (caller != null) caller.PrintToConsole("[Waika] Team 模式已停止");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已停止");
         }
         else
         {
-            string msg = $"[Waika] 未知功能: {feature}。可用功能: lava, fight, team";
-            Console.WriteLine(msg);
-            if (caller != null) caller.PrintToConsole(msg);
+            StartTeamMode();
+            if (caller != null) caller.PrintToConsole("[Waika] Team 模式已启动");
+            CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已启动！队友死亡将连带全队");
         }
     }
+    else
+    {
+        string msg = $"[Waika] 未知功能: {feature}。可用功能: lava, fight, team, swap, cheat";
+        Console.WriteLine(msg);
+        if (caller != null) caller.PrintToConsole(msg);
+    }
+}
 }
