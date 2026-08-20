@@ -142,7 +142,7 @@ public class WaikaPlugin : DeadworksPluginBase
                 if (pawn.IsOnGround)
                 {
                     float maxHealth = pawn.GetMaxHealth();
-                    float damage = Math.Max(1f, maxHealth * 0.01f);
+                    float damage = Math.Max(1f, maxHealth * 0.05f);
                     pawn.Hurt(damage, attacker: null, inflictor: null, ability: null, damageType: 8);
                 }
             }
