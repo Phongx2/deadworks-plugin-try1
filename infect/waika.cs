@@ -398,7 +398,7 @@ public class WaikaPlugin : DeadworksPluginBase
         _cheatUsed.Clear();
     }
 
-    // ========== 监听近战攻击（内鬼专用 - 使用优化后的检测参数） ==========
+    // ========== 监听近战攻击（内鬼专用 - 完全复制 NeiGuiPlugin 逻辑） ==========
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
     {
@@ -416,17 +416,21 @@ public class WaikaPlugin : DeadworksPluginBase
         string abilityName = ev.GetString("abilityname", "");
         if (!abilityName.StartsWith("ability_melee")) return HookResult.Continue;
 
-        Console.WriteLine($"[Waika] 内鬼 {controller.PlayerName} 使用了近战攻击");
+        Console.WriteLine($"[Waika] [重要] 内鬼 {controller.PlayerName} 使用了近战攻击！");
 
         var attacker = pawn;
         var attackerController = controller;
+        
+        // 获取当前使用的近战技能实体
         var meleeAbility = pawn.AbilityComponent?.Abilities
             .FirstOrDefault(a => a?.AbilityName == abilityName);
 
         Timer.Once(100.Milliseconds(), () =>
         {
+            if (!_isCheatModeActive) return;
             if (attacker == null || !attacker.IsValid) return;
             if (attackerController == null) return;
+            if (!_cheatPlayers.Contains(attackerController)) return;
             if (_cheatUsed.Contains(attackerController)) return;
 
             var teammates = Players.GetAllPawns()
@@ -435,10 +439,8 @@ public class WaikaPlugin : DeadworksPluginBase
 
             Vector3 attackerPos = attacker.Position;
             Vector3 forward = GetForwardVector(attacker.EyeAngles);
-            
-            // ========== 使用优化后的检测参数（与内鬼插件一致） ==========
             float meleeRange = 180f;
-            float angleThreshold = 0.6428f;  // cos(50°)
+            float angleThreshold = 0.6428f;
 
             foreach (var victim in teammates)
             {
@@ -456,11 +458,13 @@ public class WaikaPlugin : DeadworksPluginBase
                 var victimController = GetControllerFromPawn(victim);
                 if (victimController == null) continue;
 
-                Console.WriteLine($"[Waika] 内鬼 {attackerController.PlayerName} 近战命中了队友 {victimController.PlayerName}");
+                Console.WriteLine($"[Waika] [重要] 内鬼 {attackerController.PlayerName} 近战命中了队友 {victimController.PlayerName}！");
 
+                // 标记已使用
                 _cheatUsed.Add(attackerController);
 
-                // ========== 秒杀队友（带上攻击者信息） ==========
+                // 秒杀队友
+                Console.WriteLine($"[Waika] [重要] 正在秒杀队友 {victimController.PlayerName}");
                 victim.Hurt(
                     damage: 999999f,
                     attacker: attacker,
@@ -468,13 +472,14 @@ public class WaikaPlugin : DeadworksPluginBase
                     ability: meleeAbility,
                     damageType: 4
                 );
-                Console.WriteLine($"[Waika] 队友 {victimController.PlayerName} 被秒杀");
+                Console.WriteLine($"[Waika] [DEBUG] 队友 {victimController.PlayerName} 已被 {attackerController.PlayerName} 秒杀");
 
                 // 内鬼换到敌方队伍
                 int newTeam = (attacker.TeamNum == 2) ? 3 : 2;
                 using var kv = new KeyValues3();
                 kv.SetInt("team", newTeam);
                 attacker.AddModifier("citadel_change_team", kv);
+                Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} 正在切换到 Team {newTeam}");
 
                 var pawnRef = attacker;
                 Timer.Once(1.Seconds(), () =>
@@ -482,16 +487,18 @@ public class WaikaPlugin : DeadworksPluginBase
                     if (pawnRef != null && pawnRef.IsValid)
                     {
                         pawnRef.RemoveModifier("citadel_change_team");
-                        Console.WriteLine($"[Waika] {attackerController.PlayerName} -> Team {newTeam}");
+                        Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} -> Team {newTeam} 完成");
                     }
                 });
 
+                // 广播消息
                 var msg = new CCitadelUserMsg_HudGameAnnouncement
                 {
                     TitleLocstring = "🔪 内鬼暴露！",
                     DescriptionLocstring = $"{attackerController.PlayerName} 击杀了队友，已叛变到敌方队伍！"
                 };
                 NetMessages.Send(msg, RecipientFilter.All);
+                Console.WriteLine($"[Waika] [DEBUG] 已广播击杀消息");
 
                 break;
             }
