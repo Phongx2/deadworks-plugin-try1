@@ -169,12 +169,6 @@ public class WaikaPlugin : DeadworksPluginBase
     // ========== /t team ==========
     private void StartTeamMode()
     {
-        if (_isTeamModeActive)
-        {
-            Console.WriteLine("[Waika] Team 模式已在运行中");
-            return;
-        }
-
         Console.WriteLine("[Waika] 启动 Team 模式");
         _isTeamModeActive = true;
         _teamModeTriggered = false;
@@ -207,17 +201,20 @@ public class WaikaPlugin : DeadworksPluginBase
     [GameEventHandler("player_death")]
     public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
     {
+        // 检查模式是否激活且未触发过
         if (!_isTeamModeActive || _teamModeTriggered) return HookResult.Continue;
 
+        // 获取死亡玩家的 Pawn
         var victim = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
         if (victim == null) return HookResult.Continue;
 
         int victimTeam = victim.TeamNum;
         Console.WriteLine($"[Waika] 检测到玩家死亡，队伍: {victimTeam}");
 
+        // 获取所有玩家
         var allPawns = Players.GetAllPawns().ToList();
 
-        // 使用 LifeState 判断存活
+        // 找出同队伍的其他存活玩家（使用 LifeState）
         var teammatesToKill = allPawns
             .Where(p => p != null && p.IsValid && p.LifeState == LifeState.Alive && p.TeamNum == victimTeam && p != victim)
             .ToList();
@@ -240,6 +237,7 @@ public class WaikaPlugin : DeadworksPluginBase
             NetMessages.Send(msg, RecipientFilter.All);
         }
 
+        // 效果只触发一次
         _teamModeTriggered = true;
         StopTeamMode();
 
@@ -282,9 +280,18 @@ public class WaikaPlugin : DeadworksPluginBase
     public void CmdToggle(CCitadelPlayerController caller, string feature)
     {
         string playerName = caller?.PlayerName ?? "Server Console";
-        Console.WriteLine($"[Waika] {playerName} 执行了命令: /t {feature}");
+        Console.WriteLine($"[Waika] {playerName} 执行了命令: /t {feature ?? "null"}");
 
-        if (feature?.ToLower() == "lava")
+        if (string.IsNullOrEmpty(feature))
+        {
+            Console.WriteLine("[Waika] 错误: 缺少功能参数");
+            if (caller != null) caller.PrintToConsole("[Waika] 请指定功能: /t lava, /t fight, /t team");
+            return;
+        }
+
+        string feat = feature.ToLower().Trim();
+
+        if (feat == "lava")
         {
             if (_isLavaActive)
             {
@@ -299,13 +306,13 @@ public class WaikaPlugin : DeadworksPluginBase
                 CCitadelPlayerController.PrintToConsoleAll("[Waika] 地面灼烧效果已启动！站在地面上会受到伤害");
             }
         }
-        else if (feature?.ToLower() == "fight")
+        else if (feat == "fight")
         {
             StartFight();
             if (caller != null) caller.PrintToConsole("[Waika] 时空扭曲已触发");
             CCitadelPlayerController.PrintToConsoleAll("[Waika] 时空扭曲已触发！5秒后生效");
         }
-        else if (feature?.ToLower() == "team")
+        else if (feat == "team")
         {
             if (_isTeamModeActive)
             {
