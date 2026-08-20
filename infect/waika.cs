@@ -317,85 +317,89 @@ public class WaikaPlugin : DeadworksPluginBase
 
     // ========== /t cheat ==========
     private void StartCheatMode()
+{
+    // 如果已经在运行，先停止
+    if (_isCheatModeActive)
     {
-        if (_isCheatModeActive)
-        {
-            Console.WriteLine("[Waika] Cheat 模式已在运行中");
-            return;
-        }
-
-        Console.WriteLine("[Waika] 启动 Cheat 模式");
-
-        var allControllers = Players.GetAll().ToList();
-        if (allControllers.Count < 2)
-        {
-            Console.WriteLine("[Waika] 玩家数量不足，需要至少2人");
-            if (allControllers.Count > 0 && allControllers[0] != null)
-            {
-                allControllers[0].PrintToConsole("[Waika] 玩家数量不足，需要至少2人");
-            }
-            return;
-        }
-
-        var team2Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 2).ToList();
-        var team3Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 3).ToList();
-
-        if (team2Players.Count == 0 || team3Players.Count == 0)
-        {
-            Console.WriteLine("[Waika] 需要两个队伍都有人");
-            if (allControllers.Count > 0 && allControllers[0] != null)
-            {
-                allControllers[0].PrintToConsole("[Waika] 需要两个队伍都有人");
-            }
-            return;
-        }
-
-        _isCheatModeActive = true;
-        _cheatPlayers.Clear();
-        _cheatUsed.Clear();
-
-        var random = new Random();
-
-        var selectedTeam2 = team2Players[random.Next(team2Players.Count)];
-        var selectedTeam3 = team3Players[random.Next(team3Players.Count)];
-
-        _cheatPlayers.Add(selectedTeam2);
-        _cheatPlayers.Add(selectedTeam3);
-
-        Console.WriteLine($"[Waika] 选中的内鬼: {selectedTeam2.PlayerName} (Team 2), {selectedTeam3.PlayerName} (Team 3)");
-
-        foreach (var player in allControllers)
-        {
-            if (player == null) continue;
-
-            var msg = new CCitadelUserMsg_HudGameAnnouncement();
-
-            if (player == selectedTeam2 || player == selectedTeam3)
-            {
-                msg.TitleLocstring = "🔪 你成为了内鬼！！！";
-                msg.DescriptionLocstring = "你的近战攻击现在可以秒杀队友，击杀成功后自动加入敌方队伍";
-            }
-            else
-            {
-                msg.TitleLocstring = "⚠️ 我们中出了一个叛徒";
-                msg.DescriptionLocstring = "小心你的背后";
-            }
-
-            NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
-        }
-
-        Console.WriteLine("[Waika] Cheat 模式监听已启动");
+        StopCheatMode();
     }
 
-    private void StopCheatMode()
-    {
-        if (!_isCheatModeActive) return;
+    Console.WriteLine("[Waika] 启动 Cheat 模式");
 
-        Console.WriteLine("[Waika] 停止 Cheat 模式");
-        _isCheatModeActive = false;
-        _cheatPlayers.Clear();
-        _cheatUsed.Clear();
+    // 重置状态（确保干净启动）
+    _cheatPlayers.Clear();
+    _cheatUsed.Clear();
+    _isCheatModeActive = false;  // 先设为 false，成功后再设为 true
+
+    var allControllers = Players.GetAll().ToList();
+    if (allControllers.Count < 2)
+    {
+        Console.WriteLine("[Waika] 玩家数量不足，需要至少2人");
+        if (allControllers.Count > 0 && allControllers[0] != null)
+        {
+            allControllers[0].PrintToConsole("[Waika] 玩家数量不足，需要至少2人");
+        }
+        return;
     }
+
+    var team2Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 2).ToList();
+    var team3Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 3).ToList();
+
+    if (team2Players.Count == 0 || team3Players.Count == 0)
+    {
+        Console.WriteLine("[Waika] 需要两个队伍都有人");
+        if (allControllers.Count > 0 && allControllers[0] != null)
+        {
+            allControllers[0].PrintToConsole("[Waika] 需要两个队伍都有人");
+        }
+        return;
+    }
+
+    var random = new Random();
+
+    var selectedTeam2 = team2Players[random.Next(team2Players.Count)];
+    var selectedTeam3 = team3Players[random.Next(team3Players.Count)];
+
+    _cheatPlayers.Add(selectedTeam2);
+    _cheatPlayers.Add(selectedTeam3);
+
+    // 所有条件满足，设置状态为激活
+    _isCheatModeActive = true;
+
+    Console.WriteLine($"[Waika] 选中的内鬼: {selectedTeam2.PlayerName} (Team 2), {selectedTeam3.PlayerName} (Team 3)");
+
+    foreach (var player in allControllers)
+    {
+        if (player == null) continue;
+
+        var msg = new CCitadelUserMsg_HudGameAnnouncement();
+
+        if (player == selectedTeam2 || player == selectedTeam3)
+        {
+            msg.TitleLocstring = "🔪 你成为了内鬼！！！";
+            msg.DescriptionLocstring = "你的近战攻击现在可以秒杀队友，击杀成功后自动加入敌方队伍";
+        }
+        else
+        {
+            msg.TitleLocstring = "⚠️ 我们中出了一个叛徒";
+            msg.DescriptionLocstring = "小心你的背后";
+        }
+
+        NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
+    }
+
+    Console.WriteLine("[Waika] Cheat 模式监听已启动");
+}
+
+private void StopCheatMode()
+{
+    if (!_isCheatModeActive) return;
+
+    Console.WriteLine("[Waika] 停止 Cheat 模式");
+    _isCheatModeActive = false;
+    _cheatPlayers.Clear();
+    _cheatUsed.Clear();
+}
 
     // ========== 监听近战攻击（内鬼专用） ==========
     [GameEventHandler("player_used_ability")]
