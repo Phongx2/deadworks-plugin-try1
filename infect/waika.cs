@@ -60,18 +60,43 @@ private bool _isKsRunning = false;  // 是否正在运行
 
 
 public override void OnLoad(bool isReload)
+{
+    Console.WriteLine(isReload ? "[Waika] 热重载完成！" : "[Waika] 已加载！");
+    
+    // ========== 重置 /ks 状态 ==========
+    _isKsRunning = false;
+    _currentCommandIndex = 0;
+    if (_ksTimer != null)
     {
-        Console.WriteLine(isReload ? "[Waika] 热重载完成！" : "[Waika] 已加载！");
+        _ksTimer.Cancel();
+        _ksTimer = null;
     }
+    // ========== 重置结束 ==========
+}
 
-    public override void OnUnload()
+public override void OnUnload()
+{
+    Console.WriteLine("[Waika] 已卸载！");
+    
+    // ========== 停止所有正在运行的功能 ==========
+    StopLava();
+    StopTeamMode();
+    StopCheatMode();
+    StopHg();  // 新增：关闭超重模式
+    StopAir();  // 新增：关闭失重模式
+    
+    // ========== 停止 /ks 计时器 ==========
+    _isKsRunning = false;
+    _currentCommandIndex = 0;
+    if (_ksTimer != null)
     {
-        Console.WriteLine("[Waika] 已卸载！");
-        StopLava();
-        StopTeamMode();
-        StopCheatMode();
-        _welcomedPlayers.Clear();
+        _ksTimer.Cancel();
+        _ksTimer = null;
     }
+    // ========== 计时器停止结束 ==========
+    
+    _welcomedPlayers.Clear();
+}
 
 
 
