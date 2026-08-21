@@ -26,7 +26,8 @@ public class WaikaPlugin : DeadworksPluginBase
     private bool _isHgActive = false;
 
     // ========== /t air 相关字段 ==========
-    private bool _isAirActive = false;
+private bool _isAirActive = false;
+private IHandle? _airResetTimer = null;  // 新增：用于重置跳跃/冲刺计数的计时器
 
 
 
@@ -78,14 +79,12 @@ public override void OnUnload()
 {
     Console.WriteLine("[Waika] 已卸载！");
     
-    // ========== 停止所有正在运行的功能 ==========
     StopLava();
     StopTeamMode();
     StopCheatMode();
-    StopHg();  // 新增：关闭超重模式
-    StopAir();  // 新增：关闭失重模式
+    StopHg();
+    StopAir();  // StopAir 会取消 _airResetTimer
     
-    // ========== 停止 /ks 计时器 ==========
     _isKsRunning = false;
     _currentCommandIndex = 0;
     if (_ksTimer != null)
@@ -93,7 +92,6 @@ public override void OnUnload()
         _ksTimer.Cancel();
         _ksTimer = null;
     }
-    // ========== 计时器停止结束 ==========
     
     _welcomedPlayers.Clear();
 }
@@ -178,18 +176,50 @@ private void StartAir()
     Console.WriteLine("[Waika] 启动 AIR 模式");
     _isAirActive = true;
 
+    // 修改 ConVar
     ConVar.Find("sv_gravity")?.SetInt(5);
     Console.WriteLine("[Waika] sv_gravity -> 5");
     ConVar.Find("sv_airaccelerate")?.SetInt(-10);
     Console.WriteLine("[Waika] sv_airaccelerate -> -10");
 
-    foreach (var pawn in Players.GetAllPawns())
+    // ========== 启动每 100ms 重置跳跃/冲刺计数 ==========
+    _airResetTimer = Timer.Every(100.Milliseconds(), () =>
     {
-        if (pawn == null || !pawn.IsValid) continue;
-        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirJumps, true);
-        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirDashes, true);
-    }
-    Console.WriteLine("[Waika] 已为所有玩家启用无限耐力");
+        if (!_isAirActive)
+        {
+            _airResetTimer?.Cancel();
+            _airResetTimer = null;
+            return;
+        }
+
+        foreach (var pawn in Players.GetAllPawns())
+        {
+            if (pawn == null || !pawn.IsValid) continue;
+
+            var abilities = pawn.AbilityComponent?.Abilities;
+            if (abilities == null) continue;
+
+            foreach (var ability in abilities)
+            {
+                if (ability == null) continue;
+
+                // 重置跳跃计数
+                var jump = ability.As<CCitadel_Ability_Jump>();
+                if (jump != null && jump.ConsecutiveAirJumps > 0)
+                {
+                    jump.ConsecutiveAirJumps = 0;
+                }
+
+                // 重置冲刺计数
+                var dash = ability.As<CCitadel_Ability_Dash>();
+                if (dash != null && dash.ConsecutiveAirDashes > 0)
+                {
+                    dash.ConsecutiveAirDashes = 0;
+                }
+            }
+        }
+    });
+    // ========== 重置逻辑结束 ==========
 
     var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
@@ -199,25 +229,26 @@ private void StartAir()
     NetMessages.Send(msg, RecipientFilter.All);
 }
 
+
+
+
 private void StopAir()
 {
     if (!_isAirActive) return;
 
     Console.WriteLine("[Waika] 关闭 AIR 模式");
     _isAirActive = false;
+    
+    // ========== 停止计时器 ==========
+    _airResetTimer?.Cancel();
+    _airResetTimer = null;
+    // ========== 停止结束 ==========
 
+    // 恢复 ConVar
     ConVar.Find("sv_gravity")?.SetInt(800);
     Console.WriteLine("[Waika] sv_gravity -> 800");
     ConVar.Find("sv_airaccelerate")?.SetInt(10);
     Console.WriteLine("[Waika] sv_airaccelerate -> 10");
-
-    foreach (var pawn in Players.GetAllPawns())
-    {
-        if (pawn == null || !pawn.IsValid) continue;
-        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirJumps, false);
-        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirDashes, false);
-    }
-    Console.WriteLine("[Waika] 已移除所有玩家的无限耐力");
 
     var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
@@ -226,7 +257,6 @@ private void StopAir()
     };
     NetMessages.Send(msg, RecipientFilter.All);
 }
-
 
 
 
