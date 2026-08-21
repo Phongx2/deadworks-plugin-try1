@@ -849,7 +849,7 @@ private void ExecuteCommand(string command)
         case "lava":
             StartLava();
             // 4分钟后关闭
-            Timer.Once(4.Minutes(), () =>
+            Timer.Once((4 * 60).Seconds(), () =>
             {
                 StopLava();
                 Console.WriteLine("[Waika] lava 已关闭");
@@ -865,7 +865,7 @@ private void ExecuteCommand(string command)
         case "fight":
             StartFight();
             // 4分半后执行 Rest() 然后下一个
-            Timer.Once(4.Minutes() + 30.Seconds(), () =>
+            Timer.Once((4 * 60 + 30).Seconds(), () =>
             {
                 _currentCommandIndex++;
                 ExecuteNextCommand();
@@ -875,7 +875,7 @@ private void ExecuteCommand(string command)
         case "team":
             StartTeamMode();
             // 4分钟后关闭
-            Timer.Once(4.Minutes(), () =>
+            Timer.Once((4 * 60).Seconds(), () =>
             {
                 StopTeamMode();
                 Console.WriteLine("[Waika] team 已关闭");
@@ -890,7 +890,7 @@ private void ExecuteCommand(string command)
         case "swap":
             StartSwap();
             // 4分半后执行下一个
-            Timer.Once(4.Minutes() + 30.Seconds(), () =>
+            Timer.Once((4 * 60 + 30).Seconds(), () =>
             {
                 _currentCommandIndex++;
                 ExecuteNextCommand();
@@ -900,7 +900,7 @@ private void ExecuteCommand(string command)
         case "cheat":
             StartCheatMode();
             // 4分钟后关闭
-            Timer.Once(4.Minutes(), () =>
+            Timer.Once((4 * 60).Seconds(), () =>
             {
                 StopCheatMode();
                 Console.WriteLine("[Waika] cheat 已关闭");
@@ -915,7 +915,7 @@ private void ExecuteCommand(string command)
         case "hg":
             StartHg();
             // 4分钟后关闭
-            Timer.Once(4.Minutes(), () =>
+            Timer.Once((4 * 60).Seconds(), () =>
             {
                 StopHg();
                 Console.WriteLine("[Waika] hg 已关闭");
@@ -930,7 +930,7 @@ private void ExecuteCommand(string command)
         case "air":
             StartAir();
             // 4分钟后关闭
-            Timer.Once(4.Minutes(), () =>
+            Timer.Once((4 * 60).Seconds(), () =>
             {
                 StopAir();
                 Console.WriteLine("[Waika] air 已关闭");
