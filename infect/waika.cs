@@ -31,113 +31,10 @@ public class WaikaPlugin : DeadworksPluginBase
 
 
 
-    // ========== /t hg ==========
-    private void StartHg()
-    {
-        if (_isHgActive)
-        {
-            // 关闭模式
-            Console.WriteLine("[Waika] 关闭 HG 模式");
-            _isHgActive = false;
-
-            // 恢复重力
-            ConVar.Find("sv_gravity")?.SetInt(800);
-            Console.WriteLine("[Waika] sv_gravity -> 800");
-
-            // 发送 HUD 公告
-            var msg = new CCitadelUserMsg_HudGameAnnouncement
-            {
-                TitleLocstring = "🌌 神秘天体已经离开",
-                DescriptionLocstring = "重力恢复"
-            };
-            NetMessages.Send(msg, RecipientFilter.All);
-            return;
-        }
-
-        // 启动模式
-        Console.WriteLine("[Waika] 启动 HG 模式");
-        _isHgActive = true;
-
-        // 修改重力
-        ConVar.Find("sv_gravity")?.SetInt(9000);
-        Console.WriteLine("[Waika] sv_gravity -> 9000");
-
-        // 发送 HUD 公告
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "🌌 神秘天体经过纽约上空",
-            DescriptionLocstring = "重力出现异常-超重！"
-        };
-        NetMessages.Send(msg, RecipientFilter.All);
-    }
-
-    // ========== /t air ==========
-    private void StartAir()
-    {
-        if (_isAirActive)
-        {
-            // 关闭模式
-            Console.WriteLine("[Waika] 关闭 AIR 模式");
-            _isAirActive = false;
-
-            // 恢复 ConVar
-            ConVar.Find("sv_gravity")?.SetInt(800);
-            Console.WriteLine("[Waika] sv_gravity -> 800");
-            ConVar.Find("sv_airaccelerate")?.SetInt(10);
-            Console.WriteLine("[Waika] sv_airaccelerate -> 10");
-
-            // 移除所有玩家的无限耐力
-            foreach (var pawn in Players.GetAllPawns())
-            {
-                if (pawn == null || !pawn.IsValid) continue;
-                pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirJumps, false);
-                pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirDashes, false);
-            }
-            Console.WriteLine("[Waika] 已移除所有玩家的无限耐力");
-
-            // 发送 HUD 公告
-            var msg = new CCitadelUserMsg_HudGameAnnouncement
-            {
-                TitleLocstring = "🌫️ 未知存在觉得没意思",
-                DescriptionLocstring = "纽约恢复正常了"
-            };
-            NetMessages.Send(msg, RecipientFilter.All);
-            return;
-        }
-
-        // 启动模式
-        Console.WriteLine("[Waika] 启动 AIR 模式");
-        _isAirActive = true;
-
-        // 修改 ConVar
-        ConVar.Find("sv_gravity")?.SetInt(5);
-        Console.WriteLine("[Waika] sv_gravity -> 5");
-        ConVar.Find("sv_airaccelerate")?.SetInt(-10);
-        Console.WriteLine("[Waika] sv_airaccelerate -> -10");
-
-        // 给所有玩家添加无限耐力
-        foreach (var pawn in Players.GetAllPawns())
-        {
-            if (pawn == null || !pawn.IsValid) continue;
-            pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirJumps, true);
-            pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirDashes, true);
-        }
-        Console.WriteLine("[Waika] 已为所有玩家启用无限耐力");
-
-        // 发送 HUD 公告
-        var msg = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "🌫️ 仪式吸引了未知存在",
-            DescriptionLocstring = "失重，可无限使用耐力，WSAD控制反方向加速！"
-        };
-        NetMessages.Send(msg, RecipientFilter.All);
-    }
 
 
 
-
-
-    public override void OnLoad(bool isReload)
+public override void OnLoad(bool isReload)
     {
         Console.WriteLine(isReload ? "[Waika] 热重载完成！" : "[Waika] 已加载！");
     }
@@ -150,6 +47,124 @@ public class WaikaPlugin : DeadworksPluginBase
         StopCheatMode();
         _welcomedPlayers.Clear();
     }
+
+
+
+
+
+
+
+
+
+
+
+   // ========== /t hg ==========
+private void StartHg()
+{
+    if (_isHgActive)
+    {
+        StopHg();
+        return;
+    }
+
+    Console.WriteLine("[Waika] 启动 HG 模式");
+    _isHgActive = true;
+
+    ConVar.Find("sv_gravity")?.SetInt(9000);
+    Console.WriteLine("[Waika] sv_gravity -> 9000");
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🌌 神秘天体经过纽约上空",
+        DescriptionLocstring = "重力出现异常-超重！"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
+}
+
+private void StopHg()
+{
+    if (!_isHgActive) return;
+
+    Console.WriteLine("[Waika] 关闭 HG 模式");
+    _isHgActive = false;
+
+    ConVar.Find("sv_gravity")?.SetInt(800);
+    Console.WriteLine("[Waika] sv_gravity -> 800");
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🌌 神秘天体已经离开",
+        DescriptionLocstring = "重力恢复"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
+}
+
+// ========== /t air ==========
+private void StartAir()
+{
+    if (_isAirActive)
+    {
+        StopAir();
+        return;
+    }
+
+    Console.WriteLine("[Waika] 启动 AIR 模式");
+    _isAirActive = true;
+
+    ConVar.Find("sv_gravity")?.SetInt(5);
+    Console.WriteLine("[Waika] sv_gravity -> 5");
+    ConVar.Find("sv_airaccelerate")?.SetInt(-10);
+    Console.WriteLine("[Waika] sv_airaccelerate -> -10");
+
+    foreach (var pawn in Players.GetAllPawns())
+    {
+        if (pawn == null || !pawn.IsValid) continue;
+        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirJumps, true);
+        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirDashes, true);
+    }
+    Console.WriteLine("[Waika] 已为所有玩家启用无限耐力");
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🌫️ 仪式吸引了未知存在",
+        DescriptionLocstring = "失重，可无限使用耐力，WSAD控制反方向加速！"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
+}
+
+private void StopAir()
+{
+    if (!_isAirActive) return;
+
+    Console.WriteLine("[Waika] 关闭 AIR 模式");
+    _isAirActive = false;
+
+    ConVar.Find("sv_gravity")?.SetInt(800);
+    Console.WriteLine("[Waika] sv_gravity -> 800");
+    ConVar.Find("sv_airaccelerate")?.SetInt(10);
+    Console.WriteLine("[Waika] sv_airaccelerate -> 10");
+
+    foreach (var pawn in Players.GetAllPawns())
+    {
+        if (pawn == null || !pawn.IsValid) continue;
+        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirJumps, false);
+        pawn.ModifierProp?.SetModifierState(EModifierState.UnlimitedAirDashes, false);
+    }
+    Console.WriteLine("[Waika] 已移除所有玩家的无限耐力");
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🌫️ 未知存在觉得没意思",
+        DescriptionLocstring = "纽约恢复正常了"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
+}
+
+
+
+
+
+    
 
     // ========== 监听玩家选择英雄事件 ==========
     [GameEventHandler("player_hero_changed")]
@@ -744,15 +759,15 @@ public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
             }
         }
         else if (feat == "hg")
-        {
-            StartHg();
-            if (caller != null) caller.PrintToConsole(_isHgActive ? "[Waika] 超重模式已启动" : "[Waika] 超重模式已停止");
-        }
-        else if (feat == "air")
-        {
-            StartAir();
-            if (caller != null) caller.PrintToConsole(_isAirActive ? "[Waika] 失重模式已启动" : "[Waika] 失重模式已停止");
-        }
+{
+    StartHg();
+    if (caller != null) caller.PrintToConsole(_isHgActive ? "[Waika] 超重模式已启动" : "[Waika] 超重模式已停止");
+}
+else if (feat == "air")
+{
+    StartAir();
+    if (caller != null) caller.PrintToConsole(_isAirActive ? "[Waika] 失重模式已启动" : "[Waika] 失重模式已停止");
+}
         else
         {
             string msg = $"[Waika] 未知功能: {feature}。可用功能: lava, fight, team, swap, cheat, hg, air";
