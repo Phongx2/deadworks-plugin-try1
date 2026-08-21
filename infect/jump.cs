@@ -7,19 +7,25 @@ public class JumpPlugin : DeadworksPluginBase
 {
     public override string Name => "Jump Test";
 
+    private bool _isActive = false;
+    private IHandle? _resetTimer = null;
+
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine(isReload ? "[Jump] 热重载完成！" : "[Jump] 已加载！");
-        Console.WriteLine("[Jump] 输入 /jump 给自己启用无限耐力，再次输入关闭");
+        Console.WriteLine("[Jump] 输入 /jump 启用/关闭无限跳跃");
     }
 
     public override void OnUnload()
     {
         Console.WriteLine("[Jump] 已卸载！");
+        _resetTimer?.Cancel();
+        _resetTimer = null;
+        _isActive = false;
     }
 
     // ========== /jump 命令 ==========
-    [Command("jump", Description = "切换自己的无限耐力")]
+    [Command("jump", Description = "切换自己的无限跳跃/冲刺")]
     public void CmdJump(CCitadelPlayerController caller)
     {
         if (caller == null)
@@ -36,34 +42,55 @@ public class JumpPlugin : DeadworksPluginBase
             return;
         }
 
-        var mp = pawn.ModifierProp;
-        if (mp == null)
+        if (_isActive)
         {
-            caller.PrintToConsole("[Jump] 无法获取 ModifierProp");
+            // 关闭
+            _isActive = false;
+            _resetTimer?.Cancel();
+            _resetTimer = null;
+            caller.PrintToConsole("[Jump] 已关闭无限跳跃/冲刺");
+            Console.WriteLine($"[Jump] {caller.PlayerName} 关闭了无限跳跃/冲刺");
             return;
         }
 
-        // ========== 检查当前状态 ==========
-        bool hasAirJumps = mp.HasModifierState(EModifierState.UnlimitedAirJumps);
-        bool hasAirDashes = mp.HasModifierState(EModifierState.UnlimitedAirDashes);
+        // 开启
+        _isActive = true;
+        caller.PrintToConsole("[Jump] 已开启无限跳跃/冲刺 (每次跳跃后重置空中次数)");
+        Console.WriteLine($"[Jump] {caller.PlayerName} 开启了无限跳跃/冲刺");
 
-        Console.WriteLine($"[Jump] {caller.PlayerName} 当前状态: UnlimitedAirJumps={hasAirJumps}, UnlimitedAirDashes={hasAirDashes}");
+        // 启动监听（每帧检查）
+        // 启动监听（每 100ms 检查一次）
+_resetTimer = Timer.Every(100.Milliseconds(), () =>
+{
+    if (!_isActive)
+    {
+        _resetTimer?.Cancel();
+        _resetTimer = null;
+        return;
+    }
 
-        if (hasAirJumps || hasAirDashes)
+    if (pawn == null || !pawn.IsValid) return;
+
+    var abilities = pawn.AbilityComponent?.Abilities;
+    if (abilities == null) return;
+
+    foreach (var ability in abilities)
+    {
+        if (ability == null) continue;
+
+        var jump = ability.As<CCitadel_Ability_Jump>();
+        if (jump != null && jump.ConsecutiveAirJumps > 0)
         {
-            // 关闭
-            mp.SetModifierState(EModifierState.UnlimitedAirJumps, false);
-            mp.SetModifierState(EModifierState.UnlimitedAirDashes, false);
-            caller.PrintToConsole("[Jump] 已关闭无限耐力");
-            Console.WriteLine($"[Jump] {caller.PlayerName} 关闭了无限耐力");
+            jump.ConsecutiveAirJumps = 0;
         }
-        else
+
+        var dash = ability.As<CCitadel_Ability_Dash>();
+        if (dash != null && dash.ConsecutiveAirDashes > 0)
         {
-            // 开启
-            mp.SetModifierState(EModifierState.UnlimitedAirJumps, true);
-            mp.SetModifierState(EModifierState.UnlimitedAirDashes, true);
-            caller.PrintToConsole("[Jump] 已开启无限耐力 (无限空中跳跃和冲刺)");
-            Console.WriteLine($"[Jump] {caller.PlayerName} 开启了无限耐力");
+            dash.ConsecutiveAirDashes = 0;
         }
+    }
+});
+       
     }
 }
