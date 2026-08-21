@@ -30,6 +30,31 @@ public class WaikaPlugin : DeadworksPluginBase
 
 
 
+// ========== 所有 /t 功能方法名数组（按顺序） ==========
+private readonly string[] _tCommands = new string[]
+{
+    "lava",
+    "fight",
+    "team",
+    "swap",
+    "cheat",
+    "hg",
+    "air"
+};
+
+
+
+
+// ========== /ks 相关字段 ==========
+private List<string> _shuffledCommands = new List<string>();  // 打乱后的命令列表
+private int _currentCommandIndex = 0;  // 当前执行到的索引
+private IHandle? _ksTimer = null;  // 主计时器
+private bool _isKsRunning = false;  // 是否正在运行
+
+
+
+
+
 
 
 
@@ -47,6 +72,23 @@ public override void OnLoad(bool isReload)
         StopCheatMode();
         _welcomedPlayers.Clear();
     }
+
+
+
+
+
+
+// ========== Rest() 方法 ==========
+private void Rest()
+{
+    Console.WriteLine("[Waika] 执行 Rest()");
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "⚠️ 有什么奇怪的事情要发生了",
+        DescriptionLocstring = "30s后将出现异常"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
+}
 
 
 
@@ -684,6 +726,206 @@ public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
             Console.WriteLine($"[Waika] {caller.PlayerName} 添加了 modifier: {modifierName}");
         }
     }
+
+
+
+
+
+
+// ========== /dl 命令 ==========
+[Command("dl", Description = "随机打乱 /t 功能顺序并输出到控制台")]
+public void CmdDl(CCitadelPlayerController caller)
+{
+    if (caller == null) return;
+
+    _shuffledCommands = _tCommands.ToList();
+    
+    var random = new Random();
+    for (int i = _shuffledCommands.Count - 1; i > 0; i--)
+    {
+        int j = random.Next(i + 1);
+        (_shuffledCommands[i], _shuffledCommands[j]) = (_shuffledCommands[j], _shuffledCommands[i]);
+    }
+
+    caller.PrintToConsole("===== /t 功能随机顺序 =====");
+    for (int i = 0; i < _shuffledCommands.Count; i++)
+    {
+        caller.PrintToConsole($"{i + 1}. /t {_shuffledCommands[i]}");
+    }
+    caller.PrintToConsole("============================");
+    caller.PrintToConsole("[Waika] 已准备就绪，输入 /ks 开始执行");
+
+    Console.WriteLine($"[Waika] {caller.PlayerName} 执行了 /dl，已打乱功能顺序");
+}
+
+
+
+// ========== /ks 命令 ==========
+[Command("ks", Description = "按打乱后的顺序依次执行所有 /t 功能")]
+public void CmdKs(CCitadelPlayerController caller)
+{
+    if (caller == null) return;
+
+    if (_isKsRunning)
+    {
+        caller.PrintToConsole("[Waika] /ks 正在执行中，请勿重复执行");
+        return;
+    }
+
+    if (_shuffledCommands.Count == 0)
+    {
+        caller.PrintToConsole("[Waika] 请先执行 /dl 打乱功能顺序");
+        return;
+    }
+
+    Console.WriteLine($"[Waika] {caller.PlayerName} 执行了 /ks");
+    caller.PrintToConsole("[Waika] 开始执行功能序列...");
+
+    _isKsRunning = true;
+    _currentCommandIndex = 0;
+
+    // 开始执行第一个功能
+    ExecuteNextCommand();
+}
+
+// ========== 执行下一个命令 ==========
+private void ExecuteNextCommand()
+{
+    if (_currentCommandIndex >= _shuffledCommands.Count)
+    {
+        // 所有命令执行完毕
+        Console.WriteLine("[Waika] /ks 所有功能执行完毕");
+        CCitadelPlayerController.PrintToConsoleAll("[Waika] 所有异常已结束，纽约恢复了平静");
+        _isKsRunning = false;
+        _currentCommandIndex = 0;
+        return;
+    }
+
+    string command = _shuffledCommands[_currentCommandIndex];
+    Console.WriteLine($"[Waika] 执行命令: /t {command} (索引 {_currentCommandIndex + 1}/{_shuffledCommands.Count})");
+
+    // 先执行 Rest()
+    Rest();
+
+    // 30秒后执行具体的 /t 命令
+    Timer.Once(30.Seconds(), () =>
+    {
+        ExecuteCommand(command);
+    });
+}
+
+// ========== 执行具体的 /t 命令 ==========
+private void ExecuteCommand(string command)
+{
+    Console.WriteLine($"[Waika] 执行 /t {command}");
+
+    switch (command)
+    {
+        case "lava":
+            StartLava();
+            // 4分钟后关闭
+            Timer.Once(4.Minutes(), () =>
+            {
+                StopLava();
+                Console.WriteLine("[Waika] lava 已关闭");
+                // 关闭后等待30秒执行下一个
+                Timer.Once(30.Seconds(), () =>
+                {
+                    _currentCommandIndex++;
+                    ExecuteNextCommand();
+                });
+            });
+            break;
+
+        case "fight":
+            StartFight();
+            // 4分半后执行 Rest() 然后下一个
+            Timer.Once(4.Minutes() + 30.Seconds(), () =>
+            {
+                _currentCommandIndex++;
+                ExecuteNextCommand();
+            });
+            break;
+
+        case "team":
+            StartTeamMode();
+            // 4分钟后关闭
+            Timer.Once(4.Minutes(), () =>
+            {
+                StopTeamMode();
+                Console.WriteLine("[Waika] team 已关闭");
+                Timer.Once(30.Seconds(), () =>
+                {
+                    _currentCommandIndex++;
+                    ExecuteNextCommand();
+                });
+            });
+            break;
+
+        case "swap":
+            StartSwap();
+            // 4分半后执行下一个
+            Timer.Once(4.Minutes() + 30.Seconds(), () =>
+            {
+                _currentCommandIndex++;
+                ExecuteNextCommand();
+            });
+            break;
+
+        case "cheat":
+            StartCheatMode();
+            // 4分钟后关闭
+            Timer.Once(4.Minutes(), () =>
+            {
+                StopCheatMode();
+                Console.WriteLine("[Waika] cheat 已关闭");
+                Timer.Once(30.Seconds(), () =>
+                {
+                    _currentCommandIndex++;
+                    ExecuteNextCommand();
+                });
+            });
+            break;
+
+        case "hg":
+            StartHg();
+            // 4分钟后关闭
+            Timer.Once(4.Minutes(), () =>
+            {
+                StopHg();
+                Console.WriteLine("[Waika] hg 已关闭");
+                Timer.Once(30.Seconds(), () =>
+                {
+                    _currentCommandIndex++;
+                    ExecuteNextCommand();
+                });
+            });
+            break;
+
+        case "air":
+            StartAir();
+            // 4分钟后关闭
+            Timer.Once(4.Minutes(), () =>
+            {
+                StopAir();
+                Console.WriteLine("[Waika] air 已关闭");
+                Timer.Once(30.Seconds(), () =>
+                {
+                    _currentCommandIndex++;
+                    ExecuteNextCommand();
+                });
+            });
+            break;
+
+        default:
+            Console.WriteLine($"[Waika] 未知命令: {command}，跳过");
+            _currentCommandIndex++;
+            ExecuteNextCommand();
+            break;
+    }
+}
+
+
 
     // ========== /t 命令 ==========
     [Command("t", Description = "功能: /t lava (开关) | /t fight | /t team | /t swap | /t cheat")]
