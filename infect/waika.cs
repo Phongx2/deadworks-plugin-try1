@@ -1,5 +1,7 @@
 using DeadworksManaged.Api;
 using System.Numerics;
+using DeadworksManaged.Api.Sounds;
+
 
 namespace WaikaPlugin;
 
@@ -138,6 +140,8 @@ private void StartHg()
     ConVar.Find("sv_gravity")?.SetInt(9000);
     Console.WriteLine("[Waika] sv_gravity -> 9000");
 
+Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
     var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "🌌 神秘天体经过纽约上空",
@@ -220,6 +224,8 @@ private void StartAir()
         }
     });
     // ========== 重置逻辑结束 ==========
+
+Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
     var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
@@ -321,6 +327,9 @@ private void StopAir()
     {
         Console.WriteLine("[Waika] 执行 Fight 模式");
 
+
+Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "⚠️ 时空异常",
@@ -365,6 +374,8 @@ private void StopAir()
 
         Console.WriteLine("[Waika] 启动 Lava 模式");
         _isLavaActive = true;
+
+Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
         var startMsg = new CCitadelUserMsg_HudGameAnnouncement
         {
@@ -420,6 +431,9 @@ private void StopAir()
         Console.WriteLine("[Waika] 启动 Team 模式");
         _isTeamModeActive = true;
         _teamModeTriggered = false;
+
+Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
 
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
@@ -491,6 +505,8 @@ private void StopAir()
     private void StartSwap()
 {
     Console.WriteLine("[Waika] 执行 Swap 模式");
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
     var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
@@ -609,6 +625,8 @@ private void StopAir()
             if (player == null) continue;
 
             var msg = new CCitadelUserMsg_HudGameAnnouncement();
+
+            Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
             if (player == selectedTeam2 || player == selectedTeam3)
             {
