@@ -1028,6 +1028,31 @@ private void ExecuteCommand(string command)
 
 
 
+// ========== /time 命令 ==========
+[Command("time", Description = "修改 /ks 开关类型功能的持续时间（分钟）")]
+public void CmdSetTime(CCitadelPlayerController caller, int minutes)
+{
+    if (caller == null) return;
+
+    if (minutes < 1)
+    {
+        caller.PrintToConsole("[Waika] 时间不能小于 1 分钟");
+        return;
+    }
+
+    _ksDurationMinutes = minutes;
+    caller.PrintToConsole($"[Waika] 开关类型功能持续时间已设置为 {minutes} 分钟");
+    Console.WriteLine($"[Waika] {caller.PlayerName} 将 _ksDurationMinutes 设置为 {minutes}");
+}
+
+
+
+
+
+
+
+
+
 
 
 
