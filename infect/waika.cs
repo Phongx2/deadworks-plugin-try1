@@ -14,8 +14,9 @@ public class WaikaPlugin : DeadworksPluginBase
     private readonly HashSet<string> _welcomedPlayers = new HashSet<string>();
 
     // ========== /t team 相关字段 ==========
-    private bool _isTeamModeActive = false;
-    private bool _teamModeTriggered = false;
+private bool _isTeamModeActive = false;
+private bool _team2Triggered = false;  // Team 2 是否已触发
+private bool _team3Triggered = false;  // Team 3 是否已触发
 
     // ========== /t cheat 相关字段 ==========
     private bool _isCheatModeActive = false;
@@ -429,81 +430,105 @@ Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
         NetMessages.Send(stopMsg, RecipientFilter.All);
     }
 
-    // ========== /t team ==========
-    private void StartTeamMode()
+   // ========== /t team ==========
+private void StartTeamMode()
+{
+    Console.WriteLine("[Waika] 启动 Team 模式");
+    _isTeamModeActive = true;
+    _team2Triggered = false;
+    _team3Triggered = false;
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+    var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
-        Console.WriteLine("[Waika] 启动 Team 模式");
-        _isTeamModeActive = true;
-        _teamModeTriggered = false;
+        TitleLocstring = "⚔️ 有难同当",
+        DescriptionLocstring = "如果你的队友死亡了，整个队伍的所有人都会死亡！"
+    };
+    NetMessages.Send(msg, RecipientFilter.All);
 
-Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+    Timer.Once(1.Seconds(), () =>
+    {
+        if (!_isTeamModeActive) return;
+        Console.WriteLine("[Waika] Team 模式监听已启动");
+        CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已激活！");
+    });
+}
 
+   private void StopTeamMode()
+{
+    if (!_isTeamModeActive) return;
+
+    Console.WriteLine("[Waika] 停止 Team 模式");
+    _isTeamModeActive = false;
+    _team2Triggered = false;
+    _team3Triggered = false;
+}
+
+    // ========== Team 模式的死亡事件处理 ==========
+[GameEventHandler("player_death")]
+public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
+{
+    if (!_isTeamModeActive) return HookResult.Continue;
+
+    var victim = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
+    if (victim == null) return HookResult.Continue;
+
+    int victimTeam = victim.TeamNum;
+    Console.WriteLine($"[Waika] 检测到玩家死亡，队伍: {victimTeam}");
+
+    // ========== 检查该队伍是否已触发过 ==========
+    bool teamTriggered = (victimTeam == 2) ? _team2Triggered : _team3Triggered;
+    if (teamTriggered)
+    {
+        Console.WriteLine($"[Waika] 队伍 {victimTeam} 已触发过，跳过");
+        return HookResult.Continue;
+    }
+    // ========== 检查结束 ==========
+
+    var allPawns = Players.GetAllPawns().ToList();
+
+    var teammatesToKill = allPawns
+        .Where(p => p != null && p.IsValid && p.LifeState == LifeState.Alive && p.TeamNum == victimTeam && p != victim)
+        .ToList();
+
+    if (teammatesToKill.Count > 0)
+    {
+        Console.WriteLine($"[Waika] 队伍 {victimTeam} 有 {teammatesToKill.Count} 名队友被连带死亡");
+
+        foreach (var teammate in teammatesToKill)
+        {
+            teammate.Hurt(999999f, attacker: null, inflictor: null, ability: null, damageType: 0);
+            Console.WriteLine($"[Waika] 队友已死亡");
+        }
+
+        Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
-            TitleLocstring = "⚔️ 有难同当",
-            DescriptionLocstring = "如果你的队友死亡了，整个队伍的所有人都会死亡！"
+            TitleLocstring = "💀 有难同当",
+            DescriptionLocstring = $"队伍 {victimTeam} 的队友被连带死亡！"
         };
         NetMessages.Send(msg, RecipientFilter.All);
-
-        Timer.Once(1.Seconds(), () =>
-        {
-            if (!_isTeamModeActive) return;
-            Console.WriteLine("[Waika] Team 模式监听已启动");
-            CCitadelPlayerController.PrintToConsoleAll("[Waika] 有难同当效果已激活！");
-        });
     }
 
-    private void StopTeamMode()
+    // ========== 标记该队伍已触发 ==========
+    if (victimTeam == 2)
+        _team2Triggered = true;
+    else if (victimTeam == 3)
+        _team3Triggered = true;
+    Console.WriteLine($"[Waika] 队伍 {victimTeam} 已标记为触发");
+
+    // ========== 检查是否两个队伍都已触发 ==========
+    if (_team2Triggered && _team3Triggered)
     {
-        if (!_isTeamModeActive && !_teamModeTriggered) return;
-
-        Console.WriteLine($"[Waika] 停止 Team 模式 (触发状态: {_teamModeTriggered})");
-        _isTeamModeActive = false;
-        _teamModeTriggered = false;
-    }
-
-    // ========== Team 模式的死亡事件处理 ==========
-    [GameEventHandler("player_death")]
-    public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
-    {
-        if (!_isTeamModeActive || _teamModeTriggered) return HookResult.Continue;
-
-        var victim = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
-        if (victim == null) return HookResult.Continue;
-
-        int victimTeam = victim.TeamNum;
-        Console.WriteLine($"[Waika] 检测到玩家死亡，队伍: {victimTeam}");
-
-        var allPawns = Players.GetAllPawns().ToList();
-
-        var teammatesToKill = allPawns
-            .Where(p => p != null && p.IsValid && p.LifeState == LifeState.Alive && p.TeamNum == victimTeam && p != victim)
-            .ToList();
-
-        if (teammatesToKill.Count > 0)
-        {
-            Console.WriteLine($"[Waika] 队伍 {victimTeam} 有 {teammatesToKill.Count} 名队友被连带死亡");
-
-            foreach (var teammate in teammatesToKill)
-            {
-                teammate.Hurt(999999f, attacker: null, inflictor: null, ability: null, damageType: 0);
-                Console.WriteLine($"[Waika] 队友已死亡");
-            }
-
-            var msg = new CCitadelUserMsg_HudGameAnnouncement
-            {
-                TitleLocstring = "💀 有难同当",
-                DescriptionLocstring = $"队伍 {victimTeam} 的队友被连带死亡！"
-            };
-            NetMessages.Send(msg, RecipientFilter.All);
-        }
-
-        _teamModeTriggered = true;
+        Console.WriteLine("[Waika] 两个队伍都已触发，停止 Team 模式");
         StopTeamMode();
-
-        return HookResult.Continue;
     }
+    // ========== 检查结束 ==========
+
+    return HookResult.Continue;
+}
 
     // ========== /t swap ==========
     private void StartSwap()
