@@ -22,6 +22,10 @@ public class WaikaPlugin : DeadworksPluginBase
     private HashSet<CCitadelPlayerController> _cheatPlayers = new HashSet<CCitadelPlayerController>();
     private HashSet<CCitadelPlayerController> _cheatUsed = new HashSet<CCitadelPlayerController>();
 
+    // ========== /ks 执行时间配置 ==========
+private readonly int _ksDurationMinutes = 2;        // 开关类型功能的持续时间（分钟）
+private readonly int _ksDurationExtraSeconds = 30;  // 一次性功能额外等待时间（秒）
+
 
 
      // ========== /t hg 相关字段 ==========
@@ -887,22 +891,24 @@ private void ExecuteNextCommand()
     });
 }
 
+
 // ========== 执行具体的 /t 命令 ==========
 private void ExecuteCommand(string command)
 {
     Console.WriteLine($"[Waika] 执行 /t {command}");
 
+    int durationSeconds = _ksDurationMinutes * 60;           // 4分钟 = 240秒
+    int extraSeconds = _ksDurationExtraSeconds;              // 30秒
+
     switch (command)
     {
         case "lava":
             StartLava();
-            // 4分钟后关闭
-            Timer.Once((4 * 60).Seconds(), () =>
+            Timer.Once(durationSeconds.Seconds(), () =>
             {
                 StopLava();
                 Console.WriteLine("[Waika] lava 已关闭");
-                // 关闭后等待30秒执行下一个
-                Timer.Once(30.Seconds(), () =>
+                Timer.Once(extraSeconds.Seconds(), () =>
                 {
                     _currentCommandIndex++;
                     ExecuteNextCommand();
@@ -912,8 +918,7 @@ private void ExecuteCommand(string command)
 
         case "fight":
             StartFight();
-            // 4分半后执行 Rest() 然后下一个
-            Timer.Once((4 * 60 + 30).Seconds(), () =>
+            Timer.Once((durationSeconds + extraSeconds).Seconds(), () =>
             {
                 _currentCommandIndex++;
                 ExecuteNextCommand();
@@ -922,12 +927,11 @@ private void ExecuteCommand(string command)
 
         case "team":
             StartTeamMode();
-            // 4分钟后关闭
-            Timer.Once((4 * 60).Seconds(), () =>
+            Timer.Once(durationSeconds.Seconds(), () =>
             {
                 StopTeamMode();
                 Console.WriteLine("[Waika] team 已关闭");
-                Timer.Once(30.Seconds(), () =>
+                Timer.Once(extraSeconds.Seconds(), () =>
                 {
                     _currentCommandIndex++;
                     ExecuteNextCommand();
@@ -937,8 +941,7 @@ private void ExecuteCommand(string command)
 
         case "swap":
             StartSwap();
-            // 4分半后执行下一个
-            Timer.Once((4 * 60 + 30).Seconds(), () =>
+            Timer.Once((durationSeconds + extraSeconds).Seconds(), () =>
             {
                 _currentCommandIndex++;
                 ExecuteNextCommand();
@@ -947,12 +950,11 @@ private void ExecuteCommand(string command)
 
         case "cheat":
             StartCheatMode();
-            // 4分钟后关闭
-            Timer.Once((4 * 60).Seconds(), () =>
+            Timer.Once(durationSeconds.Seconds(), () =>
             {
                 StopCheatMode();
                 Console.WriteLine("[Waika] cheat 已关闭");
-                Timer.Once(30.Seconds(), () =>
+                Timer.Once(extraSeconds.Seconds(), () =>
                 {
                     _currentCommandIndex++;
                     ExecuteNextCommand();
@@ -962,12 +964,11 @@ private void ExecuteCommand(string command)
 
         case "hg":
             StartHg();
-            // 4分钟后关闭
-            Timer.Once((4 * 60).Seconds(), () =>
+            Timer.Once(durationSeconds.Seconds(), () =>
             {
                 StopHg();
                 Console.WriteLine("[Waika] hg 已关闭");
-                Timer.Once(30.Seconds(), () =>
+                Timer.Once(extraSeconds.Seconds(), () =>
                 {
                     _currentCommandIndex++;
                     ExecuteNextCommand();
@@ -977,12 +978,11 @@ private void ExecuteCommand(string command)
 
         case "air":
             StartAir();
-            // 4分钟后关闭
-            Timer.Once((4 * 60).Seconds(), () =>
+            Timer.Once(durationSeconds.Seconds(), () =>
             {
                 StopAir();
                 Console.WriteLine("[Waika] air 已关闭");
-                Timer.Once(30.Seconds(), () =>
+                Timer.Once(extraSeconds.Seconds(), () =>
                 {
                     _currentCommandIndex++;
                     ExecuteNextCommand();
@@ -997,6 +997,11 @@ private void ExecuteCommand(string command)
             break;
     }
 }
+
+
+
+
+
 
 
 
