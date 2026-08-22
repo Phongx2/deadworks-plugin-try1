@@ -443,7 +443,7 @@ private void StartTeamMode()
     var msg = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "⚔️ 有难同当",
-        DescriptionLocstring = "如果你的队友死亡了，整个队伍的所有人都会死亡！"
+        DescriptionLocstring = "如果你的队友死亡了，整个队伍的所有人都会死亡！（每个队伍只能触发一次）"
     };
     NetMessages.Send(msg, RecipientFilter.All);
 
