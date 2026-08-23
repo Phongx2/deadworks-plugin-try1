@@ -646,152 +646,129 @@ private void StartSwap()
 
 
 
-   // ========== /t cheat ==========
-private void StartCheatMode()
+  
+
+
+
+
+// ========== 监听近战攻击（内鬼专用 - 检测攻击者自己的队友） ==========
+[GameEventHandler("player_used_ability")]
+public HookResult OnPlayerUsedAbilityForCheat(GameEvent ev)
 {
-    if (_isCheatModeActive)
+    if (!_isCheatModeActive) return HookResult.Continue;
+
+    var pawn = ev.GetPlayerPawn("player")?.As<CCitadelPlayerPawn>();
+    if (pawn == null) return HookResult.Continue;
+
+    var controller = GetControllerFromPawn(pawn);
+    if (controller == null) return HookResult.Continue;
+
+    if (!_cheatPlayers.Contains(controller)) return HookResult.Continue;
+    if (_cheatUsed.Contains(controller)) return HookResult.Continue;
+
+    string abilityName = ev.GetString("abilityname", "");
+    if (!abilityName.StartsWith("ability_melee")) return HookResult.Continue;
+
+    Console.WriteLine($"[Waika] [重要] 内鬼 {controller.PlayerName} 使用了近战攻击！");
+
+    var attacker = pawn;
+    var attackerController = controller;
+    
+    var meleeAbility = pawn.AbilityComponent?.Abilities
+        .FirstOrDefault(a => a?.AbilityName == abilityName);
+
+    Timer.Once(100.Milliseconds(), () =>
     {
-        StopCheatMode();
-        return;
-    }
+        if (!_isCheatModeActive) return;
+        if (attacker == null || !attacker.IsValid) return;
+        if (attackerController == null) return;
+        if (!_cheatPlayers.Contains(attackerController)) return;
+        if (_cheatUsed.Contains(attackerController)) return;
 
-    Console.WriteLine("[Waika] 启动 Cheat 模式");
+        // ========== 检测攻击者自己的队友（不区分队伍） ==========
+        var teammates = Players.GetAllPawns()
+            .Where(p => p != null && p.IsValid && p.TeamNum == attacker.TeamNum && p != attacker)
+            .ToList();
+        // ========== 修复结束 ==========
 
-    _cheatPlayers.Clear();
-    _cheatUsed.Clear();
-    _isCheatModeActive = false;
+        Vector3 attackerPos = attacker.Position;
+        Vector3 forward = GetForwardVector(attacker.EyeAngles);
+        float meleeRange = 180f;
+        float angleThreshold = 0.6428f;
 
-    var allControllers = Players.GetAll().ToList();
-    if (allControllers.Count < 2)
-    {
-        Console.WriteLine("[Waika] 玩家数量不足，需要至少2人");
-        if (allControllers.Count > 0 && allControllers[0] != null)
+        bool hasHitAny = false;
+
+        foreach (var victim in teammates)
         {
-            allControllers[0].PrintToConsole("[Waika] 玩家数量不足，需要至少2人");
+            if (victim == null || !victim.IsValid) continue;
+
+            float distance = Vector3.Distance(attackerPos, victim.Position);
+            if (distance > meleeRange) continue;
+
+            Vector3 toTarget = victim.Position - attackerPos;
+            Vector3 normalizedToTarget = Vector3.Normalize(toTarget);
+            float dotProduct = Vector3.Dot(forward, normalizedToTarget);
+
+            if (dotProduct < angleThreshold) continue;
+
+            var victimController = GetControllerFromPawn(victim);
+            if (victimController == null) continue;
+
+            Console.WriteLine($"[Waika] [重要] 内鬼 {attackerController.PlayerName} 近战命中了队友 {victimController.PlayerName}！");
+            hasHitAny = true;
+
+            victim.Hurt(
+                damage: 999999f,
+                attacker: attacker,
+                inflictor: null,
+                ability: meleeAbility,
+                damageType: 4
+            );
+            Console.WriteLine($"[Waika] [DEBUG] 队友 {victimController.PlayerName} 已被 {attackerController.PlayerName} 秒杀");
         }
-        return;
-    }
 
-    var team2Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 2).ToList();
-    var team3Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 3).ToList();
-
-    if (team2Players.Count == 0 || team3Players.Count == 0)
-    {
-        Console.WriteLine("[Waika] 需要两个队伍都有人");
-        if (allControllers.Count > 0 && allControllers[0] != null)
+        if (hasHitAny)
         {
-            allControllers[0].PrintToConsole("[Waika] 需要两个队伍都有人");
-        }
-        return;
-    }
+            _cheatUsed.Add(attackerController);
 
-    var random = new Random();
-
-    var selectedTeam2 = team2Players[random.Next(team2Players.Count)];
-    var selectedTeam3 = team3Players[random.Next(team3Players.Count)];
-
-    _cheatPlayers.Add(selectedTeam2);
-    _cheatPlayers.Add(selectedTeam3);
-
-    _isCheatModeActive = true;
-
-    Console.WriteLine($"[Waika] 选中的内鬼: {selectedTeam2.PlayerName} (Team 2), {selectedTeam3.PlayerName} (Team 3)");
-
-    foreach (var player in allControllers)
-    {
-        if (player == null) continue;
-
-        var msg = new CCitadelUserMsg_HudGameAnnouncement();
-
-        Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
-
-        if (player == selectedTeam2 || player == selectedTeam3)
-        {
-            msg.TitleLocstring = "🔪 你成为了内鬼！！！";
-            msg.DescriptionLocstring = "你的轻近战攻击现在可以秒杀队友，击杀成功后自动加入敌方队伍,超时未完成将自尽";
-        }
-        else
-        {
-            msg.TitleLocstring = "⚠️ 我们中出了一个叛徒";
-            msg.DescriptionLocstring = "小心你的背后";
-        }
-
-        NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
-    }
-
-    Console.WriteLine("[Waika] Cheat 模式监听已启动");
-
-    // ========== 为每个内鬼启动 2 分钟倒计时 ==========
-    foreach (var traitor in _cheatPlayers)
-    {
-        var traitorRef = traitor;
-        Timer.Once((2 * 60).Seconds(), () =>
-        {
-            // 检查内鬼是否已经使用过（背刺成功）
-            if (_cheatUsed.Contains(traitorRef))
-            {
-                Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 已成功背刺，跳过惩罚");
-                return;
-            }
-
-            // 检查内鬼是否仍然有效
-            var pawn = traitorRef.GetHeroPawn();
-            if (pawn == null || !pawn.IsValid)
-            {
-                Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 已无效，跳过惩罚");
-                return;
-            }
-
-            // 检查内鬼是否还活着
-            if (pawn.LifeState != LifeState.Alive)
-            {
-                Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 已死亡，跳过惩罚");
-                return;
-            }
-
-            Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 2分钟未背刺，执行惩罚！");
-
-            // ========== 惩罚：先换队伍，再自杀 ==========
-
-            // 1. 换到敌方队伍
-            int currentTeam = pawn.TeamNum;
-            int newTeam = (currentTeam == 2) ? 3 : 2;
-
+            int newTeam = (attacker.TeamNum == 2) ? 3 : 2;
             using var kv = new KeyValues3();
             kv.SetInt("team", newTeam);
-            pawn.AddModifier("citadel_change_team", kv);
+            attacker.AddModifier("citadel_change_team", kv);
+            Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} 正在切换到 Team {newTeam}");
 
-            var pawnRef = pawn;
+            var pawnRef = attacker;
             Timer.Once(1.Seconds(), () =>
             {
                 if (pawnRef != null && pawnRef.IsValid)
                 {
                     pawnRef.RemoveModifier("citadel_change_team");
-                    Console.WriteLine($"[Waika] {traitorRef.PlayerName} 队伍 -> {newTeam}");
+                    Console.WriteLine($"[Waika] [DEBUG] {attackerController.PlayerName} -> Team {newTeam} 完成");
                 }
             });
 
-            // 2. 延迟 0.5 秒后自杀（确保队伍切换完成）
-            Timer.Once(500.Milliseconds(), () =>
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
             {
-                if (pawn != null && pawn.IsValid && pawn.LifeState == LifeState.Alive)
-                {
-                    pawn.Hurt(999999f, attacker: null, inflictor: null, ability: null, damageType: 0);
-                    Console.WriteLine($"[Waika] {traitorRef.PlayerName} 已自杀");
+                TitleLocstring = "🔪 内鬼暴露！",
+                DescriptionLocstring = $"{attackerController.PlayerName} 击杀了队友，已叛变到敌方队伍！"
+            };
+            NetMessages.Send(msg, RecipientFilter.All);
+            Console.WriteLine($"[Waika] [DEBUG] 已广播击杀消息");
+        }
+    });
 
-                    // 广播消息
-                    var msg = new CCitadelUserMsg_HudGameAnnouncement
-                    {
-                        TitleLocstring = "💀 内鬼暴露！",
-                        DescriptionLocstring = $"{traitorRef.PlayerName} ，没有完成任务，已自尽！"
-                    };
-                    NetMessages.Send(msg, RecipientFilter.All);
-                }
-            });
-        });
-    }
-    // ========== 倒计时结束 ==========
+    return HookResult.Continue;
 }
+
+
+
+
+
+
+
+
+
+   
 
 private void StopCheatMode()
 {
