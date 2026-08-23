@@ -725,7 +725,7 @@ private void StartCheatMode()
     foreach (var traitor in _cheatPlayers)
     {
         var traitorRef = traitor;
-        Timer.Once(2.Minutes(), () =>
+        Timer.Once((2 * 60).Seconds(), () =>
         {
             // 检查内鬼是否已经使用过（背刺成功）
             if (_cheatUsed.Contains(traitorRef))
