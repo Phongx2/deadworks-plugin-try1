@@ -531,7 +531,7 @@ public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
 }
 
     // ========== /t swap ==========
-    private void StartSwap()
+private void StartSwap()
 {
     Console.WriteLine("[Waika] 执行 Swap 模式");
 
@@ -567,7 +567,7 @@ public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
             // ========== 判断玩家状态 ==========
             if (pawn != null && pawn.IsValid && pawn.LifeState == LifeState.Alive)
             {
-                // 活着的玩家：使用 modifier 换队伍
+                // 活着的玩家：直接使用 modifier 换队伍
                 using var kv = new KeyValues3();
                 kv.SetInt("team", newTeam);
                 pawn.AddModifier("citadel_change_team", kv);
@@ -584,9 +584,54 @@ public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
             }
             else
             {
-                // 死亡的玩家：直接使用 ChangeTeam
-                controller.ChangeTeam(newTeam);
-                Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 {currentTeam} -> {newTeam} (ChangeTeam)");
+                // ========== 死亡的玩家：监听复活事件 ==========
+                Console.WriteLine($"[Waika] {controller.PlayerName} 已死亡，等待复活后换队伍");
+
+                // 使用 GameEvents.AddListener 监听玩家复活
+                // 注意：这里需要取消监听，避免内存泄漏
+                IHandle? respawnListener = null;
+                respawnListener = GameEvents.AddListener("player_spawn", (GameEvent ev) =>
+                {
+                    // 检查是否是当前玩家复活
+                    var spawnedPawn = ev.GetPlayerPawn("userid")?.As<CCitadelPlayerPawn>();
+                    if (spawnedPawn == null || spawnedPawn != pawn) return HookResult.Continue;
+
+                    Console.WriteLine($"[Waika] {controller.PlayerName} 已复活，开始处理队伍交换");
+
+                    // 取消监听，避免重复触发
+                    respawnListener?.Cancel();
+
+                    // 1. 先应用 modifier_chrono_swap_bubble_move（持续 1 秒）
+                    using var kv = new KeyValues3();
+                    kv.SetFloat("duration", 1.0f);
+                    spawnedPawn.AddModifier("modifier_chrono_swap_bubble_move", kv);
+                    Console.WriteLine($"[Waika] {controller.PlayerName} 已应用 modifier_chrono_swap_bubble_move");
+
+                    // 2. 延迟 0.5 秒后使用 modifier 换队伍
+                    Timer.Once(500.Milliseconds(), () =>
+                    {
+                        if (spawnedPawn == null || !spawnedPawn.IsValid) return;
+
+                        using var kv2 = new KeyValues3();
+                        kv2.SetInt("team", newTeam);
+                        spawnedPawn.AddModifier("citadel_change_team", kv2);
+                        Console.WriteLine($"[Waika] {controller.PlayerName} 队伍 -> {newTeam} (modifier)");
+
+                        // 3. 1 秒后移除 citadel_change_team modifier
+                        var pawnRef = spawnedPawn;
+                        Timer.Once(1.Seconds(), () =>
+                        {
+                            if (pawnRef != null && pawnRef.IsValid)
+                            {
+                                pawnRef.RemoveModifier("citadel_change_team");
+                                Console.WriteLine($"[Waika] {controller.PlayerName} 已移除 citadel_change_team modifier");
+                            }
+                        });
+                    });
+
+                    return HookResult.Continue;
+                });
+                // ========== 死亡玩家处理结束 ==========
             }
         }
 
@@ -599,90 +644,164 @@ public HookResult OnPlayerDeathForTeamMode(GameEvent ev)
     });
 }
 
-    // ========== /t cheat ==========
-    private void StartCheatMode()
+
+
+   // ========== /t cheat ==========
+private void StartCheatMode()
+{
+    if (_isCheatModeActive)
     {
-        if (_isCheatModeActive)
-        {
-            StopCheatMode();
-        }
-
-        Console.WriteLine("[Waika] 启动 Cheat 模式");
-
-        _cheatPlayers.Clear();
-        _cheatUsed.Clear();
-        _isCheatModeActive = false;
-
-        var allControllers = Players.GetAll().ToList();
-        if (allControllers.Count < 2)
-        {
-            Console.WriteLine("[Waika] 玩家数量不足，需要至少2人");
-            if (allControllers.Count > 0 && allControllers[0] != null)
-            {
-                allControllers[0].PrintToConsole("[Waika] 玩家数量不足，需要至少2人");
-            }
-            return;
-        }
-
-        var team2Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 2).ToList();
-        var team3Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 3).ToList();
-
-        if (team2Players.Count == 0 || team3Players.Count == 0)
-        {
-            Console.WriteLine("[Waika] 需要两个队伍都有人");
-            if (allControllers.Count > 0 && allControllers[0] != null)
-            {
-                allControllers[0].PrintToConsole("[Waika] 需要两个队伍都有人");
-            }
-            return;
-        }
-
-        var random = new Random();
-
-        var selectedTeam2 = team2Players[random.Next(team2Players.Count)];
-        var selectedTeam3 = team3Players[random.Next(team3Players.Count)];
-
-        _cheatPlayers.Add(selectedTeam2);
-        _cheatPlayers.Add(selectedTeam3);
-
-        _isCheatModeActive = true;
-
-        Console.WriteLine($"[Waika] 选中的内鬼: {selectedTeam2.PlayerName} (Team 2), {selectedTeam3.PlayerName} (Team 3)");
-
-        foreach (var player in allControllers)
-        {
-            if (player == null) continue;
-
-            var msg = new CCitadelUserMsg_HudGameAnnouncement();
-
-            Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
-
-            if (player == selectedTeam2 || player == selectedTeam3)
-            {
-                msg.TitleLocstring = "🔪 你成为了内鬼！！！";
-                msg.DescriptionLocstring = "你的近战攻击现在可以秒杀队友，击杀成功后自动加入敌方队伍";
-            }
-            else
-            {
-                msg.TitleLocstring = "⚠️ 我们中出了一个叛徒";
-                msg.DescriptionLocstring = "小心你的背后";
-            }
-
-            NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
-        }
-
-        Console.WriteLine("[Waika] Cheat 模式监听已启动");
+        StopCheatMode();
+        return;
     }
 
-    private void StopCheatMode()
-    {
-        if (!_isCheatModeActive) return;
+    Console.WriteLine("[Waika] 启动 Cheat 模式");
 
-        Console.WriteLine("[Waika] 停止 Cheat 模式");
-        _isCheatModeActive = false;
-        _cheatPlayers.Clear();
-        _cheatUsed.Clear();
+    _cheatPlayers.Clear();
+    _cheatUsed.Clear();
+    _isCheatModeActive = false;
+
+    var allControllers = Players.GetAll().ToList();
+    if (allControllers.Count < 2)
+    {
+        Console.WriteLine("[Waika] 玩家数量不足，需要至少2人");
+        if (allControllers.Count > 0 && allControllers[0] != null)
+        {
+            allControllers[0].PrintToConsole("[Waika] 玩家数量不足，需要至少2人");
+        }
+        return;
     }
+
+    var team2Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 2).ToList();
+    var team3Players = allControllers.Where(c => c.GetHeroPawn()?.TeamNum == 3).ToList();
+
+    if (team2Players.Count == 0 || team3Players.Count == 0)
+    {
+        Console.WriteLine("[Waika] 需要两个队伍都有人");
+        if (allControllers.Count > 0 && allControllers[0] != null)
+        {
+            allControllers[0].PrintToConsole("[Waika] 需要两个队伍都有人");
+        }
+        return;
+    }
+
+    var random = new Random();
+
+    var selectedTeam2 = team2Players[random.Next(team2Players.Count)];
+    var selectedTeam3 = team3Players[random.Next(team3Players.Count)];
+
+    _cheatPlayers.Add(selectedTeam2);
+    _cheatPlayers.Add(selectedTeam3);
+
+    _isCheatModeActive = true;
+
+    Console.WriteLine($"[Waika] 选中的内鬼: {selectedTeam2.PlayerName} (Team 2), {selectedTeam3.PlayerName} (Team 3)");
+
+    foreach (var player in allControllers)
+    {
+        if (player == null) continue;
+
+        var msg = new CCitadelUserMsg_HudGameAnnouncement();
+
+        Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+        if (player == selectedTeam2 || player == selectedTeam3)
+        {
+            msg.TitleLocstring = "🔪 你成为了内鬼！！！";
+            msg.DescriptionLocstring = "你的轻近战攻击现在可以秒杀队友，击杀成功后自动加入敌方队伍,超时未完成将自尽";
+        }
+        else
+        {
+            msg.TitleLocstring = "⚠️ 我们中出了一个叛徒";
+            msg.DescriptionLocstring = "小心你的背后";
+        }
+
+        NetMessages.Send(msg, RecipientFilter.Single(player.Slot));
+    }
+
+    Console.WriteLine("[Waika] Cheat 模式监听已启动");
+
+    // ========== 为每个内鬼启动 2 分钟倒计时 ==========
+    foreach (var traitor in _cheatPlayers)
+    {
+        var traitorRef = traitor;
+        Timer.Once(2.Minutes(), () =>
+        {
+            // 检查内鬼是否已经使用过（背刺成功）
+            if (_cheatUsed.Contains(traitorRef))
+            {
+                Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 已成功背刺，跳过惩罚");
+                return;
+            }
+
+            // 检查内鬼是否仍然有效
+            var pawn = traitorRef.GetHeroPawn();
+            if (pawn == null || !pawn.IsValid)
+            {
+                Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 已无效，跳过惩罚");
+                return;
+            }
+
+            // 检查内鬼是否还活着
+            if (pawn.LifeState != LifeState.Alive)
+            {
+                Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 已死亡，跳过惩罚");
+                return;
+            }
+
+            Console.WriteLine($"[Waika] 内鬼 {traitorRef.PlayerName} 2分钟未背刺，执行惩罚！");
+
+            // ========== 惩罚：先换队伍，再自杀 ==========
+
+            // 1. 换到敌方队伍
+            int currentTeam = pawn.TeamNum;
+            int newTeam = (currentTeam == 2) ? 3 : 2;
+
+            using var kv = new KeyValues3();
+            kv.SetInt("team", newTeam);
+            pawn.AddModifier("citadel_change_team", kv);
+
+            var pawnRef = pawn;
+            Timer.Once(1.Seconds(), () =>
+            {
+                if (pawnRef != null && pawnRef.IsValid)
+                {
+                    pawnRef.RemoveModifier("citadel_change_team");
+                    Console.WriteLine($"[Waika] {traitorRef.PlayerName} 队伍 -> {newTeam}");
+                }
+            });
+
+            // 2. 延迟 0.5 秒后自杀（确保队伍切换完成）
+            Timer.Once(500.Milliseconds(), () =>
+            {
+                if (pawn != null && pawn.IsValid && pawn.LifeState == LifeState.Alive)
+                {
+                    pawn.Hurt(999999f, attacker: null, inflictor: null, ability: null, damageType: 0);
+                    Console.WriteLine($"[Waika] {traitorRef.PlayerName} 已自杀");
+
+                    // 广播消息
+                    var msg = new CCitadelUserMsg_HudGameAnnouncement
+                    {
+                        TitleLocstring = "💀 内鬼暴露！",
+                        DescriptionLocstring = $"{traitorRef.PlayerName} ，没有完成任务，已自尽！"
+                    };
+                    NetMessages.Send(msg, RecipientFilter.All);
+                }
+            });
+        });
+    }
+    // ========== 倒计时结束 ==========
+}
+
+private void StopCheatMode()
+{
+    if (!_isCheatModeActive) return;
+
+    Console.WriteLine("[Waika] 停止 Cheat 模式");
+    _isCheatModeActive = false;
+    _cheatPlayers.Clear();
+    _cheatUsed.Clear();
+}
 
     // ========== 监听近战攻击（内鬼专用 - 移除 break，可击杀多个队友） ==========
 [GameEventHandler("player_used_ability")]
