@@ -7,548 +7,552 @@ using DeadworksManaged.Api;
 namespace DeathmatchPlugin;
 
 public class SpawnPoint {
-	[JsonPropertyName("pos")]
-	public float[] Pos { get; set; } = [0, 0, 0];
+    [JsonPropertyName("pos")]
+    public float[] Pos { get; set; } = [0, 0, 0];
 
-	[JsonPropertyName("ang")]
-	public float[] Ang { get; set; } = [0, 0, 0];
+    [JsonPropertyName("ang")]
+    public float[] Ang { get; set; } = [0, 0, 0];
 }
 
 public class HeroItemSet {
-	[JsonPropertyName("hero_id")]
-	public int HeroId { get; set; }
+    [JsonPropertyName("hero_id")]
+    public int HeroId { get; set; }
 
-	[JsonPropertyName("hero_name")]
-	public string HeroName { get; set; } = "";
+    [JsonPropertyName("hero_name")]
+    public string HeroName { get; set; } = "";
 
-	[JsonPropertyName("items")]
-	public List<string> Items { get; set; } = new();
+    [JsonPropertyName("items")]
+    public List<string> Items { get; set; } = new();
 
-	[JsonPropertyName("gold_remaining")]
-	public int GoldRemaining { get; set; }
+    [JsonPropertyName("gold_remaining")]
+    public int GoldRemaining { get; set; }
 }
 
 public class ItemSetConfig {
-	[JsonPropertyName("hero_item_sets")]
-	public Dictionary<string, HeroItemSet> HeroItemSets { get; set; } = new();
+    [JsonPropertyName("hero_item_sets")]
+    public Dictionary<string, HeroItemSet> HeroItemSets { get; set; } = new();
 }
 
 public class DeathmatchConfig {
-	public Dictionary<string, Dictionary<string, SpawnPoint[]>> SpawnPoints { get; set; } = new();
-	public int HeroSwapIntervalSeconds { get; set; } = 60;
-	public Dictionary<string, HeroItemSet> HeroItemSets { get; set; } = new();
+    public Dictionary<string, Dictionary<string, SpawnPoint[]>> SpawnPoints { get; set; } = new();
+    public int HeroSwapIntervalSeconds { get; set; } = 60;
+    public Dictionary<string, HeroItemSet> HeroItemSets { get; set; } = new();
 }
 
 public record SwapState(List<string> Items, Dictionary<EAbilitySlot, (float Start, float End)> Cooldowns, int Gold);
 
 public class DeathmatchPlugin : DeadworksPluginBase {
-	public override string Name => "Deathmatch";
+    public override string Name => "Deathmatch";
 
-	[PluginConfig]
-	public DeathmatchConfig Config { get; set; } = new();
+    [PluginConfig]
+    public DeathmatchConfig Config { get; set; } = new();
 
-	private Heroes[] _availableHeroes = [];
-	private Heroes _team2Hero;
-	private Heroes _team3Hero;
-	private IHandle? _swapTimer;
-	private readonly EntityData<SwapState> _pendingSwap = new();
-	private readonly Queue<Heroes> _team2History = new();
-	private readonly Queue<Heroes> _team3History = new();
-	private int _team2Kills;
-	private int _team3Kills;
-	private readonly Dictionary<int, int> _playerKills = new(); // entity index -> kills this round
+    private Heroes[] _availableHeroes = [];
+    private Heroes _team2Hero;
+    private Heroes _team3Hero;
+    private IHandle? _swapTimer;
+    private readonly EntityData<SwapState> _pendingSwap = new();
+    private readonly Queue<Heroes> _team2History = new();
+    private readonly Queue<Heroes> _team3History = new();
+    private int _team2Kills;
+    private int _team3Kills;
+    private readonly Dictionary<int, int> _playerKills = new(); // entity index -> kills this round
 
-	public override void OnLoad(bool isReload) {
-		LoadBundledItemSets();
-		Console.WriteLine(isReload ? "Deathmatch reloaded!" : "Deathmatch loaded!");
-	}
+    public override void OnLoad(bool isReload) {
+        LoadBundledItemSets();
+        Console.WriteLine(isReload ? "Deathmatch reloaded!" : "Deathmatch loaded!");
+    }
 
-	private void LoadBundledItemSets() {
-		// Load embedded item sets as defaults - config file entries take priority
-		var asm = Assembly.GetExecutingAssembly();
-		var resourceName = asm.GetManifestResourceNames()
-			.FirstOrDefault(n => n.EndsWith("HeroItemSets.jsonc"));
-		if (resourceName == null) return;
+    private void LoadBundledItemSets() {
+        // Load embedded item sets as defaults - config file entries take priority
+        var asm = Assembly.GetExecutingAssembly();
+        var resourceName = asm.GetManifestResourceNames()
+            .FirstOrDefault(n => n.EndsWith("HeroItemSets.jsonc"));
+        if (resourceName == null) return;
 
-		using var stream = asm.GetManifestResourceStream(resourceName);
-		if (stream == null) return;
+        using var stream = asm.GetManifestResourceStream(resourceName);
+        if (stream == null) return;
 
-		var options = new JsonSerializerOptions {
-			ReadCommentHandling = JsonCommentHandling.Skip,
-			PropertyNameCaseInsensitive = true
-		};
-		var bundled = JsonSerializer.Deserialize<ItemSetConfig>(stream, options);
-		if (bundled == null) return;
+        var options = new JsonSerializerOptions {
+            ReadCommentHandling = JsonCommentHandling.Skip,
+            PropertyNameCaseInsensitive = true
+        };
+        var bundled = JsonSerializer.Deserialize<ItemSetConfig>(stream, options);
+        if (bundled == null) return;
 
-		int count = 0;
-		foreach (var (key, itemSet) in bundled.HeroItemSets) {
-			// Only add if not already defined in the config file
-			if (!Config.HeroItemSets.ContainsKey(key)) {
-				Config.HeroItemSets[key] = itemSet;
-				count++;
-			}
-		}
-		Console.WriteLine($"[DM] Loaded {count} bundled item sets ({bundled.HeroItemSets.Count} total, {Config.HeroItemSets.Count - count} from config)");
-	}
+        int count = 0;
+        foreach (var (key, itemSet) in bundled.HeroItemSets) {
+            // Only add if not already defined in the config file
+            if (!Config.HeroItemSets.ContainsKey(key)) {
+                Config.HeroItemSets[key] = itemSet;
+                count++;
+            }
+        }
+        Console.WriteLine($"[DM] Loaded {count} bundled item sets ({bundled.HeroItemSets.Count} total, {Config.HeroItemSets.Count - count} from config)");
+    }
 
-	public override void OnConfigReloaded() => RestartSwapTimer();
+    public override void OnConfigReloaded() => RestartSwapTimer();
 
-	private void RestartSwapTimer() {
-		_swapTimer?.Cancel();
-		var interval = Config.HeroSwapIntervalSeconds;
-		if (interval > 0) {
-			_swapTimer = Timer.Every(interval.Seconds(), AnnounceRoundResults);
-			Console.WriteLine($"[DM] Round results announced every {interval}s (hero swap on respawn only)");
-		} else {
-			Console.WriteLine("[DM] Round results announcement disabled");
-		}
-	}
+    private void RestartSwapTimer() {
+        _swapTimer?.Cancel();
+        var interval = Config.HeroSwapIntervalSeconds;
+        if (interval > 0) {
+            // 只用来公布结果，不再统一换英雄
+            _swapTimer = Timer.Every(interval.Seconds(), AnnounceRoundResults);
+            Console.WriteLine($"[DM] Round results announced every {interval}s (hero swap on respawn only)");
+        } else {
+            Console.WriteLine("[DM] Round results announcement disabled");
+        }
+    }
 
     public override void OnStartupServer()
     {
-		ConVar.Find("citadel_active_lane")?.SetInt(4);
-		ConVar.Find("citadel_player_spawn_time_max_respawn_time")?.SetInt(5);
-		ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
-		ConVar.Find("citadel_item_sell_price_ratio")?.SetFloat(1.0f);
-		ConVar.Find("citadel_voice_all_talk")?.SetInt(1);
-		ConVar.Find("sv_alltalk")?.SetInt(1);
-		ConVar.Find("citadel_player_starting_gold")?.SetInt(0);
-		ConVar.Find("citadel_trooper_spawn_enabled")?.SetInt(0);
-		ConVar.Find("citadel_npc_spawn_enabled")?.SetInt(0);
-		ConVar.Find("citadel_start_players_on_zipline")?.SetInt(0);
-		ConVar.Find("citadel_allow_duplicate_heroes")?.SetInt(1);
+        ConVar.Find("citadel_active_lane")?.SetInt(4);
+        ConVar.Find("citadel_player_spawn_time_max_respawn_time")?.SetInt(5);
+        ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
+        ConVar.Find("citadel_item_sell_price_ratio")?.SetFloat(1.0f);
+        ConVar.Find("citadel_voice_all_talk")?.SetInt(1);
+        ConVar.Find("sv_alltalk")?.SetInt(1);
+        ConVar.Find("citadel_player_starting_gold")?.SetInt(0);
+        ConVar.Find("citadel_trooper_spawn_enabled")?.SetInt(0);
+        ConVar.Find("citadel_npc_spawn_enabled")?.SetInt(0);
+        ConVar.Find("citadel_start_players_on_zipline")?.SetInt(0);
+        ConVar.Find("citadel_allow_duplicate_heroes")?.SetInt(1);
 
-		Server.ExecuteCommand("sv_cheats 1");
-		Server.ExecuteCommand("citadel_unlock_flex_slots");
-		Server.ExecuteCommand("sv_cheats 0");
+        Server.ExecuteCommand("sv_cheats 1");
+        Server.ExecuteCommand("citadel_unlock_flex_slots");
+        Server.ExecuteCommand("sv_cheats 0");
 
-		Timer.NextTick(() => {
-			var (hero1, hero2) = PickTwoRandomHeroes();
-			_team2Hero = hero1;
-			_team3Hero = hero2;
-			Console.WriteLine($"[DM] Team 2: {_team2Hero.ToHeroName()}, Team 3: {_team3Hero.ToHeroName()}");
-		});
+        Timer.NextTick(() => {
+            var (hero1, hero2) = PickTwoRandomHeroes();
+            _team2Hero = hero1;
+            _team3Hero = hero2;
+            Console.WriteLine($"[DM] Team 2: {_team2Hero.ToHeroName()}, Team 3: {_team3Hero.ToHeroName()}");
+        });
 
-		RestartSwapTimer();
+        RestartSwapTimer();
 
-		Timer.Once(3.Seconds(), () => {
+        Timer.Once(3.Seconds(), () => {
 
-			var fix = "击杀感染团队竞技\n代码改版自Deadworks仓库案例\n祝您游玩愉快";
-			var sign1 = CPointWorldText.Create(fix, new Vector3(0, 256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
-			sign1?.Teleport(angles: new Vector3(185f, 0f, 270f));
-			sign1?.WorldUnitsPerPx = 0.50f;
-			sign1?.JustifyHorizontal = HorizontalJustify.Center;
-			sign1?.JustifyVertical = VerticalJustify.Center;
-			var sign2 = CPointWorldText.Create(fix, new Vector3(0, -256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
-			sign2?.Teleport(angles: new Vector3(185f, 180f, 270f));
-			sign2?.WorldUnitsPerPx = 0.50f;
-			sign2?.JustifyHorizontal = HorizontalJustify.Center;
-			sign2?.JustifyVertical = VerticalJustify.Center;
+            var fix = "击杀感染团队竞技\n代码改版自Deadworks仓库案例\n祝您游玩愉快";
+            var sign1 = CPointWorldText.Create(fix, new Vector3(0, 256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
+            sign1?.Teleport(angles: new Vector3(185f, 0f, 270f));
+            sign1?.WorldUnitsPerPx = 0.50f;
+            sign1?.JustifyHorizontal = HorizontalJustify.Center;
+            sign1?.JustifyVertical = VerticalJustify.Center;
+            var sign2 = CPointWorldText.Create(fix, new Vector3(0, -256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
+            sign2?.Teleport(angles: new Vector3(185f, 180f, 270f));
+            sign2?.WorldUnitsPerPx = 0.50f;
+            sign2?.JustifyHorizontal = HorizontalJustify.Center;
+            sign2?.JustifyVertical = VerticalJustify.Center;
 
-			var rulesText = "每分钟轮换英雄\n击杀敌方让敌方变成队友\n使敌方队伍没人的队伍获胜";
+            var rulesText = "每分钟轮换英雄\n击杀敌方让敌方变成队友\n使敌方队伍没人的队伍获胜";
 
-			var rules1 = CPointWorldText.Create(rulesText, new Vector3(0, -966, 443), fontSize: 90f, r: 200, g: 200, b: 200, fontName: "Reaver");
-			rules1?.Teleport(angles: new Vector3(180f, 180f, 270f));
-			rules1?.WorldUnitsPerPx = 0.10f;
-			rules1?.JustifyHorizontal = HorizontalJustify.Center;
-			rules1?.JustifyVertical = VerticalJustify.Center;
+            var rules1 = CPointWorldText.Create(rulesText, new Vector3(0, -966, 443), fontSize: 90f, r: 200, g: 200, b: 200, fontName: "Reaver");
+            rules1?.Teleport(angles: new Vector3(180f, 180f, 270f));
+            rules1?.WorldUnitsPerPx = 0.10f;
+            rules1?.JustifyHorizontal = HorizontalJustify.Center;
+            rules1?.JustifyVertical = VerticalJustify.Center;
 
-			var rules2 = CPointWorldText.Create(rulesText, new Vector3(0, 978, 443), fontSize: 90f, r: 200, g: 200, b: 200, fontName: "Reaver");
-			rules2?.Teleport(angles: new Vector3(180f, 0f, 270f));
-			rules2?.WorldUnitsPerPx = 0.10f;
-			rules2?.JustifyHorizontal = HorizontalJustify.Center;
-			rules2?.JustifyVertical = VerticalJustify.Center;
+            var rules2 = CPointWorldText.Create(rulesText, new Vector3(0, 978, 443), fontSize: 90f, r: 200, g: 200, b: 200, fontName: "Reaver");
+            rules2?.Teleport(angles: new Vector3(180f, 0f, 270f));
+            rules2?.WorldUnitsPerPx = 0.10f;
+            rules2?.JustifyHorizontal = HorizontalJustify.Center;
+            rules2?.JustifyVertical = VerticalJustify.Center;
 
-			var discord1 = CPointWorldText.Create("关注他们的discord获取更多信息\n deadworks.net/discord", new Vector3(-513.4f, -800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
-			discord1?.Teleport(angles: new Vector3(180f, 180f, 270f));
-			discord1?.WorldUnitsPerPx = 0.20f;
-			discord1?.JustifyHorizontal = HorizontalJustify.Center;
-			discord1?.JustifyVertical = VerticalJustify.Center;
+            var discord1 = CPointWorldText.Create("关注他们的discord获取更多信息\n deadworks.net/discord", new Vector3(-513.4f, -800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
+            discord1?.Teleport(angles: new Vector3(180f, 180f, 270f));
+            discord1?.WorldUnitsPerPx = 0.20f;
+            discord1?.JustifyHorizontal = HorizontalJustify.Center;
+            discord1?.JustifyVertical = VerticalJustify.Center;
 
-			var discord2 = CPointWorldText.Create("关注Deadworks discord获取更多信息\n deadworks.net/discord", new Vector3(513.4f, 800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
-			discord2?.Teleport(angles: new Vector3(180f, 0f, 270f));
-			discord2?.WorldUnitsPerPx = 0.20f;
-			discord2?.JustifyHorizontal = HorizontalJustify.Center;
-			discord2?.JustifyVertical = VerticalJustify.Center;
-		});
-	}
-
-	private Heroes PickRandomHero(Queue<Heroes> history) {
-		_availableHeroes = Enum.GetValues<Heroes>()
-			.Where(h => h.GetHeroData()?.AvailableInGame == true)
-			.ToArray();
-
-		var candidates = _availableHeroes.Where(h => !history.Contains(h)).ToArray();
-		if (candidates.Length == 0)
-			candidates = _availableHeroes;
-
-		var pick = candidates[Random.Shared.Next(candidates.Length)];
-		history.Enqueue(pick);
-		if (history.Count > 10)
-			history.Dequeue();
-		return pick;
-	}
-
-	private (Heroes, Heroes) PickTwoRandomHeroes() {
-		var first = PickRandomHero(_team2History);
-		Heroes second;
-		do {
-			second = PickRandomHero(_team3History);
-		} while (second == first);
-		return (first, second);
-	}
-
-	/// <summary>
-	/// 为单个玩家轮换英雄（复活时调用）
-	/// </summary>
-	private void SwapSinglePlayerHero(CCitadelPlayerController controller) {
-		if (controller == null) return;
-
-		var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-		if (pawn == null) return;
-
-		var team = pawn.TeamNum;
-		var history = team == 2 ? _team2History : _team3History;
-
-		// 选一个新英雄（不重复逻辑）
-		var newHero = PickRandomHero(history);
-
-		// 更新队伍英雄记录
-		if (team == 2) {
-			_team2Hero = newHero;
-		} else {
-			_team3Hero = newHero;
-		}
-
-		// 查找装备配置
-		var newHeroData = newHero.GetHeroData();
-		int newHeroId = newHeroData?.HeroID ?? 0;
-		Config.HeroItemSets.TryGetValue(newHeroId.ToString(), out var itemSet);
-
-		int gold = itemSet?.GoldRemaining ?? 50_000;
-		_pendingSwap[controller] = new SwapState(itemSet?.Items ?? new(), new(), gold);
-		controller.SelectHero(newHero);
-
-		Console.WriteLine($"[DM] {controller.PlayerName} (Team {team}) swapped to {newHero.ToHeroName()}");
-	}
-
-	[Command("pos", Description = "Print your current position and camera angles as JSON")]
-	public void CmdPos(CCitadelPlayerController caller) {
-		var pawn = caller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-		if (pawn == null) return;
-		var pos = pawn.Position;
-		var ang = pawn.CameraAngles;
-		Console.WriteLine($@"{{ ""pos"": [{pos.X}, {pos.Y}, {pos.Z}], ""ang"": [{ang.X}, {ang.Y}, {ang.Z}] }}");
-	}
-
-	[GameEventHandler("player_death")]
-	public HookResult OnPlayerDeath(PlayerDeathEvent args) {
-		var attackerPawn = args.AttackerPawn;
-		if (attackerPawn == null) return HookResult.Continue;
-
-		// Don't count suicides
-		var victimPawn = args.UseridPawn;
-		if (victimPawn != null && attackerPawn.EntityIndex == victimPawn.EntityIndex)
-			return HookResult.Continue;
-
-		if (attackerPawn.TeamNum == 2) _team2Kills++;
-		else if (attackerPawn.TeamNum == 3) _team3Kills++;
-
-		var controller = args.AttackerController;
-		if (controller != null) {
-			var idx = controller.EntityIndex;
-			_playerKills[idx] = _playerKills.GetValueOrDefault(idx) + 1;
-		}
-
-		return HookResult.Continue;
-	}
-
-	private void AnnounceRoundResults() {
-		// 如果本轮没有击杀，不公告
-		if (_team2Kills == 0 && _team3Kills == 0) {
-			Console.WriteLine("[DM] No kills this round, skipping announcement");
-			return;
-		}
-
-		var winnerHero = _team2Kills >= _team3Kills ? _team2Hero : _team3Hero;
-		var winnerKills = Math.Max(_team2Kills, _team3Kills);
-		var loserKills = Math.Min(_team2Kills, _team3Kills);
-
-		// Find MVP - player with the most kills this round
-		int mvpIdx = -1, mvpKills = 0;
-		foreach (var (idx, kills) in _playerKills) {
-			if (kills > mvpKills) {
-				mvpKills = kills;
-				mvpIdx = idx;
-			}
-		}
-
-		var mvpName = "";
-		if (mvpIdx >= 0) {
-			var mvpController = CBaseEntity.FromIndex<CCitadelPlayerController>(mvpIdx);
-			if (mvpController != null)
-				mvpName = mvpController.PlayerName;
-		}
-
-		var isTie = _team2Kills == _team3Kills;
-		var title = isTie ? "Draw!" : $"{winnerHero.ToDisplayName()} wins!";
-		var desc = string.IsNullOrEmpty(mvpName)
-			? $"{_team2Kills} - {_team3Kills}"
-			: $"{_team2Kills} - {_team3Kills}  |  MVP: {mvpName} ({mvpKills} kills)";
-
-		var msg = new CCitadelUserMsg_HudGameAnnouncement {
-			TitleLocstring = title,
-			DescriptionLocstring = desc
-		};
-		NetMessages.Send(msg, RecipientFilter.All);
-
-		Console.WriteLine($"[DM] Round announced: {title} {desc}");
-
-		// 公告后重置计数
-		_team2Kills = 0;
-		_team3Kills = 0;
-		_playerKills.Clear();
-	}
-
-	[GameEventHandler("player_respawned")]
-public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
-    // Userid 是 CBasePlayerPawn 类型，需要先获取 Pawn
-    var pawn = args.Userid as CCitadelPlayerPawn;
-    if (pawn == null) {
-        Console.WriteLine("[DM] OnPlayerRespawned: pawn is null or not CCitadelPlayerPawn");
-        return HookResult.Continue;
+            var discord2 = CPointWorldText.Create("关注Deadworks discord获取更多信息\n deadworks.net/discord", new Vector3(513.4f, 800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
+            discord2?.Teleport(angles: new Vector3(180f, 0f, 270f));
+            discord2?.WorldUnitsPerPx = 0.20f;
+            discord2?.JustifyHorizontal = HorizontalJustify.Center;
+            discord2?.JustifyVertical = VerticalJustify.Center;
+        });
     }
 
-    // 通过 Pawn 获取 Controller
-    var controller = pawn.Controller as CCitadelPlayerController;
-    if (controller == null) {
-        Console.WriteLine("[DM] OnPlayerRespawned: controller is null");
-        return HookResult.Continue;
+    private Heroes PickRandomHero(Queue<Heroes> history) {
+        _availableHeroes = Enum.GetValues<Heroes>()
+            .Where(h => h.GetHeroData()?.AvailableInGame == true)
+            .ToArray();
+
+        var candidates = _availableHeroes.Where(h => !history.Contains(h)).ToArray();
+        if (candidates.Length == 0)
+            candidates = _availableHeroes;
+
+        var pick = candidates[Random.Shared.Next(candidates.Length)];
+        history.Enqueue(pick);
+        if (history.Count > 10)
+            history.Dequeue();
+        return pick;
     }
 
-    // 检查玩家是否真正存活
-    if (pawn.LifeState != LifeState.Alive) {
-        return HookResult.Continue;
+    private (Heroes, Heroes) PickTwoRandomHeroes() {
+        var first = PickRandomHero(_team2History);
+        Heroes second;
+        do {
+            second = PickRandomHero(_team3History);
+        } while (second == first);
+        return (first, second);
     }
 
-    Console.WriteLine($"[DM] {controller.PlayerName} respawned, swapping hero");
+    /// <summary>
+    /// 为单个玩家轮换英雄（复活时调用）
+    /// </summary>
+    private void SwapSinglePlayerHero(CCitadelPlayerController controller) {
+        if (controller == null) return;
 
-    // 传送到出生点（如果有配置）
-    var teamKey = pawn.TeamNum.ToString();
-    if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
-        && teams.TryGetValue(teamKey, out var spawns)
-        && spawns.Length > 0) {
-        var spawn = spawns[Random.Shared.Next(spawns.Length)];
-        var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
-        var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
-        pawn.Teleport(position: pos, angles: ang);
-    }
+        var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+        if (pawn == null) return;
 
-    // 为这个玩家独立轮换英雄
-    SwapSinglePlayerHero(controller);
+        var team = pawn.TeamNum;
+        var history = team == 2 ? _team2History : _team3History;
 
-    // 满级技能（等待英雄加载完成后执行）
-    Timer.Once(1.Seconds(), () => {
-        var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-        if (p != null) {
-            MaxUpgradeSignatureAbilities(p);
-            p.Heal(p.GetMaxHealth());
+        // 选一个新英雄（不重复逻辑）
+        var newHero = PickRandomHero(history);
+
+        // 更新队伍英雄记录
+        if (team == 2) {
+            _team2Hero = newHero;
+        } else {
+            _team3Hero = newHero;
         }
-    });
 
-    return HookResult.Continue;
-}
+        // 查找装备配置
+        var newHeroData = newHero.GetHeroData();
+        int newHeroId = newHeroData?.HeroID ?? 0;
+        Config.HeroItemSets.TryGetValue(newHeroId.ToString(), out var itemSet);
 
-	public override HookResult OnClientConCommand(ClientConCommandEvent e) {
-		if (e.Command == "selecthero") {
-			return HookResult.Stop;
-		}
-		if (e.Command == "changeteam" || e.Command == "jointeam") {
-			return HookResult.Stop;
-		}
-		return HookResult.Continue;
-	}
+        int gold = itemSet?.GoldRemaining ?? 50_000;
+        _pendingSwap[controller] = new SwapState(itemSet?.Items ?? new(), new(), gold);
+        controller.SelectHero(newHero);
 
-	[GameEventHandler("player_hero_changed")]
-	public HookResult OnPlayerHeroChanged(PlayerHeroChangedEvent args) {
-		var pawn = args.Userid?.As<CCitadelPlayerPawn>();
-		if (pawn == null) return HookResult.Continue;
+        Console.WriteLine($"[DM] {controller.PlayerName} (Team {team}) swapped to {newHero.ToHeroName()}");
+    }
 
-		// Swap in progress - skip, the timer handles restoration.
-		var controller = pawn.Controller;
-		if (controller != null && _pendingSwap.Has(controller))
-			return HookResult.Continue;
+    [Command("pos", Description = "Print your current position and camera angles as JSON")]
+    public void CmdPos(CCitadelPlayerController caller) {
+        var pawn = caller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+        if (pawn == null) return;
+        var pos = pawn.Position;
+        var ang = pawn.CameraAngles;
+        Console.WriteLine($@"{{ ""pos"": [{pos.X}, {pos.Y}, {pos.Z}], ""ang"": [{ang.X}, {ang.Y}, {ang.Z}] }}");
+    }
 
-		pawn.ResetHero();
-		pawn.Heal(pawn.GetMaxHealth());
-		MaxUpgradeSignatureAbilities(pawn);
-		RestoreItemSet(pawn);
-		return HookResult.Continue;
-	}
+    [GameEventHandler("player_death")]
+    public HookResult OnPlayerDeath(PlayerDeathEvent args) {
+        var attackerPawn = args.AttackerPawn;
+        if (attackerPawn == null) return HookResult.Continue;
 
-	public override void OnEntitySpawned(EntitySpawnedEvent e) {
-		if (e.Entity.DesignerName == "npc_trooper_boss")
-			e.Entity.Remove();
-	}
+        // Don't count suicides
+        var victimPawn = args.UseridPawn;
+        if (victimPawn != null && attackerPawn.EntityIndex == victimPawn.EntityIndex)
+            return HookResult.Continue;
 
-	public override void OnClientFullConnect(ClientFullConnectEvent args) {
-		var controller = args.Controller;
-		if (controller == null) return;
+        if (attackerPawn.TeamNum == 2) _team2Kills++;
+        else if (attackerPawn.TeamNum == 3) _team3Kills++;
 
-		int team2 = 0, team3 = 0;
-		foreach (var p in Players.GetAll()) {
-			if (p.EntityIndex == controller.EntityIndex) continue;
-			var pawn = p.GetHeroPawn();
-			if (pawn == null) continue;
-			if (pawn.TeamNum == 2) team2++;
-			else if (pawn.TeamNum == 3) team3++;
-		}
-		int team = team2 < team3 ? 2 : team3 < team2 ? 3 : Random.Shared.Next(2) == 0 ? 2 : 3;
-		controller.ChangeTeam(team);
+        var controller = args.AttackerController;
+        if (controller != null) {
+            var idx = controller.EntityIndex;
+            _playerKills[idx] = _playerKills.GetValueOrDefault(idx) + 1;
+        }
 
-		var hero = team == 2 ? _team2Hero : _team3Hero;
-		Console.WriteLine($"[DM] Slot {args.Slot} -> team {team}, hero {hero.ToHeroName()}");
-		controller.SelectHero(hero);
-	}
+        return HookResult.Continue;
+    }
 
-	public override void OnClientDisconnect(ClientDisconnectedEvent args) {
-		var controller = args.Controller;
-		if (controller == null) return;
+    private void AnnounceRoundResults() {
+        // 如果本轮没有击杀，不公告
+        if (_team2Kills == 0 && _team3Kills == 0) {
+            Console.WriteLine("[DM] No kills this round, skipping announcement");
+            return;
+        }
 
-		controller.GetHeroPawn()?.Remove();
-		controller.Remove();
-	}
+        var winnerHero = _team2Kills >= _team3Kills ? _team2Hero : _team3Hero;
+        var winnerKills = Math.Max(_team2Kills, _team3Kills);
+        var loserKills = Math.Min(_team2Kills, _team3Kills);
 
-	public override HookResult OnTakeDamage(TakeDamageEvent args) {
-		if (args.Entity.DesignerName is "npc_boss_tier3" or "npc_boss_tier2" or "npc_trooper_boss")
-			return HookResult.Stop;
-		return HookResult.Continue;
-	}
+        // Find MVP - player with the most kills this round
+        int mvpIdx = -1, mvpKills = 0;
+        foreach (var (idx, kills) in _playerKills) {
+            if (kills > mvpKills) {
+                mvpKills = kills;
+                mvpIdx = idx;
+            }
+        }
 
-	public override HookResult OnModifyCurrency(ModifyCurrencyEvent args) {
-		if (args.CurrencyType == ECurrencyType.EGold) {
-			if (args.Source == ECurrencySource.EStartingAmount) {
-				var controller = args.Pawn.Controller;
-				int gold = 50_000;
-				if (controller != null && _pendingSwap.TryGet(controller, out var state))
-					gold = state.Gold;
-				else if (controller != null) {
-					int heroId = controller.PlayerDataGlobal.HeroID;
-					if (Config.HeroItemSets.TryGetValue(heroId.ToString(), out var itemSet))
-						gold = itemSet.GoldRemaining;
-				}
+        var mvpName = "";
+        if (mvpIdx >= 0) {
+            var mvpController = CBaseEntity.FromIndex<CCitadelPlayerController>(mvpIdx);
+            if (mvpController != null)
+                mvpName = mvpController.PlayerName;
+        }
 
-				// Set level + gold atomically via schema writes to avoid the
-				// step-by-step level-up in ModifyCurrency that triggers
-				// client-side "LevelChanged" callbacks and boon UI per level.
-				args.Pawn.Level = 36;
-				args.Pawn.SetCurrency(ECurrencyType.EGold, gold);
+        var isTie = _team2Kills == _team3Kills;
+        var title = isTie ? "Draw!" : $"{winnerHero.ToDisplayName()} wins!";
+        var desc = string.IsNullOrEmpty(mvpName)
+            ? $"{_team2Kills} - {_team3Kills}"
+            : $"{_team2Kills} - {_team3Kills}  |  MVP: {mvpName} ({mvpKills} kills)";
 
-				// Run a zero-amount ModifyCurrency to trigger internal stat
-				// recalculation (health/damage scaling) without changing gold.
-				args.Pawn.ModifyCurrency(ECurrencyType.EGold, 0, ECurrencySource.ECheats, silent: true);
-				return HookResult.Stop;
-			}
-			if (args.Source != ECurrencySource.ECheats && args.Source != ECurrencySource.EItemPurchase && args.Source != ECurrencySource.EItemSale)
-				return HookResult.Stop;
-		}
-		return HookResult.Continue;
-	}
+        var msg = new CCitadelUserMsg_HudGameAnnouncement {
+            TitleLocstring = title,
+            DescriptionLocstring = desc
+        };
+        NetMessages.Send(msg, RecipientFilter.All);
 
-	public override void OnUnload() {
-		_swapTimer?.Cancel();
-		Console.WriteLine("Deathmatch unloaded!");
-	}
+        Console.WriteLine($"[DM] Round announced: {title} {desc}");
 
-	public override void OnPrecacheResources() {
-	}
+        // 公告后重置计数
+        _team2Kills = 0;
+        _team3Kills = 0;
+        _playerKills.Clear();
+    }
 
-	private void RestoreItemSet(CCitadelPlayerPawn? pawn) {
-		if (pawn == null) return;
-		var controller = pawn.Controller;
-		if (controller == null) return;
+    [GameEventHandler("player_respawned")]
+    public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
+        // 直接从事件中获取 Pawn
+        var pawn = args.Userid as CCitadelPlayerPawn;
+        if (pawn == null) {
+            Console.WriteLine("[DM] OnPlayerRespawned: 获取 Pawn 失败 (类型转换错误)");
+            return HookResult.Continue;
+        }
 
-		int heroId = controller.PlayerDataGlobal.HeroID;
-		if (!Config.HeroItemSets.TryGetValue(heroId.ToString(), out var itemSet))
-			return;
+        // 使用 LifeState 确认玩家已复活并存活
+        if (pawn.LifeState != LifeState.Alive) {
+            Console.WriteLine($"[DM] OnPlayerRespawned: 玩家 LifeState 不是 Alive (当前: {pawn.LifeState})");
+            return HookResult.Continue;
+        }
 
-		foreach (var item in itemSet.Items) {
-			pawn.AddItem(item);
-		}
-		Console.WriteLine($"[DM] Restored {itemSet.Items.Count} items for {itemSet.HeroName}");
-	}
+        // 通过 Pawn 获取 Controller 以进行后续操作
+        var controller = pawn.Controller as CCitadelPlayerController;
+        if (controller == null) {
+            Console.WriteLine("[DM] OnPlayerRespawned: 获取 Controller 失败");
+            return HookResult.Continue;
+        }
 
-	private static void MaxUpgradeSignatureAbilities(CCitadelPlayerPawn? pawn) {
-		if (pawn == null) return;
-		foreach (var ability in pawn.AbilityComponent.Abilities) {
-			if (ability.AbilitySlot < EAbilitySlot.Signature1 || ability.AbilitySlot > EAbilitySlot.Signature4) continue;
-			ability.UpgradeBits = ability.UpgradeBits | 0b11111;
-		}
-	}
+        Console.WriteLine($"[DM] {controller.PlayerName} 已复活并存活，执行轮换逻辑。");
 
-	[Command("trace", Description = "Raycast forward from the caller and print trace info")]
-	public void CmdTrace(CCitadelPlayerController caller) {
-		var pawn = caller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-		if (pawn == null) {
-			Console.WriteLine("No pawn found for trace");
-			return;
-		}
+        // 传送到出生点（如果有配置）
+        var teamKey = pawn.TeamNum.ToString();
+        if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
+            && teams.TryGetValue(teamKey, out var spawns)
+            && spawns.Length > 0) {
+            var spawn = spawns[Random.Shared.Next(spawns.Length)];
+            var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
+            var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
+            pawn.Teleport(position: pos, angles: ang);
+            Console.WriteLine($"[DM] 传送 {controller.PlayerName} 到出生点");
+        }
 
-		var eye = pawn.EyePosition;
-		var eyeAngles = pawn.EyeAngles;
-		var camAngles = pawn.CameraAngles;
-		var viewAngles = pawn.ViewAngles;
+        // 为这个玩家独立轮换英雄
+        SwapSinglePlayerHero(controller);
 
-		Console.WriteLine($"[trace] EyeAngles=({eyeAngles.X:F4},{eyeAngles.Y:F4},{eyeAngles.Z:F4}) [networked, quantized 11-bit]");
-		Console.WriteLine($"[trace] CamAngles=({camAngles.X:F4},{camAngles.Y:F4},{camAngles.Z:F4}) [m_angClientCamera]");
-		Console.WriteLine($"[trace] ViewAngles=({viewAngles.X:F4},{viewAngles.Y:F4},{viewAngles.Z:F4}) [v_angle, raw from CUserCmd]");
-		Console.WriteLine($"[trace] EyePos=({eye.X:F1},{eye.Y:F1},{eye.Z:F1}) AbsOrigin=({pawn.Position.X:F1},{pawn.Position.Y:F1},{pawn.Position.Z:F1})");
+        // 满级技能（等待英雄加载完成后执行）
+        Timer.Once(1.Seconds(), () => {
+            var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+            if (p != null) {
+                MaxUpgradeSignatureAbilities(p);
+                p.Heal(p.GetMaxHealth());
+                Console.WriteLine($"[DM] {controller.PlayerName} 技能已满级，血量已回满");
+            }
+        });
 
-		var angles = viewAngles;
-		float pitch = angles.X * MathF.PI / 180f;
-		float yaw = angles.Y * MathF.PI / 180f;
-		var forward = new System.Numerics.Vector3(
-			MathF.Cos(pitch) * MathF.Cos(yaw),
-			MathF.Cos(pitch) * MathF.Sin(yaw),
-			-MathF.Sin(pitch));
+        return HookResult.Continue;
+    }
 
-		var end = eye + forward * 10000f;
+    public override HookResult OnClientConCommand(ClientConCommandEvent e) {
+        if (e.Command == "selecthero") {
+            return HookResult.Stop;
+        }
+        if (e.Command == "changeteam" || e.Command == "jointeam") {
+            return HookResult.Stop;
+        }
+        return HookResult.Continue;
+    }
 
-		Console.WriteLine($"[trace] eye=({eye.X:F1},{eye.Y:F1},{eye.Z:F1}) end=({end.X:F1},{end.Y:F1},{end.Z:F1}) pawnIdx={pawn.EntityIndex}");
+    [GameEventHandler("player_hero_changed")]
+    public HookResult OnPlayerHeroChanged(PlayerHeroChangedEvent args) {
+        var pawn = args.Userid?.As<CCitadelPlayerPawn>();
+        if (pawn == null) return HookResult.Continue;
 
-		unsafe {
-			var trace = CGameTrace.Create();
-			var ray = new Ray_t { Type = RayType_t.Line };
-			var filter = new CTraceFilter(true) {
-				IterateEntities = true,
-				QueryShapeAttributes = new RnQueryShapeAttr_t {
-					ObjectSetMask = RnQueryObjectSet.All,
-					InteractsWith = MaskTrace.Solid,
-					InteractsExclude = MaskTrace.Empty,
-					InteractsAs = MaskTrace.Empty,
-					CollisionGroup = CollisionGroup.CitadelBullet,
-					HitSolid = true,
-				}
-			};
-			filter.QueryShapeAttributes.EntityIdsToIgnore[0] = (uint)pawn.EntityIndex;
+        // Swap in progress - skip, the timer handles restoration.
+        var controller = pawn.Controller;
+        if (controller != null && _pendingSwap.Has(controller))
+            return HookResult.Continue;
 
-			Console.WriteLine($"[trace] sizeof Ray_t={sizeof(Ray_t)} CTraceFilter={sizeof(CTraceFilter)} CGameTrace={sizeof(CGameTrace)}");
-			Console.WriteLine($"[trace] filter EntityIdsToIgnore[0]={filter.QueryShapeAttributes.EntityIdsToIgnore[0]}");
+        pawn.ResetHero();
+        pawn.Heal(pawn.GetMaxHealth());
+        MaxUpgradeSignatureAbilities(pawn);
+        RestoreItemSet(pawn);
+        return HookResult.Continue;
+    }
 
-			Trace.TraceShape(eye, end, ray, filter, ref trace);
+    public override void OnEntitySpawned(EntitySpawnedEvent e) {
+        if (e.Entity.DesignerName == "npc_trooper_boss")
+            e.Entity.Remove();
+    }
 
-			Console.WriteLine($"[trace] frac={trace.Fraction:F6} startInSolid={trace.StartInSolid} pEntity=0x{trace.pEntity:X}");
-			Console.WriteLine($"[trace] hitPoint=({trace.HitPoint.X:F1},{trace.HitPoint.Y:F1},{trace.HitPoint.Z:F1})");
-			Console.WriteLine($"[trace] startPos=({trace.StartPos.X:F1},{trace.StartPos.Y:F1},{trace.StartPos.Z:F1})");
-			Console.WriteLine($"[trace] endPos=({trace.EndPos.X:F1},{trace.EndPos.Y:F1},{trace.EndPos.Z:F1})");
+    public override void OnClientFullConnect(ClientFullConnectEvent args) {
+        var controller = args.Controller;
+        if (controller == null) return;
 
-			var hitPos = eye + (end - eye) * trace.Fraction;
-			var text = trace.DidHit
-				? $"Trace hit at ({hitPos.X:F1}, {hitPos.Y:F1}, {hitPos.Z:F1}) frac={trace.Fraction:F4}"
-				: "Trace: no hit";
+        int team2 = 0, team3 = 0;
+        foreach (var p in Players.GetAll()) {
+            if (p.EntityIndex == controller.EntityIndex) continue;
+            var pawn = p.GetHeroPawn();
+            if (pawn == null) continue;
+            if (pawn.TeamNum == 2) team2++;
+            else if (pawn.TeamNum == 3) team3++;
+        }
+        int team = team2 < team3 ? 2 : team3 < team2 ? 3 : Random.Shared.Next(2) == 0 ? 2 : 3;
+        controller.ChangeTeam(team);
 
-			Console.WriteLine(text);
-			Chat.PrintToChat(caller, text);
-		}
-	}
+        var hero = team == 2 ? _team2Hero : _team3Hero;
+        Console.WriteLine($"[DM] Slot {args.Slot} -> team {team}, hero {hero.ToHeroName()}");
+        controller.SelectHero(hero);
+    }
+
+    public override void OnClientDisconnect(ClientDisconnectedEvent args) {
+        var controller = args.Controller;
+        if (controller == null) return;
+
+        controller.GetHeroPawn()?.Remove();
+        controller.Remove();
+    }
+
+    public override HookResult OnTakeDamage(TakeDamageEvent args) {
+        if (args.Entity.DesignerName is "npc_boss_tier3" or "npc_boss_tier2" or "npc_trooper_boss")
+            return HookResult.Stop;
+        return HookResult.Continue;
+    }
+
+    public override HookResult OnModifyCurrency(ModifyCurrencyEvent args) {
+        if (args.CurrencyType == ECurrencyType.EGold) {
+            if (args.Source == ECurrencySource.EStartingAmount) {
+                var controller = args.Pawn.Controller;
+                int gold = 50_000;
+                if (controller != null && _pendingSwap.TryGet(controller, out var state))
+                    gold = state.Gold;
+                else if (controller != null) {
+                    int heroId = controller.PlayerDataGlobal.HeroID;
+                    if (Config.HeroItemSets.TryGetValue(heroId.ToString(), out var itemSet))
+                        gold = itemSet.GoldRemaining;
+                }
+
+                // Set level + gold atomically via schema writes to avoid the
+                // step-by-step level-up in ModifyCurrency that triggers
+                // client-side "LevelChanged" callbacks and boon UI per level.
+                args.Pawn.Level = 36;
+                args.Pawn.SetCurrency(ECurrencyType.EGold, gold);
+
+                // Run a zero-amount ModifyCurrency to trigger internal stat
+                // recalculation (health/damage scaling) without changing gold.
+                args.Pawn.ModifyCurrency(ECurrencyType.EGold, 0, ECurrencySource.ECheats, silent: true);
+                return HookResult.Stop;
+            }
+            if (args.Source != ECurrencySource.ECheats && args.Source != ECurrencySource.EItemPurchase && args.Source != ECurrencySource.EItemSale)
+                return HookResult.Stop;
+        }
+        return HookResult.Continue;
+    }
+
+    public override void OnUnload() {
+        _swapTimer?.Cancel();
+        Console.WriteLine("Deathmatch unloaded!");
+    }
+
+    public override void OnPrecacheResources() {
+    }
+
+    private void RestoreItemSet(CCitadelPlayerPawn? pawn) {
+        if (pawn == null) return;
+        var controller = pawn.Controller;
+        if (controller == null) return;
+
+        int heroId = controller.PlayerDataGlobal.HeroID;
+        if (!Config.HeroItemSets.TryGetValue(heroId.ToString(), out var itemSet))
+            return;
+
+        foreach (var item in itemSet.Items) {
+            pawn.AddItem(item);
+        }
+        Console.WriteLine($"[DM] Restored {itemSet.Items.Count} items for {itemSet.HeroName}");
+    }
+
+    private static void MaxUpgradeSignatureAbilities(CCitadelPlayerPawn? pawn) {
+        if (pawn == null) return;
+        foreach (var ability in pawn.AbilityComponent.Abilities) {
+            if (ability.AbilitySlot < EAbilitySlot.Signature1 || ability.AbilitySlot > EAbilitySlot.Signature4) continue;
+            ability.UpgradeBits = ability.UpgradeBits | 0b11111;
+        }
+    }
+
+    [Command("trace", Description = "Raycast forward from the caller and print trace info")]
+    public void CmdTrace(CCitadelPlayerController caller) {
+        var pawn = caller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+        if (pawn == null) {
+            Console.WriteLine("No pawn found for trace");
+            return;
+        }
+
+        var eye = pawn.EyePosition;
+        var eyeAngles = pawn.EyeAngles;
+        var camAngles = pawn.CameraAngles;
+        var viewAngles = pawn.ViewAngles;
+
+        Console.WriteLine($"[trace] EyeAngles=({eyeAngles.X:F4},{eyeAngles.Y:F4},{eyeAngles.Z:F4}) [networked, quantized 11-bit]");
+        Console.WriteLine($"[trace] CamAngles=({camAngles.X:F4},{camAngles.Y:F4},{camAngles.Z:F4}) [m_angClientCamera]");
+        Console.WriteLine($"[trace] ViewAngles=({viewAngles.X:F4},{viewAngles.Y:F4},{viewAngles.Z:F4}) [v_angle, raw from CUserCmd]");
+        Console.WriteLine($"[trace] EyePos=({eye.X:F1},{eye.Y:F1},{eye.Z:F1}) AbsOrigin=({pawn.Position.X:F1},{pawn.Position.Y:F1},{pawn.Position.Z:F1})");
+
+        var angles = viewAngles;
+        float pitch = angles.X * MathF.PI / 180f;
+        float yaw = angles.Y * MathF.PI / 180f;
+        var forward = new System.Numerics.Vector3(
+            MathF.Cos(pitch) * MathF.Cos(yaw),
+            MathF.Cos(pitch) * MathF.Sin(yaw),
+            -MathF.Sin(pitch));
+
+        var end = eye + forward * 10000f;
+
+        Console.WriteLine($"[trace] eye=({eye.X:F1},{eye.Y:F1},{eye.Z:F1}) end=({end.X:F1},{end.Y:F1},{end.Z:F1}) pawnIdx={pawn.EntityIndex}");
+
+        unsafe {
+            var trace = CGameTrace.Create();
+            var ray = new Ray_t { Type = RayType_t.Line };
+            var filter = new CTraceFilter(true) {
+                IterateEntities = true,
+                QueryShapeAttributes = new RnQueryShapeAttr_t {
+                    ObjectSetMask = RnQueryObjectSet.All,
+                    InteractsWith = MaskTrace.Solid,
+                    InteractsExclude = MaskTrace.Empty,
+                    InteractsAs = MaskTrace.Empty,
+                    CollisionGroup = CollisionGroup.CitadelBullet,
+                    HitSolid = true,
+                }
+            };
+            filter.QueryShapeAttributes.EntityIdsToIgnore[0] = (uint)pawn.EntityIndex;
+
+            Console.WriteLine($"[trace] sizeof Ray_t={sizeof(Ray_t)} CTraceFilter={sizeof(CTraceFilter)} CGameTrace={sizeof(CGameTrace)}");
+            Console.WriteLine($"[trace] filter EntityIdsToIgnore[0]={filter.QueryShapeAttributes.EntityIdsToIgnore[0]}");
+
+            Trace.TraceShape(eye, end, ray, filter, ref trace);
+
+            Console.WriteLine($"[trace] frac={trace.Fraction:F6} startInSolid={trace.StartInSolid} pEntity=0x{trace.pEntity:X}");
+            Console.WriteLine($"[trace] hitPoint=({trace.HitPoint.X:F1},{trace.HitPoint.Y:F1},{trace.HitPoint.Z:F1})");
+            Console.WriteLine($"[trace] startPos=({trace.StartPos.X:F1},{trace.StartPos.Y:F1},{trace.StartPos.Z:F1})");
+            Console.WriteLine($"[trace] endPos=({trace.EndPos.X:F1},{trace.EndPos.Y:F1},{trace.EndPos.Z:F1})");
+
+            var hitPos = eye + (end - eye) * trace.Fraction;
+            var text = trace.DidHit
+                ? $"Trace hit at ({hitPos.X:F1}, {hitPos.Y:F1}, {hitPos.Z:F1}) frac={trace.Fraction:F4}"
+                : "Trace: no hit";
+
+            Console.WriteLine(text);
+            Chat.PrintToChat(caller, text);
+        }
+    }
 }
