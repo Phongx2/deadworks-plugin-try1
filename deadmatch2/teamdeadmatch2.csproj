@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+
+
+  </PropertyGroup>
+
+<ItemGroup>
+    <Reference Include="DeadworksManaged.Api">
+      <HintPath>managed\DeadworksManaged.Api.dll</HintPath>
+    </Reference>
+    <Reference Include="Google.Protobuf">
+      <HintPath>managed\Google.Protobuf.dll</HintPath>
+    </Reference>
+</ItemGroup>
+
+
+
+  <ItemGroup>
+    <EmbeddedResource Include="HeroItemSets.jsonc" />
+  </ItemGroup>
+
+
+
+
+</Project>
