@@ -374,7 +374,7 @@ public class DeathmatchPlugin : DeadworksPluginBase {
             return HookResult.Continue;
         }
 
-        Console.WriteLine($"[DM] {controller.PlayerName} 已复活，1 tick后执行轮换");
+        Console.WriteLine($"[DM] {controller.PlayerName} 已复活，500ms后执行换英雄");
 
         // 4. 传送（立即执行）
         var teamKey = pawn.TeamNum.ToString();
@@ -387,16 +387,16 @@ public class DeathmatchPlugin : DeadworksPluginBase {
             pawn.Teleport(position: pos, angles: ang);
         }
 
-        // 5. 下一个 Tick 执行换英雄
-        Timer.NextTick(() => {
-            Console.WriteLine($"[DM] NextTick: 为 {controller.PlayerName} 切换英雄");
+        // 5. 延迟500ms执行换英雄
+        Timer.Once(500, () => {
+            Console.WriteLine($"[DM] 500ms延迟: 为 {controller.PlayerName} 切换英雄");
             
             // 换英雄（内部会设置 _pendingSwap）
             SwapSinglePlayerHero(controller);
 
-            // 6. 再下一个 Tick 执行装备恢复和满级技能（等待英雄加载完成）
-            Timer.NextTick(() => {
-                Console.WriteLine($"[DM] NextTick: 为 {controller.PlayerName} 恢复装备和技能");
+            // 6. 再延迟500ms执行装备恢复和满级技能（等待英雄加载完成）
+            Timer.Once(500, () => {
+                Console.WriteLine($"[DM] 500ms延迟: 为 {controller.PlayerName} 恢复装备和技能");
                 RestorePlayerState(controller);
             });
         });
