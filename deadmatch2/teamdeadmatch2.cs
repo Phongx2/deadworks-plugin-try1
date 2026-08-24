@@ -311,52 +311,53 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 	}
 
 	[GameEventHandler("player_respawned")]
-	public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
-		// 获取玩家控制器 - 需要转换为 CCitadelPlayerController
-		var controller = args.Userid as CCitadelPlayerController;
-		if (controller == null) {
-			Console.WriteLine("[DM] OnPlayerRespawned: controller is null or not CCitadelPlayerController");
-			return HookResult.Continue;
-		}
+public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
+    // Userid 是 CBasePlayerPawn 类型，需要先获取 Pawn
+    var pawn = args.Userid as CCitadelPlayerPawn;
+    if (pawn == null) {
+        Console.WriteLine("[DM] OnPlayerRespawned: pawn is null or not CCitadelPlayerPawn");
+        return HookResult.Continue;
+    }
 
-		var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-		if (pawn == null) {
-			Console.WriteLine("[DM] OnPlayerRespawned: pawn is null");
-			return HookResult.Continue;
-		}
+    // 通过 Pawn 获取 Controller
+    var controller = pawn.Controller as CCitadelPlayerController;
+    if (controller == null) {
+        Console.WriteLine("[DM] OnPlayerRespawned: controller is null");
+        return HookResult.Continue;
+    }
 
-		// 检查玩家是否真正存活
-		if (pawn.LifeState != LifeState.Alive) {
-			return HookResult.Continue;
-		}
+    // 检查玩家是否真正存活
+    if (pawn.LifeState != LifeState.Alive) {
+        return HookResult.Continue;
+    }
 
-		Console.WriteLine($"[DM] {controller.PlayerName} respawned, swapping hero");
+    Console.WriteLine($"[DM] {controller.PlayerName} respawned, swapping hero");
 
-		// 传送到出生点（如果有配置）
-		var teamKey = pawn.TeamNum.ToString();
-		if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
-			&& teams.TryGetValue(teamKey, out var spawns)
-			&& spawns.Length > 0) {
-			var spawn = spawns[Random.Shared.Next(spawns.Length)];
-			var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
-			var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
-			pawn.Teleport(position: pos, angles: ang);
-		}
+    // 传送到出生点（如果有配置）
+    var teamKey = pawn.TeamNum.ToString();
+    if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
+        && teams.TryGetValue(teamKey, out var spawns)
+        && spawns.Length > 0) {
+        var spawn = spawns[Random.Shared.Next(spawns.Length)];
+        var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
+        var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
+        pawn.Teleport(position: pos, angles: ang);
+    }
 
-		// 为这个玩家独立轮换英雄
-		SwapSinglePlayerHero(controller);
+    // 为这个玩家独立轮换英雄
+    SwapSinglePlayerHero(controller);
 
-		// 满级技能（等待英雄加载完成后执行）
-		Timer.Once(1.Seconds(), () => {
-			var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-			if (p != null) {
-				MaxUpgradeSignatureAbilities(p);
-				p.Heal(p.GetMaxHealth());
-			}
-		});
+    // 满级技能（等待英雄加载完成后执行）
+    Timer.Once(1.Seconds(), () => {
+        var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+        if (p != null) {
+            MaxUpgradeSignatureAbilities(p);
+            p.Heal(p.GetMaxHealth());
+        }
+    });
 
-		return HookResult.Continue;
-	}
+    return HookResult.Continue;
+}
 
 	public override HookResult OnClientConCommand(ClientConCommandEvent e) {
 		if (e.Command == "selecthero") {
