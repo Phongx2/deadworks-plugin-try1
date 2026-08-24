@@ -356,6 +356,10 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
     // 1. 获取 Pawn
     var pawn = args.Userid as CCitadelPlayerPawn;
+
+Console.WriteLine($"[DM] Userid 实际类型: {args.Userid.GetType().FullName}");
+
+    
     if (pawn == null) {
         Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家 Pawn");
         return HookResult.Continue;
