@@ -388,7 +388,7 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
     }
 
     // 5. 延迟500ms执行换英雄
-    Timer.Once(500.Milliseconds(), () => {
+    Timer.Once(1000.Milliseconds(), () => {
         Console.WriteLine($"[DM] 500ms延迟: 为 {controller.PlayerName} 切换英雄");
         
         // 换英雄（内部会设置 _pendingSwap）
