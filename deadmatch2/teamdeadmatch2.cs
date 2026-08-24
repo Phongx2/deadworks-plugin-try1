@@ -132,18 +132,20 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		RestartSwapTimer();
 
 		Timer.Once(3.Seconds(), () => {
-			var sign1 = CPointWorldText.Create("DEADWORKS.net", new Vector3(0, 256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
+
+			var fix = "击杀感染团队竞技\n代码改版自Deadworks github仓库案例\n祝您游玩愉快";
+			var sign1 = CPointWorldText.Create(fix, new Vector3(0, 256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
 			sign1?.Teleport(angles: new Vector3(185f, 0f, 270f));
 			sign1?.WorldUnitsPerPx = 0.50f;
 			sign1?.JustifyHorizontal = HorizontalJustify.Center;
 			sign1?.JustifyVertical = VerticalJustify.Center;
-			var sign2 = CPointWorldText.Create("DEADWORKS.net", new Vector3(0, -256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
+			var sign2 = CPointWorldText.Create(fix, new Vector3(0, -256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
 			sign2?.Teleport(angles: new Vector3(185f, 180f, 270f));
 			sign2?.WorldUnitsPerPx = 0.50f;
 			sign2?.JustifyHorizontal = HorizontalJustify.Center;
 			sign2?.JustifyVertical = VerticalJustify.Center;
 
-			var rulesText = "Every minute, each team\nis assigned a random hero!\nThe team with the most kills wins!";
+			var rulesText = "每分钟轮换英雄\n击杀敌方让敌方变成队友\n先到达目标分数或者使敌方队伍没人的队伍获胜";
 
 			var rules1 = CPointWorldText.Create(rulesText, new Vector3(0, -966, 443), fontSize: 90f, r: 200, g: 200, b: 200, fontName: "Reaver");
 			rules1?.Teleport(angles: new Vector3(180f, 180f, 270f));
@@ -157,13 +159,13 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 			rules2?.JustifyHorizontal = HorizontalJustify.Center;
 			rules2?.JustifyVertical = VerticalJustify.Center;
 
-			var discord1 = CPointWorldText.Create("deadworks.net/discord", new Vector3(-513.4f, -800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
+			var discord1 = CPointWorldText.Create("关注Deadworks discord获取更多信息\n deadworks.net/discord", new Vector3(-513.4f, -800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
 			discord1?.Teleport(angles: new Vector3(180f, 180f, 270f));
 			discord1?.WorldUnitsPerPx = 0.20f;
 			discord1?.JustifyHorizontal = HorizontalJustify.Center;
 			discord1?.JustifyVertical = VerticalJustify.Center;
 
-			var discord2 = CPointWorldText.Create("deadworks.net/discord", new Vector3(513.4f, 800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
+			var discord2 = CPointWorldText.Create("关注Deadworks discord获取更多信息\n deadworks.net/discord", new Vector3(513.4f, 800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
 			discord2?.Teleport(angles: new Vector3(180f, 0f, 270f));
 			discord2?.WorldUnitsPerPx = 0.20f;
 			discord2?.JustifyHorizontal = HorizontalJustify.Center;
