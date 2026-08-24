@@ -388,14 +388,14 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
     }
 
     // 5. 延迟1秒执行换英雄
-    Timer.Once(1.Seconds(), () => {
+    Timer.Once(200.Milliseconds(), () => {
         Console.WriteLine($"[DM] 1秒延迟: 为 {controller.PlayerName} 切换英雄");
         
         // 换英雄（内部会设置 _pendingSwap）
         SwapSinglePlayerHero(controller);
 
         // 6. 再延迟500ms执行装备恢复和满级技能（等待英雄加载完成）
-        Timer.Once(500.Milliseconds(), () => {
+        Timer.Once(200.Milliseconds(), () => {
             Console.WriteLine($"[DM] 500ms延迟: 为 {controller.PlayerName} 恢复装备和技能");
             RestorePlayerState(controller);
         });
