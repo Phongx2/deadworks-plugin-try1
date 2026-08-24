@@ -312,61 +312,68 @@ public class DeathmatchPlugin : DeadworksPluginBase {
     }
 
     [GameEventHandler("player_respawned")]
-    public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
-        // 1. 获取 Controller
-        var controller = args.Userid as CCitadelPlayerController;
-        if (controller == null) {
-            Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家控制器");
-            return HookResult.Continue;
+public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
+    // 1. 先获取 Pawn（Userid 是 Pawn 类型）
+    var pawn = args.Userid as CCitadelPlayerPawn;
+    if (pawn == null) {
+        // 如果转换失败，尝试用另一种方式获取
+        var basePawn = args.Userid as CBasePlayerPawn;
+        if (basePawn != null) {
+            pawn = basePawn.As<CCitadelPlayerPawn>();
         }
-
-        // 2. 获取 Pawn
-        var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
         if (pawn == null) {
-            Console.WriteLine($"[DM] OnPlayerRespawned: 玩家 {controller.PlayerName} 的 Pawn 不存在");
+            Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家 Pawn");
             return HookResult.Continue;
         }
+    }
 
-        // 3. 确认存活
-        if (pawn.LifeState != LifeState.Alive) {
-            Console.WriteLine($"[DM] OnPlayerRespawned: 玩家 {controller.PlayerName} 未存活 (LifeState: {pawn.LifeState})");
-            return HookResult.Continue;
-        }
-
-        Console.WriteLine($"[DM] {controller.PlayerName} 已复活，1秒后执行轮换");
-
-        // 4. 传送（立即执行）
-        var teamKey = pawn.TeamNum.ToString();
-        if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
-            && teams.TryGetValue(teamKey, out var spawns)
-            && spawns.Length > 0) {
-            var spawn = spawns[Random.Shared.Next(spawns.Length)];
-            var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
-            var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
-            pawn.Teleport(position: pos, angles: ang);
-        }
-
-        // 5. 延迟1秒后执行换英雄和满技能
-        Timer.Once(1.Seconds(), () => {
-            // 重新获取 Pawn（确保有效）
-            var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-            if (p == null) {
-                Console.WriteLine($"[DM] 延迟执行: {controller.PlayerName} 的 Pawn 已失效");
-                return;
-            }
-
-            Console.WriteLine($"[DM] 延迟执行: 为 {controller.PlayerName} 换英雄");
-
-            // 换英雄
-            SwapSinglePlayerHero(controller);
-
-            // 满级技能 + 满血
-            MaxUpgradeSignatureAbilities(p);
-            p.Heal(p.GetMaxHealth());
-        });
-
+    // 2. 通过 Pawn 获取 Controller
+    var controller = pawn.Controller as CCitadelPlayerController;
+    if (controller == null) {
+        Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家控制器");
         return HookResult.Continue;
     }
+
+    // 3. 确认存活
+    if (pawn.LifeState != LifeState.Alive) {
+        Console.WriteLine($"[DM] OnPlayerRespawned: 玩家 {controller.PlayerName} 未存活 (LifeState: {pawn.LifeState})");
+        return HookResult.Continue;
+    }
+
+    Console.WriteLine($"[DM] {controller.PlayerName} 已复活，1秒后执行轮换");
+
+    // 4. 传送（立即执行）
+    var teamKey = pawn.TeamNum.ToString();
+    if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
+        && teams.TryGetValue(teamKey, out var spawns)
+        && spawns.Length > 0) {
+        var spawn = spawns[Random.Shared.Next(spawns.Length)];
+        var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
+        var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
+        pawn.Teleport(position: pos, angles: ang);
+    }
+
+    // 5. 延迟1秒后执行换英雄和满技能
+    Timer.Once(1.Seconds(), () => {
+        // 重新获取 Pawn（确保有效）
+        var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+        if (p == null) {
+            Console.WriteLine($"[DM] 延迟执行: {controller.PlayerName} 的 Pawn 已失效");
+            return;
+        }
+
+        Console.WriteLine($"[DM] 延迟执行: 为 {controller.PlayerName} 换英雄");
+
+        // 换英雄
+        SwapSinglePlayerHero(controller);
+
+        // 满级技能 + 满血
+        MaxUpgradeSignatureAbilities(p);
+        p.Heal(p.GetMaxHealth());
+    });
+
+    return HookResult.Continue;
+}
 
     public override HookResult OnClientConCommand(ClientConCommandEvent e) {
         if (e.Command == "selecthero") {
