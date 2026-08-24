@@ -354,14 +354,10 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 
     [GameEventHandler("player_respawned")]
 public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
-    // 1. 获取 Pawn
-    var pawn = args.Userid as CCitadelPlayerPawn;
-
-Console.WriteLine($"[DM] Userid 实际类型: {args.Userid.GetType().FullName}");
-
-    
+    // 1. 获取 Pawn（使用 As<T> 转换）
+    var pawn = args.Userid.As<CCitadelPlayerPawn>();
     if (pawn == null) {
-        Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家 Pawn");
+        Console.WriteLine($"[DM] OnPlayerRespawned: 无法获取玩家 Pawn, 类型: {args.Userid.GetType().FullName}");
         return HookResult.Continue;
     }
 
@@ -378,7 +374,7 @@ Console.WriteLine($"[DM] Userid 实际类型: {args.Userid.GetType().FullName}")
         return HookResult.Continue;
     }
 
-    Console.WriteLine($"[DM] {controller.PlayerName} 已复活，500ms后执行换英雄");
+    Console.WriteLine($"[DM] {controller.PlayerName} 已复活，1秒后执行换英雄");
 
     // 4. 传送（立即执行）
     var teamKey = pawn.TeamNum.ToString();
@@ -391,9 +387,9 @@ Console.WriteLine($"[DM] Userid 实际类型: {args.Userid.GetType().FullName}")
         pawn.Teleport(position: pos, angles: ang);
     }
 
-    // 5. 延迟500ms执行换英雄
-    Timer.Once(1000.Milliseconds(), () => {
-        Console.WriteLine($"[DM] 500ms延迟: 为 {controller.PlayerName} 切换英雄");
+    // 5. 延迟1秒执行换英雄
+    Timer.Once(1.Seconds(), () => {
+        Console.WriteLine($"[DM] 1秒延迟: 为 {controller.PlayerName} 切换英雄");
         
         // 换英雄（内部会设置 _pendingSwap）
         SwapSinglePlayerHero(controller);
