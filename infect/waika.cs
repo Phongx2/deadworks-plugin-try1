@@ -1165,7 +1165,25 @@ public void CmdSetTime(CCitadelPlayerController caller, int minutes)
 
 
 
+// ========== /stop 命令 ==========
+[Command("stop", Description = "停止 /ks 序列")]
+public void CmdStop(CCitadelPlayerController? caller)
+{
+    if (!_isKsRunning) return;
 
+    _isKsRunning = false;
+    _currentCommandIndex = 0;
+
+    if (_ksTimer != null)
+    {
+        _ksTimer.Cancel();
+        _ksTimer = null;
+    }
+
+    _shuffledCommands.Clear();
+
+    Console.WriteLine("[Waika] /ks stopped");
+}
 
 
 
