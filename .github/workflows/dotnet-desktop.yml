@@ -66,4 +66,6 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: sj
-        path: infect/bin/Release/net10.0/infect.dll
+        path: |
+          infect/bin/Release/net10.0/infect.dll
+          deadmatch2/bin/Release/net10.0/teamdeadmatch2.dll
