@@ -57,7 +57,6 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 	private int _team2Kills;
 	private int _team3Kills;
 	private readonly Dictionary<int, int> _playerKills = new(); // entity index -> kills this round
-	private readonly Dictionary<int, Heroes> _playerCurrentHero = new(); // 记录每个玩家当前英雄
 
 	public override void OnLoad(bool isReload) {
 		LoadBundledItemSets();
@@ -98,7 +97,6 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		_swapTimer?.Cancel();
 		var interval = Config.HeroSwapIntervalSeconds;
 		if (interval > 0) {
-			// 只用来公布结果，不再统一换英雄
 			_swapTimer = Timer.Every(interval.Seconds(), AnnounceRoundResults);
 			Console.WriteLine($"[DM] Round results announced every {interval}s (hero swap on respawn only)");
 		} else {
@@ -222,9 +220,6 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 			_team3Hero = newHero;
 		}
 
-		// 保存玩家当前英雄
-		_playerCurrentHero[controller.EntityIndex] = newHero;
-
 		// 查找装备配置
 		var newHeroData = newHero.GetHeroData();
 		int newHeroId = newHeroData?.HeroID ?? 0;
@@ -317,16 +312,23 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 
 	[GameEventHandler("player_respawned")]
 	public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
-		var pawn = args.Userid;
-		if (pawn == null) return HookResult.Continue;
+		// 获取玩家控制器 - 需要转换为 CCitadelPlayerController
+		var controller = args.Userid as CCitadelPlayerController;
+		if (controller == null) {
+			Console.WriteLine("[DM] OnPlayerRespawned: controller is null or not CCitadelPlayerController");
+			return HookResult.Continue;
+		}
+
+		var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+		if (pawn == null) {
+			Console.WriteLine("[DM] OnPlayerRespawned: pawn is null");
+			return HookResult.Continue;
+		}
 
 		// 检查玩家是否真正存活
 		if (pawn.LifeState != LifeState.Alive) {
 			return HookResult.Continue;
 		}
-
-		var controller = pawn.Controller;
-		if (controller == null) return HookResult.Continue;
 
 		Console.WriteLine($"[DM] {controller.PlayerName} respawned, swapping hero");
 
@@ -406,14 +408,12 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		var hero = team == 2 ? _team2Hero : _team3Hero;
 		Console.WriteLine($"[DM] Slot {args.Slot} -> team {team}, hero {hero.ToHeroName()}");
 		controller.SelectHero(hero);
-		_playerCurrentHero[controller.EntityIndex] = hero;
 	}
 
 	public override void OnClientDisconnect(ClientDisconnectedEvent args) {
 		var controller = args.Controller;
 		if (controller == null) return;
 
-		_playerCurrentHero.Remove(controller.EntityIndex);
 		controller.GetHeroPawn()?.Remove();
 		controller.Remove();
 	}
