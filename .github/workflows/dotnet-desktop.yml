@@ -62,6 +62,11 @@ jobs:
     - name: Build
       run: dotnet build -c Release --no-restore
     
+    - name: Copy DLLs to root
+      run: |
+        cp infect/bin/Release/net10.0/infect.dll .
+        cp deadmatch2/bin/Release/net10.0/teamdeadmatch2.dll .
+    
     - name: Upload DLL artifact
       uses: actions/upload-artifact@v4
       with:
