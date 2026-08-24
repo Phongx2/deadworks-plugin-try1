@@ -3,26 +3,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
-
-
   </PropertyGroup>
 
-<ItemGroup>
+  <ItemGroup>
     <Reference Include="DeadworksManaged.Api">
-      <HintPath>../managed\DeadworksManaged.Api.dll</HintPath>
+      <HintPath>../infect/managed/DeadworksManaged.Api.dll</HintPath>
     </Reference>
     <Reference Include="Google.Protobuf">
-      <HintPath>../managed\Google.Protobuf.dll</HintPath>
+      <HintPath>../infect/managed/Google.Protobuf.dll</HintPath>
     </Reference>
-</ItemGroup>
-
-
+  </ItemGroup>
 
   <ItemGroup>
     <EmbeddedResource Include="HeroItemSets.jsonc" />
   </ItemGroup>
-
-
-
-
 </Project>
