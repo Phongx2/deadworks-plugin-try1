@@ -67,5 +67,5 @@ jobs:
       with:
         name: sj
         path: |
-          infect/bin/Release/net10.0/infect.dll
-          deadmatch2/bin/Release/net10.0/teamdeadmatch2.dll
+          infect.dll
+          teamdeadmatch2.dll
