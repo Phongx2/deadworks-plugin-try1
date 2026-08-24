@@ -7,9 +7,16 @@ public class RestartPlugin : DeadworksPluginBase
 {
     public override string Name => "Restart";
 
-    private bool _isConsoleRestarting = false;
-    private RestartState? _consoleRestartState = null;
-    private readonly Dictionary<CCitadelPlayerController, RestartState> _playerRestartStates = new();
+    public override void OnLoad(bool isReload)
+    {
+        Console.WriteLine(isReload ? "[Restart] 热重载完成！" : "[Restart] 已加载！");
+    }
+
+    public override void OnUnload()
+    {
+        Console.WriteLine("[Restart] 已卸载！");
+        _restartTimers.Clear();
+    }
 
     private class RestartState
     {
@@ -25,73 +32,29 @@ public class RestartPlugin : DeadworksPluginBase
         }
     }
 
-    public override void OnLoad(bool isReload)
-    {
-        Console.WriteLine(isReload ? "[Restart] 热重载完成！" : "[Restart] 已加载！");
-    }
+    private readonly Dictionary<CCitadelPlayerController, RestartState> _restartTimers = new();
 
-    public override void OnUnload()
-    {
-        Console.WriteLine("[Restart] 已卸载！");
-        _playerRestartStates.Clear();
-        _consoleRestartState = null;
-        _isConsoleRestarting = false;
-    }
-
+    // ========== 命令：/r（玩家用，3秒倒计时） ==========
     [Command("r", Description = "3秒后重置服务器并换图到 dl_midtown", SuppressChat = true)]
-    public void CmdRestart(CCitadelPlayerController? caller)
+    public void CmdRestart(CCitadelPlayerController caller)
     {
         string playerName = caller?.PlayerName ?? "Server Console";
         Console.WriteLine($"[Restart] {playerName} 执行了重置命令");
 
-        if (caller == null)
+        if (_restartTimers.ContainsKey(caller))
         {
-            HandleConsoleRestart();
+            CancelRestart(caller);
+            caller?.PrintToConsole("[Restart] 已取消之前的重启");
             return;
         }
 
-        HandlePlayerRestart(caller);
-    }
+        CCitadelPlayerController.PrintToConsoleAll($"[Restart] {playerName} 发起了服务器重置，将在 3 秒后执行");
 
-    private void HandleConsoleRestart()
-    {
-        if (_isConsoleRestarting)
-        {
-            Console.WriteLine("[Restart] 控制台已有正在进行的重启，取消");
-            CancelConsoleRestart();
-            return;
-        }
+        var state = new RestartState(3);
+        _restartTimers[caller] = state;
 
-        CCitadelPlayerController.PrintToConsoleAll("[Restart] Server Console 发起了服务器重置，将在 3 秒后执行");
+        SendHUDAnnouncement("🔄 服务器重置", "3 秒后即将重置服务器...");
 
-        var newState = new RestartState(3);
-        _isConsoleRestarting = true;
-        _consoleRestartState = newState;
-
-        SendHUD("🔄 服务器重置", "3 秒后即将重置服务器...");
-        RunCountdown(newState, null);
-    }
-
-    private void HandlePlayerRestart(CCitadelPlayerController player)
-    {
-        if (_playerRestartStates.ContainsKey(player))
-        {
-            CancelPlayerRestart(player);
-            player.PrintToConsole("[Restart] 已取消之前的重启");
-            return;
-        }
-
-        CCitadelPlayerController.PrintToConsoleAll($"[Restart] {player.PlayerName} 发起了服务器重置，将在 3 秒后执行");
-
-        var newState = new RestartState(3);
-        _playerRestartStates[player] = newState;
-
-        SendHUD("🔄 服务器重置", "3 秒后即将重置服务器...");
-        RunCountdown(newState, player);
-    }
-
-    private void RunCountdown(RestartState state, CCitadelPlayerController? player)
-    {
         state.HudTimer = Timer.Every(1.Seconds(), () =>
         {
             state.Countdown--;
@@ -99,14 +62,14 @@ public class RestartPlugin : DeadworksPluginBase
 
             if (state.Countdown > 0)
             {
-                SendHUD("🔄 服务器重置", $"{state.Countdown} 秒后即将重置服务器...");
+                SendHUDAnnouncement("🔄 服务器重置", $"{state.Countdown} 秒后即将重置服务器...");
             }
             else
             {
                 state.HudTimer?.Cancel();
                 state.HudTimer = null;
 
-                SendHUD("🔄 服务器重置", "正在重置服务器...");
+                SendHUDAnnouncement("🔄 服务器重置", "正在重置服务器...");
 
                 state.ExecuteTimer = Timer.Once(500.Milliseconds(), () =>
                 {
@@ -122,54 +85,48 @@ public class RestartPlugin : DeadworksPluginBase
                     {
                         Console.WriteLine($"[Restart] 换图失败: {ex.Message}");
                         CCitadelPlayerController.PrintToConsoleAll($"[Restart] 换图失败: {ex.Message}");
-                        SendHUD("❌ 重置失败", $"换图失败: {ex.Message}");
+                        SendHUDAnnouncement("❌ 重置失败", $"换图失败: {ex.Message}");
                     }
 
-                    CleanupState(player);
+                    _restartTimers.Remove(caller);
                 });
             }
         });
     }
 
-    private void CleanupState(CCitadelPlayerController? player)
+    // ========== 命令：dw_rr（服务器控制台专用，立即换图） ==========
+    [Command("rr", Description = "服务器控制台专用: 立即换图到 dl_midtown",
+             ServerOnly = true,
+             ConsoleOnly = true,
+             SuppressChat = true)]
+    public void CmdRr(CCitadelPlayerController? caller)
     {
-        if (player != null)
+        Console.WriteLine("[Restart] 执行 dw_rr 换图命令，目标地图: dl_midtown");
+
+        try
         {
-            _playerRestartStates.Remove(player);
+            Server.ExecuteCommand("changelevel dl_midtown");
+            Console.WriteLine("[Restart] 换图命令已发送");
         }
-        else
+        catch (Exception ex)
         {
-            _isConsoleRestarting = false;
-            _consoleRestartState = null;
+            Console.WriteLine($"[Restart] 换图失败: {ex.Message}");
         }
     }
 
-    private void CancelPlayerRestart(CCitadelPlayerController player)
+    private void CancelRestart(CCitadelPlayerController caller)
     {
-        if (_playerRestartStates.TryGetValue(player, out var state))
+        if (_restartTimers.TryGetValue(caller, out var state))
         {
             state.HudTimer?.Cancel();
             state.ExecuteTimer?.Cancel();
-            _playerRestartStates.Remove(player);
-            Console.WriteLine($"[Restart] 已取消 {player.PlayerName} 的重启");
-            SendHUD("⏹️ 已取消", "服务器重置已取消");
+            _restartTimers.Remove(caller);
+            Console.WriteLine($"[Restart] 已取消 {caller?.PlayerName ?? "Server"} 的重启");
+            SendHUDAnnouncement("⏹️ 已取消", "服务器重置已取消");
         }
     }
 
-    private void CancelConsoleRestart()
-    {
-        if (_consoleRestartState != null)
-        {
-            _consoleRestartState.HudTimer?.Cancel();
-            _consoleRestartState.ExecuteTimer?.Cancel();
-            _consoleRestartState = null;
-        }
-        _isConsoleRestarting = false;
-        Console.WriteLine("[Restart] 已取消控制台的重启");
-        SendHUD("⏹️ 已取消", "服务器重置已取消");
-    }
-
-    private void SendHUD(string title, string description)
+    private void SendHUDAnnouncement(string title, string description)
     {
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
