@@ -9,10 +9,10 @@
 
 <ItemGroup>
     <Reference Include="DeadworksManaged.Api">
-      <HintPath>managed\DeadworksManaged.Api.dll</HintPath>
+      <HintPath>../managed\DeadworksManaged.Api.dll</HintPath>
     </Reference>
     <Reference Include="Google.Protobuf">
-      <HintPath>managed\Google.Protobuf.dll</HintPath>
+      <HintPath>../managed\Google.Protobuf.dll</HintPath>
     </Reference>
 </ItemGroup>
 
