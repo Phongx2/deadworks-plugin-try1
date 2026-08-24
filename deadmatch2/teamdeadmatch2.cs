@@ -57,6 +57,7 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 	private int _team2Kills;
 	private int _team3Kills;
 	private readonly Dictionary<int, int> _playerKills = new(); // entity index -> kills this round
+	private readonly Dictionary<int, Heroes> _playerCurrentHero = new(); // 记录每个玩家当前英雄
 
 	public override void OnLoad(bool isReload) {
 		LoadBundledItemSets();
@@ -97,10 +98,11 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		_swapTimer?.Cancel();
 		var interval = Config.HeroSwapIntervalSeconds;
 		if (interval > 0) {
-			_swapTimer = Timer.Every(interval.Seconds(), SwapHeroes);
-			Console.WriteLine($"[DM] Hero swap every {interval}s");
+			// 只用来公布结果，不再统一换英雄
+			_swapTimer = Timer.Every(interval.Seconds(), AnnounceRoundResults);
+			Console.WriteLine($"[DM] Round results announced every {interval}s (hero swap on respawn only)");
 		} else {
-			Console.WriteLine("[DM] Hero swap disabled");
+			Console.WriteLine("[DM] Round results announcement disabled");
 		}
 	}
 
@@ -133,7 +135,7 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 
 		Timer.Once(3.Seconds(), () => {
 
-			var fix = "击杀感染团队竞技\n代码改版自Deadworks github仓库案例\n祝您游玩愉快";
+			var fix = "击杀感染团队竞技\n代码改版自Deadworks仓库案例\n祝您游玩愉快";
 			var sign1 = CPointWorldText.Create(fix, new Vector3(0, 256, 542), fontSize: 100f, r: 127, g: 0, b: 127, fontName: "Reaver");
 			sign1?.Teleport(angles: new Vector3(185f, 0f, 270f));
 			sign1?.WorldUnitsPerPx = 0.50f;
@@ -145,7 +147,7 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 			sign2?.JustifyHorizontal = HorizontalJustify.Center;
 			sign2?.JustifyVertical = VerticalJustify.Center;
 
-			var rulesText = "每分钟轮换英雄\n击杀敌方让敌方变成队友\n先到达目标分数或者使敌方队伍没人的队伍获胜";
+			var rulesText = "每分钟轮换英雄\n击杀敌方让敌方变成队友\n使敌方队伍没人的队伍获胜";
 
 			var rules1 = CPointWorldText.Create(rulesText, new Vector3(0, -966, 443), fontSize: 90f, r: 200, g: 200, b: 200, fontName: "Reaver");
 			rules1?.Teleport(angles: new Vector3(180f, 180f, 270f));
@@ -159,7 +161,7 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 			rules2?.JustifyHorizontal = HorizontalJustify.Center;
 			rules2?.JustifyVertical = VerticalJustify.Center;
 
-			var discord1 = CPointWorldText.Create("关注Deadworks discord获取更多信息\n deadworks.net/discord", new Vector3(-513.4f, -800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
+			var discord1 = CPointWorldText.Create("关注他们的discord获取更多信息\n deadworks.net/discord", new Vector3(-513.4f, -800f, 452.8f), fontSize: 90f, r: 200, g: 50, b: 50, fontName: "Radiance");
 			discord1?.Teleport(angles: new Vector3(180f, 180f, 270f));
 			discord1?.WorldUnitsPerPx = 0.20f;
 			discord1?.JustifyHorizontal = HorizontalJustify.Center;
@@ -198,59 +200,41 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		return (first, second);
 	}
 
-	private void SwapHeroes() {
-		if (_team2Kills > 0 || _team3Kills > 0)
-			AnnounceRoundResults();
+	/// <summary>
+	/// 为单个玩家轮换英雄（复活时调用）
+	/// </summary>
+	private void SwapSinglePlayerHero(CCitadelPlayerController controller) {
+		if (controller == null) return;
 
-		_team2Kills = 0;
-		_team3Kills = 0;
-		_playerKills.Clear();
+		var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+		if (pawn == null) return;
 
-		(_team2Hero, _team3Hero) = PickTwoRandomHeroes();
-		Console.WriteLine($"[DM] New heroes! Team 2: {_team2Hero.ToHeroName()}, Team 3: {_team3Hero.ToHeroName()}");
+		var team = pawn.TeamNum;
+		var history = team == 2 ? _team2History : _team3History;
 
-		foreach (var controller in Players.GetAll()) {
-			var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-			if (pawn == null) continue;
+		// 选一个新英雄（不重复逻辑）
+		var newHero = PickRandomHero(history);
 
-			var newHero = pawn.TeamNum == 2 ? _team2Hero : _team3Hero;
-			var newHeroData = newHero.GetHeroData();
-			int newHeroId = newHeroData?.HeroID ?? 0;
-
-			// Look up the item set for the new hero
-			Config.HeroItemSets.TryGetValue(newHeroId.ToString(), out var itemSet);
-
-			int gold = itemSet?.GoldRemaining ?? 50_000;
-			_pendingSwap[controller] = new SwapState(itemSet?.Items ?? new(), new(), gold);
-			controller.SelectHero(newHero);
+		// 更新队伍英雄记录
+		if (team == 2) {
+			_team2Hero = newHero;
+		} else {
+			_team3Hero = newHero;
 		}
 
-		// Hero loading is async — restore after it completes.
-		Timer.Once(1.Seconds(), () => {
-			foreach (var controller in Players.GetAll()) {
-				if (!_pendingSwap.TryGet(controller, out var state)) {
-					continue;
-				}
+		// 保存玩家当前英雄
+		_playerCurrentHero[controller.EntityIndex] = newHero;
 
-				var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-				if (p == null) { Console.WriteLine("[DM] Pawn is null in timer"); continue; }
+		// 查找装备配置
+		var newHeroData = newHero.GetHeroData();
+		int newHeroId = newHeroData?.HeroID ?? 0;
+		Config.HeroItemSets.TryGetValue(newHeroId.ToString(), out var itemSet);
 
-				// ResetHero triggers EStartingAmount — _pendingSwap must still
-				// exist so OnModifyCurrency restores saved gold instead of 15000.
-				p.ResetHero();
-				_pendingSwap.Remove(controller);
+		int gold = itemSet?.GoldRemaining ?? 50_000;
+		_pendingSwap[controller] = new SwapState(itemSet?.Items ?? new(), new(), gold);
+		controller.SelectHero(newHero);
 
-				p.Heal(p.GetMaxHealth());
-				MaxUpgradeSignatureAbilities(p);
-
-				foreach (var item in state.Items) {
-					var result = p.AddItem(item);
-					Console.WriteLine($"[DM]   AddItem({item}) => {(result != null ? result.ToString() : "NULL")}");
-				}
-
-				Console.WriteLine($"[DM] Restored {state.Items.Count} items, {state.Gold}g for {controller.PlayerName}");
-			}
-		});
+		Console.WriteLine($"[DM] {controller.PlayerName} (Team {team}) swapped to {newHero.ToHeroName()}");
 	}
 
 	[Command("pos", Description = "Print your current position and camera angles as JSON")]
@@ -285,6 +269,12 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 	}
 
 	private void AnnounceRoundResults() {
+		// 如果本轮没有击杀，不公告
+		if (_team2Kills == 0 && _team3Kills == 0) {
+			Console.WriteLine("[DM] No kills this round, skipping announcement");
+			return;
+		}
+
 		var winnerHero = _team2Kills >= _team3Kills ? _team2Hero : _team3Hero;
 		var winnerKills = Math.Max(_team2Kills, _team3Kills);
 		var loserKills = Math.Min(_team2Kills, _team3Kills);
@@ -316,6 +306,13 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 			DescriptionLocstring = desc
 		};
 		NetMessages.Send(msg, RecipientFilter.All);
+
+		Console.WriteLine($"[DM] Round announced: {title} {desc}");
+
+		// 公告后重置计数
+		_team2Kills = 0;
+		_team3Kills = 0;
+		_playerKills.Clear();
 	}
 
 	[GameEventHandler("player_respawned")]
@@ -323,6 +320,17 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		var pawn = args.Userid;
 		if (pawn == null) return HookResult.Continue;
 
+		// 检查玩家是否真正存活
+		if (pawn.LifeState != LifeState.Alive) {
+			return HookResult.Continue;
+		}
+
+		var controller = pawn.Controller;
+		if (controller == null) return HookResult.Continue;
+
+		Console.WriteLine($"[DM] {controller.PlayerName} respawned, swapping hero");
+
+		// 传送到出生点（如果有配置）
 		var teamKey = pawn.TeamNum.ToString();
 		if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
 			&& teams.TryGetValue(teamKey, out var spawns)
@@ -333,7 +341,18 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 			pawn.Teleport(position: pos, angles: ang);
 		}
 
-		MaxUpgradeSignatureAbilities(pawn.As<CCitadelPlayerPawn>());
+		// 为这个玩家独立轮换英雄
+		SwapSinglePlayerHero(controller);
+
+		// 满级技能（等待英雄加载完成后执行）
+		Timer.Once(1.Seconds(), () => {
+			var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+			if (p != null) {
+				MaxUpgradeSignatureAbilities(p);
+				p.Heal(p.GetMaxHealth());
+			}
+		});
+
 		return HookResult.Continue;
 	}
 
@@ -352,7 +371,7 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		var pawn = args.Userid?.As<CCitadelPlayerPawn>();
 		if (pawn == null) return HookResult.Continue;
 
-		// Swap in progress - skip, the timer in SwapHeroes handles restoration.
+		// Swap in progress - skip, the timer handles restoration.
 		var controller = pawn.Controller;
 		if (controller != null && _pendingSwap.Has(controller))
 			return HookResult.Continue;
@@ -387,12 +406,14 @@ public class DeathmatchPlugin : DeadworksPluginBase {
 		var hero = team == 2 ? _team2Hero : _team3Hero;
 		Console.WriteLine($"[DM] Slot {args.Slot} -> team {team}, hero {hero.ToHeroName()}");
 		controller.SelectHero(hero);
+		_playerCurrentHero[controller.EntityIndex] = hero;
 	}
 
 	public override void OnClientDisconnect(ClientDisconnectedEvent args) {
 		var controller = args.Controller;
 		if (controller == null) return;
 
+		_playerCurrentHero.Remove(controller.EntityIndex);
 		controller.GetHeroPawn()?.Remove();
 		controller.Remove();
 	}
