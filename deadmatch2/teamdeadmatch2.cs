@@ -233,6 +233,47 @@ public class DeathmatchPlugin : DeadworksPluginBase {
         Console.WriteLine($"[DM] {controller.PlayerName} (Team {team}) swapped to {newHero.ToHeroName()}");
     }
 
+    /// <summary>
+    /// 为玩家恢复装备和满级技能
+    /// </summary>
+    private void RestorePlayerState(CCitadelPlayerController controller) {
+        if (controller == null) return;
+
+        var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+        if (pawn == null) {
+            Console.WriteLine($"[DM] RestorePlayerState: {controller.PlayerName} 的 Pawn 不存在");
+            return;
+        }
+
+        // 从 _pendingSwap 获取状态
+        if (!_pendingSwap.TryGet(controller, out var state)) {
+            Console.WriteLine($"[DM] RestorePlayerState: {controller.PlayerName} 没有待恢复的状态");
+            return;
+        }
+
+        Console.WriteLine($"[DM] RestorePlayerState: 为 {controller.PlayerName} 恢复 {state.Items.Count} 件物品, {state.Gold} 金币");
+
+        // 重置英雄（清除默认物品）
+        pawn.ResetHero();
+
+        // 添加物品
+        foreach (var item in state.Items) {
+            var result = pawn.AddItem(item);
+            Console.WriteLine($"[DM]   AddItem({item}) => {(result != null ? "成功" : "失败")}");
+        }
+
+        // 满级技能
+        MaxUpgradeSignatureAbilities(pawn);
+
+        // 满血
+        pawn.Heal(pawn.GetMaxHealth());
+
+        // 移除待处理状态
+        _pendingSwap.Remove(controller);
+
+        Console.WriteLine($"[DM] {controller.PlayerName} 状态恢复完成");
+    }
+
     [Command("pos", Description = "Print your current position and camera angles as JSON")]
     public void CmdPos(CCitadelPlayerController caller) {
         var pawn = caller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
@@ -312,68 +353,56 @@ public class DeathmatchPlugin : DeadworksPluginBase {
     }
 
     [GameEventHandler("player_respawned")]
-public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
-    // 1. 先获取 Pawn（Userid 是 Pawn 类型）
-    var pawn = args.Userid as CCitadelPlayerPawn;
-    if (pawn == null) {
-        // 如果转换失败，尝试用另一种方式获取
-        var basePawn = args.Userid as CBasePlayerPawn;
-        if (basePawn != null) {
-            pawn = basePawn.As<CCitadelPlayerPawn>();
-        }
+    public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
+        // 1. 获取 Pawn
+        var pawn = args.Userid as CCitadelPlayerPawn;
         if (pawn == null) {
             Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家 Pawn");
             return HookResult.Continue;
         }
-    }
 
-    // 2. 通过 Pawn 获取 Controller
-    var controller = pawn.Controller as CCitadelPlayerController;
-    if (controller == null) {
-        Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家控制器");
-        return HookResult.Continue;
-    }
-
-    // 3. 确认存活
-    if (pawn.LifeState != LifeState.Alive) {
-        Console.WriteLine($"[DM] OnPlayerRespawned: 玩家 {controller.PlayerName} 未存活 (LifeState: {pawn.LifeState})");
-        return HookResult.Continue;
-    }
-
-    Console.WriteLine($"[DM] {controller.PlayerName} 已复活，1秒后执行轮换");
-
-    // 4. 传送（立即执行）
-    var teamKey = pawn.TeamNum.ToString();
-    if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
-        && teams.TryGetValue(teamKey, out var spawns)
-        && spawns.Length > 0) {
-        var spawn = spawns[Random.Shared.Next(spawns.Length)];
-        var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
-        var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
-        pawn.Teleport(position: pos, angles: ang);
-    }
-
-    // 5. 延迟1秒后执行换英雄和满技能
-    Timer.Once(1.Seconds(), () => {
-        // 重新获取 Pawn（确保有效）
-        var p = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-        if (p == null) {
-            Console.WriteLine($"[DM] 延迟执行: {controller.PlayerName} 的 Pawn 已失效");
-            return;
+        // 2. 通过 Pawn 获取 Controller
+        var controller = pawn.Controller as CCitadelPlayerController;
+        if (controller == null) {
+            Console.WriteLine("[DM] OnPlayerRespawned: 无法获取玩家控制器");
+            return HookResult.Continue;
         }
 
-        Console.WriteLine($"[DM] 延迟执行: 为 {controller.PlayerName} 换英雄");
+        // 3. 确认存活
+        if (pawn.LifeState != LifeState.Alive) {
+            Console.WriteLine($"[DM] OnPlayerRespawned: 玩家 {controller.PlayerName} 未存活 (LifeState: {pawn.LifeState})");
+            return HookResult.Continue;
+        }
 
-        // 换英雄
-        SwapSinglePlayerHero(controller);
+        Console.WriteLine($"[DM] {controller.PlayerName} 已复活，1 tick后执行轮换");
 
-        // 满级技能 + 满血
-        MaxUpgradeSignatureAbilities(p);
-        p.Heal(p.GetMaxHealth());
-    });
+        // 4. 传送（立即执行）
+        var teamKey = pawn.TeamNum.ToString();
+        if (Config.SpawnPoints.TryGetValue(Server.MapName, out var teams)
+            && teams.TryGetValue(teamKey, out var spawns)
+            && spawns.Length > 0) {
+            var spawn = spawns[Random.Shared.Next(spawns.Length)];
+            var pos = spawn.Pos.Length >= 3 ? new Vector3(spawn.Pos[0], spawn.Pos[1], spawn.Pos[2]) : (Vector3?)null;
+            var ang = spawn.Ang.Length >= 3 ? new Vector3(spawn.Ang[0], spawn.Ang[1], spawn.Ang[2]) : (Vector3?)null;
+            pawn.Teleport(position: pos, angles: ang);
+        }
 
-    return HookResult.Continue;
-}
+        // 5. 下一个 Tick 执行换英雄
+        Timer.NextTick(() => {
+            Console.WriteLine($"[DM] NextTick: 为 {controller.PlayerName} 切换英雄");
+            
+            // 换英雄（内部会设置 _pendingSwap）
+            SwapSinglePlayerHero(controller);
+
+            // 6. 再下一个 Tick 执行装备恢复和满级技能（等待英雄加载完成）
+            Timer.NextTick(() => {
+                Console.WriteLine($"[DM] NextTick: 为 {controller.PlayerName} 恢复装备和技能");
+                RestorePlayerState(controller);
+            });
+        });
+
+        return HookResult.Continue;
+    }
 
     public override HookResult OnClientConCommand(ClientConCommandEvent e) {
         if (e.Command == "selecthero") {
@@ -390,11 +419,16 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
         var pawn = args.Userid?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
-        // Swap in progress - skip, the timer handles restoration.
         var controller = pawn.Controller;
-        if (controller != null && _pendingSwap.Has(controller))
-            return HookResult.Continue;
+        if (controller == null) return HookResult.Continue;
 
+        // 如果有待恢复的状态，跳过（由 RestorePlayerState 处理）
+        if (_pendingSwap.Has(controller)) {
+            Console.WriteLine($"[DM] OnPlayerHeroChanged: {controller.PlayerName} 有待恢复状态，跳过");
+            return HookResult.Continue;
+        }
+
+        // 对于没有待处理状态的玩家，执行常规恢复
         pawn.ResetHero();
         pawn.Heal(pawn.GetMaxHealth());
         MaxUpgradeSignatureAbilities(pawn);
