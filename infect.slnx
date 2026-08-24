@@ -1,4 +1,5 @@
 <Solution>
   <Project Path="infect/infect.csproj" />
 
+<Project Path="deadmatch2/teamdeadmatch2.csproj" />
 </Solution>
