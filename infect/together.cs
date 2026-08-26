@@ -11,6 +11,10 @@ public class XfPlugin : DeadworksPluginBase
     private bool _isActive = false;
     private IHandle? _moveTimer = null;
 
+    // 存储每队队长（目标）的 SteamId，用于跨英雄切换识别
+    private ulong? _team2TargetSteamId = null;
+    private ulong? _team3TargetSteamId = null;
+
     private CCitadelPlayerPawn? _team2Target = null;
     private List<CCitadelPlayerPawn> _team2Followers = new List<CCitadelPlayerPawn>();
     private CCitadelPlayerPawn? _team3Target = null;
@@ -67,6 +71,8 @@ public class XfPlugin : DeadworksPluginBase
         _team3Followers.Clear();
         _team2Target = null;
         _team3Target = null;
+        _team2TargetSteamId = null;
+        _team3TargetSteamId = null;
 
         var allPawns = Players.GetAllPawns().ToList();
         if (allPawns.Count < 2)
@@ -85,6 +91,12 @@ public class XfPlugin : DeadworksPluginBase
             int targetIndex = random.Next(team2Pawns.Count);
             _team2Target = team2Pawns[targetIndex];
 
+            var controller = GetControllerFromPawn(_team2Target);
+            if (controller != null)
+            {
+                _team2TargetSteamId = controller.PlayerSteamId;
+            }
+
             _team2Followers = team2Pawns
                 .Where((p, index) => index != targetIndex)
                 .ToList();
@@ -102,6 +114,12 @@ public class XfPlugin : DeadworksPluginBase
             var random = new Random();
             int targetIndex = random.Next(team3Pawns.Count);
             _team3Target = team3Pawns[targetIndex];
+
+            var controller = GetControllerFromPawn(_team3Target);
+            if (controller != null)
+            {
+                _team3TargetSteamId = controller.PlayerSteamId;
+            }
 
             _team3Followers = team3Pawns
                 .Where((p, index) => index != targetIndex)
@@ -124,7 +142,6 @@ public class XfPlugin : DeadworksPluginBase
 
         SendHUDToAll();
 
-        // ========== 启动每 50ms 移动 ==========
         _moveTimer = Timer.Every(50.Milliseconds(), () =>
         {
             if (!_isActive)
@@ -134,14 +151,15 @@ public class XfPlugin : DeadworksPluginBase
                 return;
             }
 
-            // ========== 检查目标是否失效，只有失效时才重新分配 ==========
+            // ========== 检查目标是否失效 ==========
             bool target2Invalid = (_team2Target == null || !_team2Target.IsValid);
             bool target3Invalid = (_team3Target == null || !_team3Target.IsValid);
 
+            // 如果有目标失效，重新分配跟随者（但保持队长不变）
             if (target2Invalid || target3Invalid)
             {
-                Console.WriteLine("[Xf] 检测到目标失效，重新分配");
-                ReassignTargets();
+                Console.WriteLine("[Xf] 检测到目标失效，重新分配跟随者");
+                RefreshFollowers();
                 if (!_isActive) return;
             }
 
@@ -187,22 +205,16 @@ public class XfPlugin : DeadworksPluginBase
         _team2Followers.Clear();
         _team3Target = null;
         _team3Followers.Clear();
+        _team2TargetSteamId = null;
+        _team3TargetSteamId = null;
     }
 
-    private void ReassignTargets()
+    // ========== 重新分配跟随者（队长不变） ==========
+    private void RefreshFollowers()
     {
         if (!_isActive) return;
 
-        Console.WriteLine("[Xf] 重新分配目标和跟随者");
-
-        // 保存旧的跟随者列表（用于重新分配时保留未失效的玩家）
-        var oldTeam2Followers = new List<CCitadelPlayerPawn>(_team2Followers);
-        var oldTeam3Followers = new List<CCitadelPlayerPawn>(_team3Followers);
-
-        _team2Followers.Clear();
-        _team3Followers.Clear();
-        _team2Target = null;
-        _team3Target = null;
+        Console.WriteLine("[Xf] 刷新跟随者列表（队长不变）");
 
         var allPawns = Players.GetAllPawns().ToList();
         if (allPawns.Count < 2) return;
@@ -210,54 +222,53 @@ public class XfPlugin : DeadworksPluginBase
         var team2Pawns = allPawns.Where(p => p.TeamNum == 2).ToList();
         var team3Pawns = allPawns.Where(p => p.TeamNum == 3).ToList();
 
-        // ========== 重新分配 Team 2 ==========
-        if (team2Pawns.Count >= 2)
+        // ========== Team 2：重新分配跟随者 ==========
+        if (_team2TargetSteamId.HasValue)
         {
-            // 优先保留旧目标（如果仍然有效）
-            CCitadelPlayerPawn? newTarget = null;
-            if (_team2Target != null && _team2Target.IsValid && team2Pawns.Contains(_team2Target))
+            // 通过 SteamId 重新查找队长
+            var target = team2Pawns.FirstOrDefault(p =>
             {
-                newTarget = _team2Target;
+                var controller = GetControllerFromPawn(p);
+                return controller != null && controller.PlayerSteamId == _team2TargetSteamId.Value;
+            });
+
+            if (target != null && target.IsValid)
+            {
+                _team2Target = target;
+                // 跟随者 = 同队所有其他人
+                _team2Followers = team2Pawns.Where(p => p != target).ToList();
+                Console.WriteLine($"[Xf] Team 2 队长: {GetPlayerName(_team2Target)}, 跟随者: {_team2Followers.Count} 人");
             }
             else
             {
-                var random = new Random();
-                newTarget = team2Pawns[random.Next(team2Pawns.Count)];
+                // 队长已不在游戏中（掉线），停止该队跟随
+                Console.WriteLine("[Xf] Team 2 队长已离开游戏");
+                _team2Target = null;
+                _team2Followers.Clear();
             }
-
-            _team2Target = newTarget;
-            _team2Followers = team2Pawns.Where(p => p != newTarget).ToList();
-
-            Console.WriteLine($"[Xf] Team 2 新目标: {GetPlayerName(_team2Target)}");
-        }
-        else if (team2Pawns.Count == 1)
-        {
-            // 只有一个人，没有跟随者
-            Console.WriteLine("[Xf] Team 2 只有一个人");
         }
 
-        // ========== 重新分配 Team 3 ==========
-        if (team3Pawns.Count >= 2)
+        // ========== Team 3：重新分配跟随者 ==========
+        if (_team3TargetSteamId.HasValue)
         {
-            CCitadelPlayerPawn? newTarget = null;
-            if (_team3Target != null && _team3Target.IsValid && team3Pawns.Contains(_team3Target))
+            var target = team3Pawns.FirstOrDefault(p =>
             {
-                newTarget = _team3Target;
+                var controller = GetControllerFromPawn(p);
+                return controller != null && controller.PlayerSteamId == _team3TargetSteamId.Value;
+            });
+
+            if (target != null && target.IsValid)
+            {
+                _team3Target = target;
+                _team3Followers = team3Pawns.Where(p => p != target).ToList();
+                Console.WriteLine($"[Xf] Team 3 队长: {GetPlayerName(_team3Target)}, 跟随者: {_team3Followers.Count} 人");
             }
             else
             {
-                var random = new Random();
-                newTarget = team3Pawns[random.Next(team3Pawns.Count)];
+                Console.WriteLine("[Xf] Team 3 队长已离开游戏");
+                _team3Target = null;
+                _team3Followers.Clear();
             }
-
-            _team3Target = newTarget;
-            _team3Followers = team3Pawns.Where(p => p != newTarget).ToList();
-
-            Console.WriteLine($"[Xf] Team 3 新目标: {GetPlayerName(_team3Target)}");
-        }
-        else if (team3Pawns.Count == 1)
-        {
-            Console.WriteLine("[Xf] Team 3 只有一个人");
         }
 
         // 重新发送 HUD
