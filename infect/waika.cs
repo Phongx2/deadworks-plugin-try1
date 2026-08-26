@@ -696,14 +696,14 @@ private void StartCheatMode()
     _isCheatModeActive = true;
 
     Console.WriteLine($"[Waika] 选中的内鬼: {selectedTeam2.PlayerName} (Team 2), {selectedTeam3.PlayerName} (Team 3)");
-
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
     foreach (var player in allControllers)
     {
         if (player == null) continue;
 
         var msg = new CCitadelUserMsg_HudGameAnnouncement();
 
-        Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+        
 
         if (player == selectedTeam2 || player == selectedTeam3)
         {
