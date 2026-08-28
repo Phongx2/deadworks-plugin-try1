@@ -48,6 +48,20 @@ private CCitadelPlayerPawn? _xfTeam3Target = null;
 private List<CCitadelPlayerPawn> _xfTeam2Followers = new List<CCitadelPlayerPawn>();
 private List<CCitadelPlayerPawn> _xfTeam3Followers = new List<CCitadelPlayerPawn>();
 
+private string GetPlayerName(CCitadelPlayerPawn pawn)//获取玩家id
+{
+    if (pawn == null) return "Unknown";
+    foreach (var controller in Players.GetAll())
+    {
+        if (controller.GetHeroPawn() == pawn)
+            return controller.PlayerName;
+    }
+    return "Unknown";
+}
+
+
+
+
 
 
 
