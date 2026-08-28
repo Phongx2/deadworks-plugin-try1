@@ -3,6 +3,10 @@ using System.Reflection;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeadworksManaged.Api;
+using DeadworksManaged.Api.KeyValues;  // 👈 添加这行
+
+
+
 
 namespace DeathmatchPlugin;
 
@@ -465,9 +469,9 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
         targetTeam = Random.Shared.Next(2) == 0 ? 2 : 3;
     }
 
-    // 获取 Pawn
-    var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-    if (pawn == null) {
+    // 获取 Pawn（注意变量名不要和上面的冲突）
+    var playerPawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+    if (playerPawn == null) {
         Console.WriteLine($"[DM] Slot {args.Slot} -> 无法获取 Pawn");
         return;
     }
@@ -475,7 +479,7 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
     // 使用 Modifier 切换队伍
     var kv = new KeyValues("citadel_change_team");
     kv.SetInt("team", targetTeam);
-    pawn.AddModifier("citadel_change_team", kv);
+    playerPawn.AddModifier("citadel_change_team", kv);
 
     // 分配英雄
     var hero = targetTeam == 2 ? _team2Hero : _team3Hero;
