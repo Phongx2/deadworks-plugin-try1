@@ -24,7 +24,7 @@ private bool _team3Triggered = false;  // Team 3 是否已触发
     private HashSet<CCitadelPlayerController> _cheatUsed = new HashSet<CCitadelPlayerController>();
 
     // ========== /ks 执行时间配置 ==========
-private int _ksDurationMinutes = 2;        // 开关类型功能的持续时间（分钟）
+private int _ksDurationMinutes = 1.5;        // 开关类型功能的持续时间（分钟）
 private int _ksDurationExtraSeconds = 30;  // 一次性功能额外等待时间（秒）
 
 
@@ -38,6 +38,24 @@ private IHandle? _airResetTimer = null;  // 新增：用于重置跳跃/冲刺�
 
 
 
+// ========== /t xf 相关字段 ==========
+private bool _isXfActive = false;
+private IHandle? _xfMoveTimer = null;
+private ulong? _xfTeam2TargetSteamId = null;
+private ulong? _xfTeam3TargetSteamId = null;
+private CCitadelPlayerPawn? _xfTeam2Target = null;
+private CCitadelPlayerPawn? _xfTeam3Target = null;
+private List<CCitadelPlayerPawn> _xfTeam2Followers = new List<CCitadelPlayerPawn>();
+private List<CCitadelPlayerPawn> _xfTeam3Followers = new List<CCitadelPlayerPawn>();
+
+
+
+
+
+
+
+
+
 // ========== 所有 /t 功能方法名数组（按顺序） ==========
 private readonly string[] _tCommands = new string[]
 {
@@ -45,11 +63,10 @@ private readonly string[] _tCommands = new string[]
     "fight",
     "team",
     "swap",
-    "cheat",
     "hg",
-    "air"
+    "air",
+    "xf"  // 新增
 };
-
 
 
 
@@ -91,6 +108,8 @@ public override void OnUnload()
     StopCheatMode();
     StopHg();
     StopAir();  // StopAir 会取消 _airResetTimer
+    StopXf();  // 放在其他 Stop 方法旁边
+
     
     _isKsRunning = false;
     _currentCommandIndex = 0;
@@ -1033,6 +1052,254 @@ private void ExecuteNextCommand()
 }
 
 
+// ========== /t xf ==========
+private void StartXf()
+{
+    if (_isXfActive)
+    {
+        StopXf();
+        return;
+    }
+
+    Console.WriteLine("[Waika] 启动 XF 模式");
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+    _xfTeam2Followers.Clear();
+    _xfTeam3Followers.Clear();
+    _xfTeam2Target = null;
+    _xfTeam3Target = null;
+    _xfTeam2TargetSteamId = null;
+    _xfTeam3TargetSteamId = null;
+
+    var allPawns = Players.GetAllPawns().ToList();
+    if (allPawns.Count < 2)
+    {
+        Console.WriteLine("[Waika] XF 模式: 玩家数量不足，需要至少2人");
+        return;
+    }
+
+    var team2Pawns = allPawns.Where(p => p.TeamNum == 2).ToList();
+    var team3Pawns = allPawns.Where(p => p.TeamNum == 3).ToList();
+
+    // Team 2
+    if (team2Pawns.Count >= 2)
+    {
+        var random = new Random();
+        int targetIndex = random.Next(team2Pawns.Count);
+        _xfTeam2Target = team2Pawns[targetIndex];
+        var controller = GetControllerFromPawn(_xfTeam2Target);
+        if (controller != null) _xfTeam2TargetSteamId = controller.PlayerSteamId;
+        _xfTeam2Followers = team2Pawns.Where((p, index) => index != targetIndex).ToList();
+        Console.WriteLine($"[Waika] XF Team 2 队长: {GetPlayerName(_xfTeam2Target)}");
+    }
+
+    // Team 3
+    if (team3Pawns.Count >= 2)
+    {
+        var random = new Random();
+        int targetIndex = random.Next(team3Pawns.Count);
+        _xfTeam3Target = team3Pawns[targetIndex];
+        var controller = GetControllerFromPawn(_xfTeam3Target);
+        if (controller != null) _xfTeam3TargetSteamId = controller.PlayerSteamId;
+        _xfTeam3Followers = team3Pawns.Where((p, index) => index != targetIndex).ToList();
+        Console.WriteLine($"[Waika] XF Team 3 队长: {GetPlayerName(_xfTeam3Target)}");
+    }
+
+    if (_xfTeam2Followers.Count == 0 && _xfTeam3Followers.Count == 0)
+    {
+        Console.WriteLine("[Waika] XF 模式: 没有足够的玩家");
+        return;
+    }
+
+    _isXfActive = true;
+    SendXfHUD();
+
+    _xfMoveTimer = Timer.Every(50.Milliseconds(), () =>
+    {
+        if (!_isXfActive)
+        {
+            _xfMoveTimer?.Cancel();
+            _xfMoveTimer = null;
+            return;
+        }
+
+        RefreshXfTargets();
+
+        if (_xfTeam2Target != null && _xfTeam2Target.IsValid && _xfTeam2Target.LifeState == LifeState.Alive)
+        {
+            Vector3 targetPos = _xfTeam2Target.Position;
+            foreach (var follower in _xfTeam2Followers)
+            {
+                if (follower != null && follower.IsValid)
+                    follower.Teleport(targetPos, null, null);
+            }
+        }
+
+        if (_xfTeam3Target != null && _xfTeam3Target.IsValid && _xfTeam3Target.LifeState == LifeState.Alive)
+        {
+            Vector3 targetPos = _xfTeam3Target.Position;
+            foreach (var follower in _xfTeam3Followers)
+            {
+                if (follower != null && follower.IsValid)
+                    follower.Teleport(targetPos, null, null);
+            }
+        }
+    });
+}
+
+private void StopXf()
+{
+    if (!_isXfActive) return;
+
+    Console.WriteLine("[Waika] 停止 XF 模式");
+    _isXfActive = false;
+    _xfMoveTimer?.Cancel();
+    _xfMoveTimer = null;
+    _xfTeam2Target = null;
+    _xfTeam2Followers.Clear();
+    _xfTeam3Target = null;
+    _xfTeam3Followers.Clear();
+    _xfTeam2TargetSteamId = null;
+    _xfTeam3TargetSteamId = null;
+}
+
+private void RefreshXfTargets()
+{
+    if (_xfTeam2TargetSteamId.HasValue)
+    {
+        var allPawns = Players.GetAllPawns().ToList();
+        var target = allPawns.FirstOrDefault(p =>
+        {
+            var controller = GetControllerFromPawn(p);
+            return controller != null && controller.PlayerSteamId == _xfTeam2TargetSteamId.Value;
+        });
+
+        if (target != null && target.IsValid)
+        {
+            _xfTeam2Target = target;
+            var teamPawns = allPawns.Where(p => p.TeamNum == 2).ToList();
+            _xfTeam2Followers = teamPawns.Where(p => p != target).ToList();
+        }
+        else if (_xfTeam2Target != null)
+        {
+            Console.WriteLine("[Waika] XF Team 2 队长已离开");
+            _xfTeam2Target = null;
+            _xfTeam2Followers.Clear();
+        }
+    }
+
+    if (_xfTeam3TargetSteamId.HasValue)
+    {
+        var allPawns = Players.GetAllPawns().ToList();
+        var target = allPawns.FirstOrDefault(p =>
+        {
+            var controller = GetControllerFromPawn(p);
+            return controller != null && controller.PlayerSteamId == _xfTeam3TargetSteamId.Value;
+        });
+
+        if (target != null && target.IsValid)
+        {
+            _xfTeam3Target = target;
+            var teamPawns = allPawns.Where(p => p.TeamNum == 3).ToList();
+            _xfTeam3Followers = teamPawns.Where(p => p != target).ToList();
+        }
+        else if (_xfTeam3Target != null)
+        {
+            Console.WriteLine("[Waika] XF Team 3 队长已离开");
+            _xfTeam3Target = null;
+            _xfTeam3Followers.Clear();
+        }
+    }
+}
+
+private void SendXfHUD()
+{
+    if (_xfTeam2Target != null && _xfTeam2Target.IsValid && _xfTeam2Followers.Count > 0)
+    {
+        var targetController = GetControllerFromPawn(_xfTeam2Target);
+        string targetName = targetController?.PlayerName ?? "Unknown";
+
+        foreach (var follower in _xfTeam2Followers)
+        {
+            var followerController = GetControllerFromPawn(follower);
+            if (followerController != null)
+            {
+                var msg = new CCitadelUserMsg_HudGameAnnouncement
+                {
+                    TitleLocstring = "🚶 一起行动",
+                    DescriptionLocstring = $"跟着队长：{targetName}"
+                };
+                NetMessages.Send(msg, RecipientFilter.Single(followerController.Slot));
+            }
+        }
+
+        if (targetController != null)
+        {
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "🚶 一起行动",
+                DescriptionLocstring = "你是队长，队友将跟随你"
+            };
+            NetMessages.Send(msg, RecipientFilter.Single(targetController.Slot));
+        }
+    }
+
+    if (_xfTeam3Target != null && _xfTeam3Target.IsValid && _xfTeam3Followers.Count > 0)
+    {
+        var targetController = GetControllerFromPawn(_xfTeam3Target);
+        string targetName = targetController?.PlayerName ?? "Unknown";
+
+        foreach (var follower in _xfTeam3Followers)
+        {
+            var followerController = GetControllerFromPawn(follower);
+            if (followerController != null)
+            {
+                var msg = new CCitadelUserMsg_HudGameAnnouncement
+                {
+                    TitleLocstring = "🚶 一起行动",
+                    DescriptionLocstring = $"跟着队长：{targetName}"
+                };
+                NetMessages.Send(msg, RecipientFilter.Single(followerController.Slot));
+            }
+        }
+
+        if (targetController != null)
+        {
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "🚶 一起行动",
+                DescriptionLocstring = "你是队长，队友将跟随你"
+            };
+            NetMessages.Send(msg, RecipientFilter.Single(targetController.Slot));
+        }
+    }
+}
+
+private string GetXfPlayerName(CCitadelPlayerPawn pawn)
+{
+    if (pawn == null) return "Unknown";
+    foreach (var controller in Players.GetAll())
+    {
+        if (controller.GetHeroPawn() == pawn)
+            return controller.PlayerName;
+    }
+    return "Unknown";
+}
+
+private CCitadelPlayerController? GetXfControllerFromPawn(CCitadelPlayerPawn pawn)
+{
+    if (pawn == null) return null;
+    foreach (var controller in Players.GetAll())
+    {
+        if (controller.GetHeroPawn() == pawn)
+            return controller;
+    }
+    return null;
+}
+
+
+
 // ========== 执行具体的 /t 命令 ==========
 private void ExecuteCommand(string command)
 {
@@ -1089,19 +1356,7 @@ private void ExecuteCommand(string command)
             });
             break;
 
-        case "cheat":
-            StartCheatMode();
-            Timer.Once(durationSeconds.Seconds(), () =>
-            {
-                StopCheatMode();
-                Console.WriteLine("[Waika] cheat 已关闭");
-                Timer.Once(extraSeconds.Seconds(), () =>
-                {
-                    _currentCommandIndex++;
-                    ExecuteNextCommand();
-                });
-            });
-            break;
+        // ========== cheat 已移除 ==========
 
         case "hg":
             StartHg();
@@ -1130,6 +1385,22 @@ private void ExecuteCommand(string command)
                 });
             });
             break;
+
+        // ========== 新增 xf ==========
+        case "xf":
+            StartXf();
+            Timer.Once(durationSeconds.Seconds(), () =>
+            {
+                StopXf();
+                Console.WriteLine("[Waika] xf 已关闭");
+                Timer.Once(extraSeconds.Seconds(), () =>
+                {
+                    _currentCommandIndex++;
+                    ExecuteNextCommand();
+                });
+            });
+            break;
+        // ========== xf 结束 ==========
 
         default:
             Console.WriteLine($"[Waika] 未知命令: {command}，跳过");
@@ -1247,6 +1518,14 @@ public void CmdStop(CCitadelPlayerController? caller)
             if (caller != null) caller.PrintToConsole("[Waika] 队伍交换已触发");
             CCitadelPlayerController.PrintToConsoleAll("[Waika] 队伍交换已触发！3秒后执行");
         }
+
+else if (feat == "xf")
+{
+    StartXf();
+    if (caller != null) caller.PrintToConsole(_isXfActive ? "[Waika] 跟随模式已启动" : "[Waika] 跟随模式已停止");
+}
+
+        
         else if (feat == "cheat")
         {
             if (_isCheatModeActive)
