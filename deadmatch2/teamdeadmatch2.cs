@@ -442,24 +442,46 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
     }
 
     public override void OnClientFullConnect(ClientFullConnectEvent args) {
-        var controller = args.Controller;
-        if (controller == null) return;
+    var controller = args.Controller;
+    if (controller == null) return;
 
-        int team2 = 0, team3 = 0;
-        foreach (var p in Players.GetAll()) {
-            if (p.EntityIndex == controller.EntityIndex) continue;
-            var pawn = p.GetHeroPawn();
-            if (pawn == null) continue;
-            if (pawn.TeamNum == 2) team2++;
-            else if (pawn.TeamNum == 3) team3++;
-        }
-        int team = team2 < team3 ? 2 : team3 < team2 ? 3 : Random.Shared.Next(2) == 0 ? 2 : 3;
-        controller.ChangeTeam(team);
-
-        var hero = team == 2 ? _team2Hero : _team3Hero;
-        Console.WriteLine($"[DM] Slot {args.Slot} -> team {team}, hero {hero.ToHeroName()}");
-        controller.SelectHero(hero);
+    // 统计队伍人数
+    int team2 = 0, team3 = 0;
+    foreach (var p in Players.GetAll()) {
+        if (p.EntityIndex == controller.EntityIndex) continue;
+        var pawn = p.GetHeroPawn();
+        if (pawn == null) continue;
+        if (pawn.TeamNum == 2) team2++;
+        else if (pawn.TeamNum == 3) team3++;
     }
+
+    // 分配到人数较少的一队
+    int targetTeam;
+    if (team2 < team3) {
+        targetTeam = 2;
+    } else if (team3 < team2) {
+        targetTeam = 3;
+    } else {
+        targetTeam = Random.Shared.Next(2) == 0 ? 2 : 3;
+    }
+
+    // 获取 Pawn
+    var pawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
+    if (pawn == null) {
+        Console.WriteLine($"[DM] Slot {args.Slot} -> 无法获取 Pawn");
+        return;
+    }
+
+    // 使用 Modifier 切换队伍
+    var kv = new KeyValues("citadel_change_team");
+    kv.SetInt("team", targetTeam);
+    pawn.AddModifier("citadel_change_team", kv);
+
+    // 分配英雄
+    var hero = targetTeam == 2 ? _team2Hero : _team3Hero;
+    Console.WriteLine($"[DM] Slot {args.Slot} -> team {targetTeam}, hero {hero.ToHeroName()}");
+    controller.SelectHero(hero);
+}
 
     public override void OnClientDisconnect(ClientDisconnectedEvent args) {
         var controller = args.Controller;
