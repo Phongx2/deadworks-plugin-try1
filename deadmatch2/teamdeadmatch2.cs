@@ -4,7 +4,7 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeadworksManaged.Api;
 
-namespace DeathmatchPlugin;e
+namespace DeathmatchPlugin;
 
 public class SpawnPoint {
     [JsonPropertyName("pos")]
