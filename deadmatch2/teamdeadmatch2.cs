@@ -469,17 +469,25 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
         targetTeam = Random.Shared.Next(2) == 0 ? 2 : 3;
     }
 
-    // 获取 Pawn（注意变量名不要和上面的冲突）
+    // 获取 Pawn
     var playerPawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
     if (playerPawn == null) {
         Console.WriteLine($"[DM] Slot {args.Slot} -> 无法获取 Pawn");
         return;
     }
 
-    // 使用 Modifier 切换队伍
-    var kv = new KeyValues("citadel_change_team");
+    // ========== 参考 StartSwap 的写法 ==========
+    using var kv = new KeyValues3();
     kv.SetInt("team", targetTeam);
     playerPawn.AddModifier("citadel_change_team", kv);
+
+    var pawnRef = playerPawn;
+    Timer.Once(1.Seconds(), () => {
+        if (pawnRef != null && pawnRef.IsValid) {
+            pawnRef.RemoveModifier("citadel_change_team");
+            Console.WriteLine($"[DM] {controller.PlayerName} 队伍 -> {targetTeam}");
+        }
+    });
 
     // 分配英雄
     var hero = targetTeam == 2 ? _team2Hero : _team3Hero;
