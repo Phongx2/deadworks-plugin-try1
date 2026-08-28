@@ -24,7 +24,7 @@ private bool _team3Triggered = false;  // Team 3 是否已触发
     private HashSet<CCitadelPlayerController> _cheatUsed = new HashSet<CCitadelPlayerController>();
 
     // ========== /ks 执行时间配置 ==========
-private int _ksDurationMinutes = 1.5;        // 开关类型功能的持续时间（分钟）
+private int _ksDurationMinutes = 1;        // 开关类型功能的持续时间（分钟）
 private int _ksDurationExtraSeconds = 30;  // 一次性功能额外等待时间（秒）
 
 
