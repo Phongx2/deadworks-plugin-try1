@@ -1129,7 +1129,7 @@ private void StartXf()
     _isXfActive = true;
     SendXfHUD();
 
-    _xfMoveTimer = Timer.Every(50.Milliseconds(), () =>
+    _xfMoveTimer = Timer.Every(1.Ticks(), () =>
     {
         if (!_isXfActive)
         {
