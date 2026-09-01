@@ -4,9 +4,6 @@ using System.Text.Json;
 using System.Text.Json.Serialization;
 using DeadworksManaged.Api;
 
-
-
-
 namespace DeathmatchPlugin;
 
 public class SpawnPoint {
@@ -445,54 +442,24 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
     }
 
     public override void OnClientFullConnect(ClientFullConnectEvent args) {
-    var controller = args.Controller;
-    if (controller == null) return;
+        var controller = args.Controller;
+        if (controller == null) return;
 
-    // 统计队伍人数
-    int team2 = 0, team3 = 0;
-    foreach (var p in Players.GetAll()) {
-        if (p.EntityIndex == controller.EntityIndex) continue;
-        var pawn = p.GetHeroPawn();
-        if (pawn == null) continue;
-        if (pawn.TeamNum == 2) team2++;
-        else if (pawn.TeamNum == 3) team3++;
-    }
-
-    // 分配到人数较少的一队
-    int targetTeam;
-    if (team2 < team3) {
-        targetTeam = 2;
-    } else if (team3 < team2) {
-        targetTeam = 3;
-    } else {
-        targetTeam = Random.Shared.Next(2) == 0 ? 2 : 3;
-    }
-
-    // 获取 Pawn
-    var playerPawn = controller.GetHeroPawn()?.As<CCitadelPlayerPawn>();
-    if (playerPawn == null) {
-        Console.WriteLine($"[DM] Slot {args.Slot} -> 无法获取 Pawn");
-        return;
-    }
-
-    // ========== 参考 StartSwap 的写法 ==========
-    using var kv = new KeyValues3();
-    kv.SetInt("team", targetTeam);
-    playerPawn.AddModifier("citadel_change_team", kv);
-
-    var pawnRef = playerPawn;
-    Timer.Once(1.Seconds(), () => {
-        if (pawnRef != null && pawnRef.IsValid) {
-            pawnRef.RemoveModifier("citadel_change_team");
-            Console.WriteLine($"[DM] {controller.PlayerName} 队伍 -> {targetTeam}");
+        int team2 = 0, team3 = 0;
+        foreach (var p in Players.GetAll()) {
+            if (p.EntityIndex == controller.EntityIndex) continue;
+            var pawn = p.GetHeroPawn();
+            if (pawn == null) continue;
+            if (pawn.TeamNum == 2) team2++;
+            else if (pawn.TeamNum == 3) team3++;
         }
-    });
+        int team = team2 < team3 ? 2 : team3 < team2 ? 3 : Random.Shared.Next(2) == 0 ? 2 : 3;
+        controller.ChangeTeam(team);
 
-    // 分配英雄
-    var hero = targetTeam == 2 ? _team2Hero : _team3Hero;
-    Console.WriteLine($"[DM] Slot {args.Slot} -> team {targetTeam}, hero {hero.ToHeroName()}");
-    controller.SelectHero(hero);
-}
+        var hero = team == 2 ? _team2Hero : _team3Hero;
+        Console.WriteLine($"[DM] Slot {args.Slot} -> team {team}, hero {hero.ToHeroName()}");
+        controller.SelectHero(hero);
+    }
 
     public override void OnClientDisconnect(ClientDisconnectedEvent args) {
         var controller = args.Controller;
