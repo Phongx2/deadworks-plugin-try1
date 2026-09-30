@@ -573,9 +573,9 @@ public HookResult OnPlayerRespawned(PlayerRespawnedEvent args) {
                 IterateEntities = true,
                 QueryShapeAttributes = new RnQueryShapeAttr_t {
                     ObjectSetMask = RnQueryObjectSet.All,
-                    InteractsWith = MaskTrace.Solid,
-                    InteractsExclude = MaskTrace.Empty,
-                    InteractsAs = MaskTrace.Empty,
+                    //InteractsWith = MaskTrace.Solid,
+                   // InteractsExclude = MaskTrace.Empty,
+                   // InteractsAs = MaskTrace.Empty,
                     CollisionGroup = CollisionGroup.CitadelBullet,
                     HitSolid = true,
                 }
