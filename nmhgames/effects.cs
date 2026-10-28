@@ -18,15 +18,15 @@ case EffectList.SpeedBoost:
 {
     // 1. 设置时长
     using var kv = new KeyValues3();
-kv.SetFloat("duration", 60f);
+kv.SetFloat("duration", 30f);
 
-// 3) 关键：key 必须是这个 modifier 自己读取的属性名
+// 3) 数值：key 用数据库页 "Ability values" 里列的那两个
 var mod = pawn.AddModifier(
-    "upgrade_fleetfoot_boots/modifier_fleetfoot_boots",
+    "upgrade_metal_skin/modifier_citadel_metal_skin",
     new Dictionary<string, float>
     {
-        ["ActiveBonusMoveSpeed"]   = 15f,    // 默认 3.0，先别写太夸张（引擎有移速上限，20 可能被 clamp）
-        ["SlowResistancePercent"]  = 100f,  // 默认 40
+        ["ActiveMoveSpeedPenalty"]     = -1.5f,  // 原版：移速惩罚
+        ["GroundDashReductionPercent"] = -20f,   // 原版：冲刺距离 -20%
     },
     kv);
     
