@@ -5,37 +5,33 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
 {
     public override string Name => "Goose Egg Watcher";
 
-    // 目标道具的内部名称
     private const string TargetItem = "upgrade_goose_egg";
 
     public override void OnLoad(bool isReload)
     {
-        // 插件加载时在服务器控制台输出一条提示，方便确认插件已启动
-        Console.WriteLine("[GooseEggWatcher] 插件已加载，正在监听 upgrade_goose_egg 的使用情况...");
+        Console.WriteLine("[GooseEggWatcher] 已加载，按键瞬间强制消耗 upgrade_goose_egg。");
     }
 
-    // 监听玩家使用技能/道具的事件
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(PlayerUsedAbilityEvent args)
     {
-        // 1. 判断使用的道具名是否匹配目标（忽略大小写，防止大小写差异导致匹配失败）
+        // 精确匹配目标道具
         if (!string.Equals(args.Abilityname, TargetItem, StringComparison.OrdinalIgnoreCase))
             return HookResult.Continue;
 
-        // 2. 获取使用者的 Pawn 和 Controller，以拿到玩家名字
         var pawn = args.Player?.As<CCitadelPlayerPawn>();
-        var controller = pawn?.Controller;
+        if (pawn == null) return HookResult.Continue;
 
-        // 如果获取不到玩家信息（极少数情况），保底输出
-        string playerName = controller?.PlayerName ?? "未知玩家";
-        int playerSlot = controller?.Slot ?? -1;
+        // 核心逻辑：检测到按键的瞬间，直接从背包移除该道具
+        // 注意：RemoveItem 会把物品直接销毁，不返还灵魂
+        pawn.RemoveItem(TargetItem);
 
-        // 3. 在服务器控制台输出
-        Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} (Slot: {playerSlot}) 使用了 {TargetItem}！");
+        // 获取玩家信息并双端输出
+        string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
+        int playerSlot = pawn.Controller?.Slot ?? -1;
 
-        // 4. 在所有玩家的控制台里输出
-        // 使用 CCitadelPlayerController.PrintToConsoleAll 给所有人发送控制台消息
-        CCitadelPlayerController.PrintToConsoleAll($"[GooseEggWatcher] {playerName} 使用了鹅蛋 (upgrade_goose_egg)！");
+        Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} (Slot: {playerSlot}) 按下了蛋，道具已被强制消耗。");
+        CCitadelPlayerController.PrintToConsoleAll($"[GooseEggWatcher] {playerName} 的蛋被强制消耗了！");
 
         return HookResult.Continue;
     }
