@@ -18,15 +18,17 @@ case EffectList.SpeedBoost:
 {
     // 1. 设置时长
     using var kv = new KeyValues3();
-    kv.SetFloat("duration", 2.0f); 
+kv.SetFloat("duration", 60f);
 
-    // 2. 使用命名参数传递（注意 abilityValues: 这个前缀）
-pawn.AddModifier("upgrade_metal_skin/modifier_citadel_metal_skin", 
-				 kv: kv, 
-        abilityValues: new() { 
-	["ActiveMoveSpeedPenalty"] = -5f,
-	["GroundDashReductionPercent"] = -100f,
-});
+// 3) 关键：key 必须是这个 modifier 自己读取的属性名
+var mod = pawn.AddModifier(
+    "upgrade_fleetfoot_boots/modifier_fleetfoot_boots",
+    new Dictionary<string, float>
+    {
+        ["ActiveBonusMoveSpeed"]   = 15f,    // 默认 3.0，先别写太夸张（引擎有移速上限，20 可能被 clamp）
+        ["SlowResistancePercent"]  = 100f,  // 默认 40
+    },
+    kv);
     
     Chat.PrintToChat(controller, "你抽到了");
     Chat.PrintToChat(controller, EffectList.SpeedBoostName);
