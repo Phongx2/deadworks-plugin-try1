@@ -12,6 +12,17 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     {
         // 基础设置：随处购买（不受 dev 影响）
         ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
+ConVar.Find("citadel_active_lane")?.SetInt(4);
+ ConVar.Find("citadel_player_spawn_time_max_respawn_time")?.SetInt(15);
+ConVar.Find("citadel_player_starting_gold")?.SetInt(1600);
+ConVar.Find("citadel_trooper_spawn_enabled")?.SetInt(0);
+ConVar.Find("citadel_start_players_on_zipline")?.SetInt(1);
+
+
+
+
+
+        
 
         if (dev == 1)
         {
