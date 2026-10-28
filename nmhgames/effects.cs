@@ -24,11 +24,10 @@ case EffectList.SpeedBoost:
     pawn.AddModifier(
         "upgrade_fleetfoot_boots/modifier_fleetfoot_boots",
         kv: kv, 
-        abilityValues: new() { 
-            ["ActiveBonusMoveSpeed"] = 25f,
-            ["SlowResistancePercent"] = 40f
-        }
-    );
+        new Dictionary<string, float> {
+    ["ActiveBonusMoveSpeed"] = 25f,
+    ["SlowResistancePercent"] = 40f,
+});
     
     Chat.PrintToChat(controller, "你抽到了");
     Chat.PrintToChat(controller, EffectList.SpeedBoostName);
