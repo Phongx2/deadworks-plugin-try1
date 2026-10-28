@@ -61,6 +61,11 @@ jobs:
     
     - name: Build
       run: dotnet build -c Release --no-restore
+
+
+    - name: List build output
+      run: ls -la nmhgames/bin/Release/net10.0/
+
     
     - name: Copy DLLs to root
       run: |
