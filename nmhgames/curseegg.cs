@@ -9,29 +9,28 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
 
     public override void OnLoad(bool isReload)
     {
-        Console.WriteLine("[GooseEggWatcher] 已加载，按键瞬间强制消耗 upgrade_goose_egg。");
+        Console.WriteLine("[GooseEggWatcher] 插件已加载，正在监听 upgrade_goose_egg 的使用情况...");
     }
 
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(PlayerUsedAbilityEvent args)
     {
-        // 精确匹配目标道具
         if (!string.Equals(args.Abilityname, TargetItem, StringComparison.OrdinalIgnoreCase))
             return HookResult.Continue;
 
+        // 获取使用者的 Pawn
         var pawn = args.Player?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
-        // 核心逻辑：检测到按键的瞬间，直接从背包移除该道具
-        // 注意：RemoveItem 会把物品直接销毁，不返还灵魂
-        pawn.RemoveItem(TargetItem);
+        var controller = pawn.Controller;
+        string playerName = controller?.PlayerName ?? "未知玩家";
+        int playerSlot = controller?.Slot ?? -1;
 
-        // 获取玩家信息并双端输出
-        string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
-        int playerSlot = pawn.Controller?.Slot ?? -1;
+        Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} (Slot: {playerSlot}) 使用了 {TargetItem}！");
+        CCitadelPlayerController.PrintToConsoleAll($"[GooseEggWatcher] {playerName} 使用了鹅蛋 (upgrade_goose_egg)！");
 
-        Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} (Slot: {playerSlot}) 按下了蛋，道具已被强制消耗。");
-        CCitadelPlayerController.PrintToConsoleAll($"[GooseEggWatcher] {playerName} 的蛋被强制消耗了！");
+        // 🌟 核心调用：把 pawn 传给抽卡方法
+        GooseEggUtils.Chouka(pawn);
 
         return HookResult.Continue;
     }
