@@ -21,14 +21,7 @@ case EffectList.SpeedBoost:
 kv.SetFloat("duration", 30f);
 
 // 3) 数值：key 用数据库页 "Ability values" 里列的那两个
-var mod = pawn.AddModifier(
-    "upgrade_metal_skin/modifier_citadel_metal_skin",
-    new Dictionary<string, float>
-    {
-        ["ActiveMoveSpeedPenalty"]     = -10f,  // 原版：移速惩罚
-        ["GroundDashReductionPercent"] = -90f,   // 原版：冲刺距离 -20%
-    },
-    kv);
+pawn.AddModifier("modifier_hero_testing_fast_movespeed",kv);
     
     Chat.PrintToChat(controller, "你抽到了");
     Chat.PrintToChat(controller, EffectList.SpeedBoostName);
