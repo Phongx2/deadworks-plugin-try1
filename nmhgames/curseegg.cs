@@ -15,22 +15,22 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(PlayerUsedAbilityEvent args)
     {
+        // 1. 判断是否是鹅蛋
         if (!string.Equals(args.Abilityname, TargetItem, StringComparison.OrdinalIgnoreCase))
             return HookResult.Continue;
 
-        // 获取使用者的 Pawn
+        // 2. 获取玩家对象
         var pawn = args.Player?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
-        var controller = pawn.Controller;
-        string playerName = controller?.PlayerName ?? "未知玩家";
-        int playerSlot = controller?.Slot ?? -1;
+        var playerName = pawn.Controller?.PlayerName ?? "未知玩家";
 
-        Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} (Slot: {playerSlot}) 使用了 {TargetItem}！");
-        CCitadelPlayerController.PrintToConsoleAll($"[GooseEggWatcher] {playerName} 使用了鹅蛋 (upgrade_goose_egg)！");
+        // 3. 控制台播报（可选，方便你调试看日志）
+        Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} 按下了鹅蛋。");
+        CCitadelPlayerController.PrintToConsoleAll($"[鹅蛋] {playerName} 使用了鹅蛋，开始抽卡！");
 
-        // 🌟 核心调用：把 pawn 传给抽卡方法
-        GooseEggUtils.Chouka(pawn);
+        // 4. 呼叫抽卡逻辑，并将当前玩家对象作为参数传入
+        EffectList.Chouka(pawn);
 
         return HookResult.Continue;
     }
