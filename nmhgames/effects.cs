@@ -20,7 +20,7 @@ case EffectList.SpeedBoost:
     kv.SetFloat("duration", 30.0f); 
 
 pawn.AddModifier("upgrade_fleetfoot_boots/modifier_fleetfoot_boots", new Dictionary<string, float> {
-	["ActiveBonusMoveSpeed"] = 3f,
+	["ActiveBonusMoveSpeed"] = 25f,
 	["SlowResistancePercent"] = 40f,
 });
     
