@@ -18,13 +18,14 @@ case EffectList.SpeedBoost:
 {
     using var kv = new KeyValues3();
     kv.SetFloat("duration", 30.0f); // 持续 30 秒
-    
-    // 直接挂载 Fleetfoot 原版 Modifier
-    // ActiveBonusMoveSpeed 按原版给 3.0f，或者你可以改大一点比如 10.0f
+
+    // 这里直接传入字典
     pawn.AddModifier(
         "modifier_fleetfoot_boots",
-        kv: kv,
-        abilityValues: new() { ["ActiveBonusMoveSpeed"] = 25.0f } 
+        new Dictionary<string, float> {
+            ["ActiveBonusMoveSpeed"] = 15.0f 
+        },
+        kv // 把 kv 传在最后
     );
     
     Chat.PrintToChat(controller, "你抽到了");
