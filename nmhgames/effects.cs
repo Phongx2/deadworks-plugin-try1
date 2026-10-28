@@ -18,12 +18,14 @@ case EffectList.SpeedBoost:
 {
     // 1. 设置时长
     using var kv = new KeyValues3();
-    kv.SetFloat("duration", 5.0f); 
+    kv.SetFloat("duration", 2.0f); 
 
     // 2. 使用命名参数传递（注意 abilityValues: 这个前缀）
-pawn.AddModifier("upgrade_metal_skin/modifier_citadel_metal_skin", new Dictionary<string, float> {
+pawn.AddModifier("upgrade_metal_skin/modifier_citadel_metal_skin", 
+				 kv:kv,
+				 new Dictionary<string, float> {
 	["ActiveMoveSpeedPenalty"] = -5f,
-	["GroundDashReductionPercent"] = -80f,
+	["GroundDashReductionPercent"] = -100f,
 });
     
     Chat.PrintToChat(controller, "你抽到了");
