@@ -13,16 +13,18 @@ public static class Effects
 
         switch (effectName)
         {
-            case EffectList.SpeedBoost:
+            
+case EffectList.SpeedBoost:
 {
     using var kv = new KeyValues3();
-    kv.SetFloat("duration", 30.0f); 
+    kv.SetFloat("duration", 30.0f); // 持续 30 秒
     
-    // 使用 SpeedBoost modifier，并覆写具体的移速加成数值
+    // 直接挂载 Fleetfoot 原版 Modifier
+    // ActiveBonusMoveSpeed 按原版给 3.0f，或者你可以改大一点比如 10.0f
     pawn.AddModifier(
-        "modifier_citadel_speed_boost", 
+        "modifier_fleetfoot_boots",
         kv: kv,
-        abilityValues: new() { ["m_flMoveSpeedBoost"] = 25.0f } // 3 m/s，可按需调整
+        abilityValues: new() { ["ActiveBonusMoveSpeed"] = 25.0f } 
     );
     
     Chat.PrintToChat(controller, "你抽到了");
@@ -30,6 +32,18 @@ public static class Effects
     break;
 }
 
+
+
+
+
+
+
+
+
+
+
+
+                
             default:
                 Console.WriteLine($"[Effects] 未知的效果名称: {effectName}");
                 break;
