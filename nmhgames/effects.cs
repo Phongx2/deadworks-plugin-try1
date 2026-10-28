@@ -25,8 +25,8 @@ var mod = pawn.AddModifier(
     "upgrade_metal_skin/modifier_citadel_metal_skin",
     new Dictionary<string, float>
     {
-        ["ActiveMoveSpeedPenalty"]     = -1.5f,  // 原版：移速惩罚
-        ["GroundDashReductionPercent"] = -20f,   // 原版：冲刺距离 -20%
+        ["ActiveMoveSpeedPenalty"]     = -10f,  // 原版：移速惩罚
+        ["GroundDashReductionPercent"] = -90f,   // 原版：冲刺距离 -20%
     },
     kv);
     
