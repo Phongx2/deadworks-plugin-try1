@@ -21,14 +21,10 @@ case EffectList.SpeedBoost:
     kv.SetFloat("duration", 5.0f); 
 
     // 2. 使用命名参数传递，确保 kv 和 属性值都被接收
-    pawn.AddModifier(
-        "upgrade_fleetfoot_boots/modifier_fleetfoot_boots",
-        kv: kv, // 👈 这里把 kv 传进去，管时长
-        abilityValues: new() { // 👈 这里传字典，管属性
-            ["ActiveBonusMoveSpeed"] = 25f,
-            ["SlowResistancePercent"] = 40f
-        }
-    );
+    pawn.AddModifier("upgrade_fleetfoot_boots/modifier_fleetfoot_boots",kv, new Dictionary<string, float> {
+    ["ActiveBonusMoveSpeed"] = 25f,
+    ["SlowResistancePercent"] = 40f,
+});
     
     Chat.PrintToChat(controller, "你抽到了");
     Chat.PrintToChat(controller, EffectList.SpeedBoostName);
