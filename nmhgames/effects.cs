@@ -17,15 +17,14 @@ public static class Effects
 case EffectList.SpeedBoost:
 {
     using var kv = new KeyValues3();
-    kv.SetFloat("duration", 30.0f); // 持续 30 秒
+    kv.SetFloat("duration", 30.0f); 
 
-    // 这里直接传入字典
     pawn.AddModifier(
         "modifier_fleetfoot_boots",
-        new Dictionary<string, float> {
+        kv: kv,
+        abilityValues: new() { 
             ["ActiveBonusMoveSpeed"] = 15.0f 
-        },
-        kv // 把 kv 传在最后
+        }
     );
     
     Chat.PrintToChat(controller, "你抽到了");
