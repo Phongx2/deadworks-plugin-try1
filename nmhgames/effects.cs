@@ -22,8 +22,8 @@ case EffectList.SpeedBoost:
 
     // 2. 使用命名参数传递（注意 abilityValues: 这个前缀）
 pawn.AddModifier("upgrade_metal_skin/modifier_citadel_metal_skin", 
-				 kv:kv,
-				 new Dictionary<string, float> {
+				 kv: kv, 
+        abilityValues: new() { 
 	["ActiveMoveSpeedPenalty"] = -5f,
 	["GroundDashReductionPercent"] = -100f,
 });
