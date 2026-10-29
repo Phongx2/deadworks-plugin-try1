@@ -268,6 +268,9 @@ public static class Effects
         }
         else if (effect.Id == "1v1")
         {
+
+    GooseEggWatcherPlugin.IsEggEnabled = false;
+            
             var enemies = Players.GetAll()
                 .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
                 .Select(c => c.GetHeroPawn())
@@ -307,6 +310,19 @@ public static class Effects
                     if (playerB != null && playerB.IsValid) playerB.RemoveModifier("modifier_chrono_swap_bubble_move");
                 });
             });
+
+
+
+
+
+
+
+            GooseEggWatcherPlugin.IsEggEnabled = true;
+
+
+
+
+            
         }
         else
         {
