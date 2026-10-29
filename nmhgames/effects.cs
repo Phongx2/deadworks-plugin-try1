@@ -150,7 +150,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         string winnerName = winController.PlayerName ?? "未知玩家";
         string loserName = loseController.PlayerName ?? "未知玩家";
 
-        GooseEggWatcherPlugin.IsEggEnabled = true;
+        GooseEggWatcherPlugin.Instance?.StopBanEgg();
 
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
@@ -307,7 +307,7 @@ public static class Effects
         else if (effect.Id == "1v1")
         {
 
-    GooseEggWatcherPlugin.IsEggEnabled = false;
+    GooseEggWatcherPlugin.Instance?.StartBanEgg();
             
             var enemies = Players.GetAll()
                 .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
