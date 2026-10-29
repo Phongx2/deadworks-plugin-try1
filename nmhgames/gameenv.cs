@@ -42,7 +42,7 @@ ConVar.Find("citadel_start_players_on_zipline")?.SetInt(1);
                 // 第 3 帧：击杀指令提交后，关闭作弊模式
                 Timer.NextTick(() =>
                 {
-                    Server.ExecuteCommand("sv_cheats 0");
+                    //Server.ExecuteCommand("sv_cheats 0");
                     Console.WriteLine("[ServerDefaults] 清理完毕，sv_cheats 已关闭。");
                 });
             });
