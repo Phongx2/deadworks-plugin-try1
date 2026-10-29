@@ -25,6 +25,9 @@ case EffectList.SpeedBoost:
     abilityValues: new() { 
         ["BonusMoveSpeed"] = 20f 
     });
+    pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv: kv);
+
+
     
     Chat.PrintToChat(controller, "你抽到了");
     Chat.PrintToChat(controller, EffectList.SpeedBoostName);
