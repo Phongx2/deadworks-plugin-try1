@@ -123,18 +123,18 @@ public static void PrintList(Caller caller)
 
         // 🌟 核心修改：如果玩家填了自定义时长，就覆盖掉原本的时长
         if (customDuration.HasValue)
-        {
+            {
             effect.Duration = customDuration.Value;
             controller.PrintToConsole($"（已自定义持续时间：{effect.Duration} 秒）");
-        }
+            }
 
         controller.PrintToConsole($"正在对你执行: {effect.DisplayName}");
         
         // 传入修改过时长的 effect 给执行器
         Effects.Execute(effect, pawn);
         return true;
+        }
     }
-
 
 
 
