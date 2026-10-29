@@ -49,7 +49,7 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
         CCitadelPlayerController.PrintToConsoleAll($"[鹅蛋] {playerName} 使用了鹅蛋，开始抽卡！");
 
         // 4. 呼叫抽卡逻辑
-        EffectList.Chouka(pawn);
+        EffectList.Chouka(pawn, this.Timer);
 
         return HookResult.Continue;
     }
