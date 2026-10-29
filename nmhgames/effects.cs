@@ -4,6 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITimer = DeadworksManaged.Api.ITimer;
+using System.Numerics; // 👈 尝试加上这个
 
 // ==========================================
 // 1. 坐标工具与点位配置
