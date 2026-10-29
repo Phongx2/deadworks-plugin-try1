@@ -53,7 +53,7 @@ public static class EffectList
     private static readonly Random _random = new Random();
 
     // 随机抽卡
-     public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
+     public static void Chouka(CCitadelPlayerPawn pawn, DeadworksManaged.Api.ITimer timer)
     {
         if (pawn == null) return;
         var effect = Pool[_random.Next(Pool.Length)];
@@ -96,7 +96,7 @@ public static void PrintList(Caller caller)
 }
 
     // 根据序号执行（增加 float? customDuration 参数）
-   public static bool ExecuteByIndex(int index, float? customDuration, Caller caller, ITimer timer)
+   public static bool ExecuteByIndex(int index, float? customDuration, Caller caller, DeadworksManaged.Api.ITimer timer)
     {
         int arrayIndex = index - 1;
         if (arrayIndex < 0 || arrayIndex >= Pool.Length) return false;
