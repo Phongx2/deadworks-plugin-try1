@@ -47,11 +47,9 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     public static CCitadelPlayerPawn ActivePlayerA { get; private set; }
     public static CCitadelPlayerPawn ActivePlayerB { get; private set; }
 
-    // 记录决斗双方的初始坐标
     public static Vector3 PlayerAOriginalPos { get; private set; }
     public static Vector3 PlayerBOriginalPos { get; private set; }
 
-    // 记录观战者的初始坐标
     public static readonly Dictionary<CCitadelPlayerPawn, Vector3> OriginalPositions = new();
     public static readonly HashSet<CCitadelPlayerPawn> WatchingDeadPlayers = new();
 
@@ -68,7 +66,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         ActivePlayerA = playerA;
         ActivePlayerB = playerB;
         
-        // 记录决斗双方坐标
         PlayerAOriginalPos = playerA?.Position ?? new Vector3(0, 0, 0);
         PlayerBOriginalPos = playerB?.Position ?? new Vector3(0, 0, 0);
 
@@ -106,12 +103,11 @@ public class EffectRuntimePlugin : DeadworksPluginBase
                 teamBIndex++;
             }
 
-            // 施加两个 Modifier 限制
-            p.AddModifier("citadel_ability_tengu_urn/immobilize");
+            // 🌟 修改为你要的 Modifier
+            p.AddModifier("ability_familiar_ability01/effect");
             p.AddModifier("modifier_citadel_in_hideout_zone");
         }
 
-        // 启动轮询检测
         _duelMonitorTimer?.Cancel();
         _duelMonitorTimer = Timer.Every(1.Seconds(), () =>
         {
@@ -154,7 +150,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         string winnerName = winController.PlayerName ?? "未知玩家";
         string loserName = loseController.PlayerName ?? "未知玩家";
 
-        // 1. 发送决斗结果 HUD
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🏆 决斗结束",
@@ -162,7 +157,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         };
         NetMessages.Send(msg, RecipientFilter.All);
 
-        // 2. 嘲讽语发公屏（无名字前缀）
         string[] taunts = {
             $"跟 {loserName} 打真是简简又单单啊！！",
             $"{loserName} 不行啊",
@@ -171,24 +165,23 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         string tauntText = taunts[Random.Shared.Next(taunts.Length)];
         Chat.PrintToChatAll(tauntText);
 
-        // 3. 奖励赢家 3200 钱
         var souls = winner.GetCurrency(ECurrencyType.EGold);
         winner.SetCurrency(ECurrencyType.EGold, souls + 3200);
 
-        // 4. 赢家传回原位
         if (winner.IsValid)
         {
             var originalPos = winner == ActivePlayerA ? PlayerAOriginalPos : PlayerBOriginalPos;
             winner.Teleport(position: originalPos, angles: null, velocity: null);
         }
 
-        // 5. 恢复观战者
+        // 恢复观战者
         foreach (var kvp in OriginalPositions)
         {
             var p = kvp.Key;
             if (p != null && p.IsValid)
             {
-                p.RemoveModifier("citadel_ability_tengu_urn/immobilize");
+                // 🌟 修改为你要的 Modifier 移除
+                p.RemoveModifier("ability_familiar_ability01/effect");
                 p.RemoveModifier("modifier_citadel_in_hideout_zone");
                 p.Teleport(position: kvp.Value, angles: null, velocity: null);
             }
@@ -203,18 +196,14 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         var pawn = args.Userid?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
-        // 如果决斗还在进行，且此人不是决斗双方
         if (ActivePlayerA != null && ActivePlayerB != null && pawn != ActivePlayerA && pawn != ActivePlayerB)
         {
-            // 延迟 5 tick 后记录位置并传送到观战点
             Timer.Once(5.Ticks(), () =>
             {
                 if (pawn.IsValid && ActivePlayerA != null && ActivePlayerB != null)
                 {
-                    // 记录复活后的位置
                     OriginalPositions[pawn] = pawn.Position;
 
-                    // 根据队伍传送到对应观战点
                     if (pawn.TeamNum == ActivePlayerA.TeamNum)
                     {
                         var pointStr = MapPoints.TeamAPoints[Random.Shared.Next(MapPoints.TeamAPoints.Length)];
@@ -226,8 +215,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
                         pawn.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
                     }
 
-                    // 施加两个 Modifier
-                    pawn.AddModifier("citadel_ability_tengu_urn/immobilize");
+                    // 🌟 修改为你要的 Modifier
+                    pawn.AddModifier("ability_familiar_ability01/effect");
                     pawn.AddModifier("modifier_citadel_in_hideout_zone");
                 }
             });
@@ -318,8 +307,6 @@ public static class Effects
                     if (playerB != null && playerB.IsValid) playerB.RemoveModifier("modifier_chrono_swap_bubble_move");
                 });
             });
-
-        
         }
         else
         {
@@ -367,7 +354,7 @@ public class DebugCommandPlugin : DeadworksPluginBase
                 teamBIndex++;
             }
 
-            p.AddModifier("citadel_ability_tengu_urn/immobilize");
+            p.AddModifier("ability_familiar_ability01/effect");
            // p.AddModifier("modifier_citadel_in_hideout_zone");
         }
 
@@ -379,7 +366,7 @@ public class DebugCommandPlugin : DeadworksPluginBase
             {
                 if (kvp.Key != null && kvp.Key.IsValid)
                 {
-                    kvp.Key.RemoveModifier("citadel_ability_tengu_urn/immobilize");
+                    kvp.Key.RemoveModifier("ability_familiar_ability01/effect");
                    // kvp.Key.RemoveModifier("modifier_citadel_in_hideout_zone");
                     kvp.Key.Teleport(position: kvp.Value, angles: null, velocity: null);
                 }
@@ -387,11 +374,23 @@ public class DebugCommandPlugin : DeadworksPluginBase
             caller.Reply("坐标已还原！");
         });
     }
+}
 
-[Command("e", Description = "给自己施加指定的 Modifier。用法: /e <ModifierName>")]
+// ==========================================
+// 5. 动态加 Modifier 调试指令 (/e)
+// ==========================================
+public class SelfEffectCommandPlugin : DeadworksPluginBase
+{
+    public override string Name => "Self Effect Command Plugin";
+
+    public override void OnLoad(bool isReload)
+    {
+        Console.WriteLine("[SelfEffectCommandPlugin] /e 命令已加载！");
+    }
+
+    [Command("e", Description = "给自己施加指定的 Modifier。用法: /e <ModifierName>")]
     public void CmdApplyModifier(Caller caller, string modifierName)
     {
-        // 1. 确保是玩家执行
         var pawn = caller.Player?.GetHeroPawn();
         if (pawn == null || !pawn.IsValid)
         {
@@ -399,14 +398,12 @@ public class DebugCommandPlugin : DeadworksPluginBase
             return;
         }
 
-        // 2. 确保输入不为空
         if (string.IsNullOrWhiteSpace(modifierName))
         {
             caller.Reply("请提供 Modifier 名称，例如: /e modifier_hero_testing_fast_movespeed");
             return;
         }
 
-        // 3. 施加 Modifier
         try
         {
             pawn.AddModifier(modifierName);
@@ -417,15 +414,4 @@ public class DebugCommandPlugin : DeadworksPluginBase
             caller.Reply($"施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
         }
     }
-
-
-
-
-
-
-
-
-    
 }
-
- 
