@@ -1,5 +1,6 @@
 using DeadworksManaged.Api;
 using System;
+using System.Collections.Generic;
 
 public class GooseEggWatcherPlugin : DeadworksPluginBase
 {
@@ -7,66 +8,106 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
 
     private const string TargetItem = "upgrade_goose_egg";
 
-     // 🌟 全局开关：true 表示允许使用，false 表示禁用
+    // 🌟 全局开关：true 表示允许使用，false 表示禁用
     public static bool IsEggEnabled = true;
-    
+
+    // 供外部调用的单例
+    public static GooseEggWatcherPlugin Instance { get; private set; }
 
     public override void OnLoad(bool isReload)
     {
-        Console.WriteLine("[GooseEggWatcher] 插件已加载，正在监听 upgrade_goose_egg 的使用情况...");
+        Instance = this;
+        Console.WriteLine("[GooseEggWatcher] 插件已加载...");
     }
 
+    // ==========================================
+    // 🌟 开启/关闭禁用
+    // ==========================================
+    public void StartBanEgg()
+    {
+        IsEggEnabled = false;
+        Console.WriteLine("[GooseEggWatcher] 鹅蛋已进入禁用状态。");
+    }
+
+    public void StopBanEgg()
+    {
+        IsEggEnabled = true;
+        Console.WriteLine("[GooseEggWatcher] 鹅蛋已恢复使用。");
+    }
+
+    // ==========================================
+    // 🌟 槽位映射工具
+    // ==========================================
+    private static InputButton? ButtonForSlot(EAbilitySlot slot) => slot switch
+    {
+        EAbilitySlot.Signature1  => InputButton.Ability1,
+        EAbilitySlot.Signature2  => InputButton.Ability2,
+        EAbilitySlot.Signature3  => InputButton.Ability3,
+        EAbilitySlot.Signature4  => InputButton.Ability4,
+        EAbilitySlot.ActiveItem1 => InputButton.Item1,
+        EAbilitySlot.ActiveItem2 => InputButton.Item2,
+        EAbilitySlot.ActiveItem3 => InputButton.Item3,
+        EAbilitySlot.ActiveItem4 => InputButton.Item4,
+        _ => null,
+    };
+
+    // ==========================================
+    // 🌟 实时拦截按键
+    // ==========================================
+    public override void OnAbilityAttempt(AbilityAttemptEvent args)
+    {
+        // 如果没被禁用，直接放行
+        if (IsEggEnabled) return;
+
+        var pawn = args.Controller?.GetHeroPawn();
+        if (pawn == null || !pawn.IsValid) return;
+
+        // 遍历玩家的技能/道具，找鹅蛋
+        foreach (var ability in pawn.AbilityComponent.Abilities)
+        {
+            if (ability.IsItem && ability.AbilityName == TargetItem)
+            {
+                // 算出它对应的按键并 Block
+                if (ButtonForSlot(ability.AbilitySlot) is { } btn)
+                {
+                    args.Block(btn);
+                }
+                break;
+            }
+        }
+    }
+
+    // ==========================================
+    // 兜底拦截与抽卡逻辑
+    // ==========================================
     [GameEventHandler("player_used_ability")]
     public HookResult OnPlayerUsedAbility(PlayerUsedAbilityEvent args)
     {
-        // 1. 判断是否是鹅蛋
         if (!string.Equals(args.Abilityname, TargetItem, StringComparison.OrdinalIgnoreCase))
             return HookResult.Continue;
 
-        // 2. 获取玩家对象
         var pawn = args.Player?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
         var playerName = pawn.Controller?.PlayerName ?? "未知玩家";
 
-
-
-
-// 🌟 如果开关被关闭，拦截此次使用并提示
+        // 如果开关被关闭，拦截并提示
         if (!IsEggEnabled)
         {
             Chat.PrintToChat(pawn.Controller, "⚠️ 当前处于特殊状态，无法使用鹅蛋！");
-            return HookResult.Stop; // 阻止后续的抽卡逻辑
+            return HookResult.Stop; 
         }
 
-
-
-        
-
-        // 🔑 核心修复：在下一帧强行移除玩家身上的蛋，防止取消读条后蛋被退回来
+        // 强制消耗防取消
         Timer.NextTick(() =>
         {
-            // 再次检查 pawn 是否有效（防止玩家在这 1 帧内断开连接或死亡）
-            if (pawn.IsValid)
-            {
-                // RemoveItem 会直接销毁物品，不返还灵魂
-                bool removed = pawn.RemoveItem(TargetItem);
-                if (removed)
-                {
-                    Console.WriteLine($"[GooseEggWatcher] 已强制消耗 {playerName} 的鹅蛋。");
-                }
-                else
-                {
-                    Console.WriteLine($"[GooseEggWatcher] 尝试移除 {playerName} 的蛋失败，可能已经消耗或不存在。");
-                }
-            }
+            if (pawn.IsValid) pawn.RemoveItem(TargetItem);
         });
 
-        // 3. 控制台播报
         Console.WriteLine($"[GooseEggWatcher] 检测到 {playerName} 按下了鹅蛋。");
         CCitadelPlayerController.PrintToConsoleAll($"[鹅蛋] {playerName} 使用了鹅蛋，开始抽卡！");
 
-        // 4. 呼叫抽卡逻辑
+        // 呼叫抽卡逻辑
         EffectList.Chouka(pawn, this.Timer);
 
         return HookResult.Continue;
