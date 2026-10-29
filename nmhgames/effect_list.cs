@@ -31,6 +31,15 @@ public static class EffectList
         new EffectInfo("speed_boost", "加速", 10.0f),
         // 以后加新效果：
         // new EffectInfo("give_gold", "获得金钱", 0f),
+
+
+
+
+
+
+
+
+        
     };
 
 
