@@ -1,9 +1,11 @@
 using DeadworksManaged.Api;
 using System;
+using System.Collections.Generic;
 
 public static class Effects
 {
-    public static void Execute(string effectName, CCitadelPlayerPawn pawn)
+    // 参数变成了 EffectInfo
+    public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn)
     {
         if (pawn == null) return;
         
@@ -11,40 +13,36 @@ public static class Effects
         var controller = pawn.Controller;
         if (controller == null) return;
 
-        switch (effectName)
+        // 使用 effect.Id 进行判断
+        if (effect.Id == "speed_boost")
         {
-            
-case EffectList.SpeedBoost:
-{
-    // 1. 设置时长
-    using var kv = new KeyValues3();
-    kv.SetFloat("duration", 10.0f); 
+            // 1. 设置时长 (使用 effect.Duration 替代写死的 10.0f)
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", effect.Duration); 
 
-    // 2. 套用上面的格式
-    pawn.AddModifier("upgrade_fleetfoot_boots/modifier_intrinsic_base", kv: kv,
-    abilityValues: new() { 
-        ["MoveWhileShootingSpeedPenaltyReductionPercent"] = 200f,
-    	["MoveWhileZoomedSpeedPenaltyReductionPercent"] = 200f,
-    	["SlideScale"] = 299f,
-    	["BulletResist"] = 15f,
-    	["BaseAttackDamagePercent"] = 15f,
-    });
+            // 2. 套用你测试好的格式
+            pawn.AddModifier("upgrade_fleetfoot_boots/modifier_intrinsic_base", kv: kv,
+            abilityValues: new() { 
+                ["MoveWhileShootingSpeedPenaltyReductionPercent"] = 200f,
+                ["MoveWhileZoomedSpeedPenaltyReductionPercent"] = 200f,
+                ["SlideScale"] = 299f,
+                ["BulletResist"] = 15f,
+                ["BaseAttackDamagePercent"] = 15f,
+            });
 
-    pawn.AddModifier("upgrade_fleetfoot_boots/modifier_fleetfoot_boots", kv: kv,
-    abilityValues: new() { 
-       	["ActiveBonusMoveSpeed"] = 10f,
-	    ["SlowResistancePercent"] = 200f,
-    });
+            pawn.AddModifier("upgrade_fleetfoot_boots/modifier_fleetfoot_boots", kv: kv,
+            abilityValues: new() { 
+                ["ActiveBonusMoveSpeed"] = 10f,
+                ["SlowResistancePercent"] = 200f,
+            });
 
-    
-    pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
+            // 测试用的移速 Modifier (如果你的 kv 是给上面两个用的，这里可以直接传，或者单独 new 一个)
+            pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
 
-
-    
-    Chat.PrintToChat(controller, "你抽到了");
-    Chat.PrintToChat(controller, EffectList.SpeedBoostName);
-    break;
-}
+            // 聊天提示 (使用 effect.DisplayName)
+            Chat.PrintToChat(controller, "你抽到了");
+            Chat.PrintToChat(controller, effect.DisplayName);
+        }
 
 
 
@@ -57,10 +55,21 @@ case EffectList.SpeedBoost:
 
 
 
-                
-            default:
-                Console.WriteLine($"[Effects] 未知的效果名称: {effectName}");
-                break;
+
+
+
+
+
+
+		
+        // 以后加新效果：
+        // else if (effect.Id == "give_gold")
+        // {
+        //     ...
+        // }
+        else
+        {
+            Console.WriteLine($"[Effects] 未知的效果ID: {effect.Id}");
         }
     }
 }
