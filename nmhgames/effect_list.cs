@@ -96,3 +96,45 @@ public static class EffectList
         return true;
     }
 }
+
+
+
+public class EffectCommandPlugin : DeadworksPluginBase
+{
+    public override string Name => "Effect Command Plugin";
+
+    public override void OnLoad(bool isReload)
+    {
+        Console.WriteLine("[EffectCommandPlugin] 命令插件已加载！");
+    }
+
+    [Command("l", Description = "列出所有效果，或使用 /l <序号> 执行对应效果")]
+    public void CmdListEffects(Caller caller, int? index = null)
+    {
+        if (index == null)
+        {
+            EffectList.PrintList(caller);
+            return;
+        }
+
+        bool success = EffectList.ExecuteByIndex(index.Value, caller);
+        if (!success)
+        {
+            caller.Reply($"序号 {index.Value} 不存在，请输入 /l 查看列表。");
+        }
+    }
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
