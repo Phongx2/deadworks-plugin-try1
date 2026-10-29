@@ -319,7 +319,7 @@ public static class Effects
                 });
             });
 
-            SendDrawNotification(controller, effect);
+        
         }
         else
         {
