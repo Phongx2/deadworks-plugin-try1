@@ -222,7 +222,7 @@ public static class Effects
     private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
         Chat.PrintToChat(controller, "你抽到了");
-        Chat.PrintToChat(controller, $"{effect.DisplayName} (持续 {effect.Duration} 秒)");
+        Chat.PrintToChat(controller, $"{effect.DisplayName} ，持续 {effect.Duration} 秒");
     }
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
