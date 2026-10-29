@@ -418,3 +418,5 @@ public class DebugCommandPlugin : DeadworksPluginBase
         });
     }
 }
+}
+
