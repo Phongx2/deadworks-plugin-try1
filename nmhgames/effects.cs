@@ -388,3 +388,33 @@ public class DebugCommandPlugin : DeadworksPluginBase
         });
     }
 }
+
+ [Command("e", Description = "给自己施加指定的 Modifier。用法: /e <ModifierName>")]
+    public void CmdApplyModifier(Caller caller, string modifierName)
+    {
+        // 1. 确保是玩家执行
+        var pawn = caller.Player?.GetHeroPawn();
+        if (pawn == null || !pawn.IsValid)
+        {
+            caller.Reply("你必须在游戏内且有英雄才能使用此命令。");
+            return;
+        }
+
+        // 2. 确保输入不为空
+        if (string.IsNullOrWhiteSpace(modifierName))
+        {
+            caller.Reply("请提供 Modifier 名称，例如: /e modifier_hero_testing_fast_movespeed");
+            return;
+        }
+
+        // 3. 施加 Modifier
+        try
+        {
+            pawn.AddModifier(modifierName);
+            caller.Reply($"已成功对你施加 Modifier: {modifierName}");
+        }
+        catch (Exception ex)
+        {
+            caller.Reply($"施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
+        }
+    }
