@@ -368,19 +368,19 @@ public class DebugCommandPlugin : DeadworksPluginBase
             }
 
             p.AddModifier("citadel_ability_tengu_urn/immobilize");
-            p.AddModifier("modifier_citadel_in_hideout_zone");
+           // p.AddModifier("modifier_citadel_in_hideout_zone");
         }
 
         caller.Reply("已传送所有玩家，3秒后还原...");
 
-        Timer.Once(3.Seconds(), () =>
+        Timer.Once(5.Seconds(), () =>
         {
             foreach (var kvp in tempPositions)
             {
                 if (kvp.Key != null && kvp.Key.IsValid)
                 {
                     kvp.Key.RemoveModifier("citadel_ability_tengu_urn/immobilize");
-                    kvp.Key.RemoveModifier("modifier_citadel_in_hideout_zone");
+                   // kvp.Key.RemoveModifier("modifier_citadel_in_hideout_zone");
                     kvp.Key.Teleport(position: kvp.Value, angles: null, velocity: null);
                 }
             }
