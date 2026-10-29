@@ -52,6 +52,9 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
     private IHandle _duelMonitorTimer;
 
+    // 🌟 严格使用你指定的定身 Modifier
+    private const string RootModifier = "ability_warden_lock_down/modifier_citadel_root";
+
     public override void OnLoad(bool isReload)
     {
         Instance = this;
@@ -96,8 +99,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
                 teamBIndex++;
             }
 
-            p.AddModifier("modifier_citadel_in_hideout_zone");
-            p.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
+            // 🌟 使用你指定的定身 Modifier
+            p.AddModifier(RootModifier);
         }
 
         // 启动每 1 秒一次的轮询检测
@@ -111,8 +114,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     private void CheckDuelStatus()
     {
         if (ActivePlayerA == null || ActivePlayerB == null) return;
-
-        // 只判断 NotAlive，null 或 invalid 不参与判定
         if (!ActivePlayerA.IsValid || !ActivePlayerB.IsValid) return;
 
         bool isADead = ActivePlayerA.LifeState != LifeState.Alive;
@@ -160,22 +161,19 @@ public class EffectRuntimePlugin : DeadworksPluginBase
             "拿下"
         };
         string tauntText = taunts[Random.Shared.Next(taunts.Length)];
-        
-        // 用 PrintToChatAll，并在前面加上胜者名字模拟
         Chat.PrintToChatAll($"{winnerName}: {tauntText}");
 
         // 3. 奖励赢家 3200 钱
         var souls = winner.GetCurrency(ECurrencyType.EGold);
         winner.SetCurrency(ECurrencyType.EGold, souls + 3200);
 
-        // 4. 恢复观战者
+        // 4. 恢复观战者（移除定身 Modifier）
         foreach (var kvp in OriginalPositions)
         {
             var p = kvp.Key;
             if (p != null && p.IsValid)
             {
-                p.RemoveModifier("modifier_citadel_in_hideout_zone");
-                p.ModifierProp.SetModifierState(EModifierState.Immobilized, false);
+                p.RemoveModifier(RootModifier); // 🌟 严格使用指定的移除
                 p.Teleport(position: kvp.Value, angles: null, velocity: null);
             }
         }
@@ -208,8 +206,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
                         pawn.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
                     }
 
-                    pawn.AddModifier("modifier_citadel_in_hideout_zone");
-                    pawn.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
+                    pawn.AddModifier(RootModifier); // 🌟 严格使用指定的定身
                 }
             });
         }
@@ -234,7 +231,6 @@ public static class Effects
         var controller = pawn.Controller;
         if (controller == null) return;
 
-        // ================= 效果 1：加速 =================
         if (effect.Id == "speed_boost")
         {
             using var kv = new KeyValues3();
@@ -258,7 +254,6 @@ public static class Effects
             pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
             SendDrawNotification(controller, effect);
         }
-        // ================= 效果 2：1v1 斗殴 =================
         else if (effect.Id == "1v1")
         {
             var enemies = Players.GetAll()
@@ -328,6 +323,9 @@ public class DebugCommandPlugin : DeadworksPluginBase
         var tempPositions = new Dictionary<CCitadelPlayerPawn, Vector3>();
         int teamAIndex = 0;
         int teamBIndex = 0;
+        
+        // 🌟 严格使用你指定的定身 Modifier
+        const string rootMod = "ability_warden_lock_down/modifier_citadel_root";
 
         foreach (var c in Players.GetAll())
         {
@@ -349,8 +347,8 @@ public class DebugCommandPlugin : DeadworksPluginBase
                 teamBIndex++;
             }
 
-            p.AddModifier("modifier_citadel_in_hideout_zone");
-            p.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
+            // 🌟 使用你指定的定身 Modifier
+            p.AddModifier(rootMod);
         }
 
         caller.Reply("已传送所有玩家，3秒后还原...");
@@ -361,8 +359,7 @@ public class DebugCommandPlugin : DeadworksPluginBase
             {
                 if (kvp.Key != null && kvp.Key.IsValid)
                 {
-                    kvp.Key.RemoveModifier("modifier_citadel_in_hideout_zone");
-                    kvp.Key.ModifierProp.SetModifierState(EModifierState.Immobilized, false);
+                    kvp.Key.RemoveModifier(rootMod); // 🌟 严格使用指定的移除
                     kvp.Key.Teleport(position: kvp.Value, angles: null, velocity: null);
                 }
             }
