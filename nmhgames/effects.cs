@@ -47,13 +47,15 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     public static CCitadelPlayerPawn ActivePlayerA { get; private set; }
     public static CCitadelPlayerPawn ActivePlayerB { get; private set; }
 
+    // 记录决斗双方的初始坐标
+    public static Vector3 PlayerAOriginalPos { get; private set; }
+    public static Vector3 PlayerBOriginalPos { get; private set; }
+
+    // 记录观战者的初始坐标
     public static readonly Dictionary<CCitadelPlayerPawn, Vector3> OriginalPositions = new();
     public static readonly HashSet<CCitadelPlayerPawn> WatchingDeadPlayers = new();
 
     private IHandle _duelMonitorTimer;
-
-    // 🌟 严格使用你指定的定身 Modifier
-    private const string RootModifier = "ability_warden_lock_down/modifier_citadel_root";
 
     public override void OnLoad(bool isReload)
     {
@@ -65,6 +67,11 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     {
         ActivePlayerA = playerA;
         ActivePlayerB = playerB;
+        
+        // 记录决斗双方坐标
+        PlayerAOriginalPos = playerA?.Position ?? new Vector3(0, 0, 0);
+        PlayerBOriginalPos = playerB?.Position ?? new Vector3(0, 0, 0);
+
         OriginalPositions.Clear();
         WatchingDeadPlayers.Clear();
 
@@ -99,11 +106,12 @@ public class EffectRuntimePlugin : DeadworksPluginBase
                 teamBIndex++;
             }
 
-            // 🌟 使用你指定的定身 Modifier
-            p.AddModifier(RootModifier);
+            // 施加两个 Modifier 限制
+            p.AddModifier("citadel_ability_tengu_urn/immobilize");
+            p.AddModifier("modifier_citadel_in_hideout_zone");
         }
 
-        // 启动每 1 秒一次的轮询检测
+        // 启动轮询检测
         _duelMonitorTimer?.Cancel();
         _duelMonitorTimer = Timer.Every(1.Seconds(), () =>
         {
@@ -154,26 +162,34 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         };
         NetMessages.Send(msg, RecipientFilter.All);
 
-        // 2. 嘲讽语由胜者名字发出
+        // 2. 嘲讽语发公屏（无名字前缀）
         string[] taunts = {
             $"跟 {loserName} 打真是简简又单单啊！！",
             $"{loserName} 不行啊",
             "拿下"
         };
         string tauntText = taunts[Random.Shared.Next(taunts.Length)];
-        Chat.PrintToChatAll($"{winnerName}: {tauntText}");
+        Chat.PrintToChatAll(tauntText);
 
         // 3. 奖励赢家 3200 钱
         var souls = winner.GetCurrency(ECurrencyType.EGold);
         winner.SetCurrency(ECurrencyType.EGold, souls + 3200);
 
-        // 4. 恢复观战者（移除定身 Modifier）
+        // 4. 赢家传回原位
+        if (winner.IsValid)
+        {
+            var originalPos = winner == ActivePlayerA ? PlayerAOriginalPos : PlayerBOriginalPos;
+            winner.Teleport(position: originalPos, angles: null, velocity: null);
+        }
+
+        // 5. 恢复观战者
         foreach (var kvp in OriginalPositions)
         {
             var p = kvp.Key;
             if (p != null && p.IsValid)
             {
-                p.RemoveModifier(RootModifier); // 🌟 严格使用指定的移除
+                p.RemoveModifier("citadel_ability_tengu_urn/immobilize");
+                p.RemoveModifier("modifier_citadel_in_hideout_zone");
                 p.Teleport(position: kvp.Value, angles: null, velocity: null);
             }
         }
@@ -187,14 +203,18 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         var pawn = args.Userid?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
-        if (WatchingDeadPlayers.Contains(pawn) && ActivePlayerA != null)
+        // 如果决斗还在进行，且此人不是决斗双方
+        if (ActivePlayerA != null && ActivePlayerB != null && pawn != ActivePlayerA && pawn != ActivePlayerB)
         {
-            WatchingDeadPlayers.Remove(pawn);
-
+            // 延迟 5 tick 后记录位置并传送到观战点
             Timer.Once(5.Ticks(), () =>
             {
-                if (pawn.IsValid && ActivePlayerA != null)
+                if (pawn.IsValid && ActivePlayerA != null && ActivePlayerB != null)
                 {
+                    // 记录复活后的位置
+                    OriginalPositions[pawn] = pawn.Position;
+
+                    // 根据队伍传送到对应观战点
                     if (pawn.TeamNum == ActivePlayerA.TeamNum)
                     {
                         var pointStr = MapPoints.TeamAPoints[Random.Shared.Next(MapPoints.TeamAPoints.Length)];
@@ -206,10 +226,13 @@ public class EffectRuntimePlugin : DeadworksPluginBase
                         pawn.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
                     }
 
-                    pawn.AddModifier(RootModifier); // 🌟 严格使用指定的定身
+                    // 施加两个 Modifier
+                    pawn.AddModifier("citadel_ability_tengu_urn/immobilize");
+                    pawn.AddModifier("modifier_citadel_in_hideout_zone");
                 }
             });
         }
+
         return HookResult.Continue;
     }
 }
@@ -222,7 +245,7 @@ public static class Effects
     private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
         Chat.PrintToChat(controller, "你抽到了");
-        Chat.PrintToChat(controller, $"{effect.DisplayName} ，持续 {effect.Duration} 秒");
+        Chat.PrintToChat(controller, $"{effect.DisplayName} (持续 {effect.Duration} 秒)");
     }
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
@@ -323,9 +346,6 @@ public class DebugCommandPlugin : DeadworksPluginBase
         var tempPositions = new Dictionary<CCitadelPlayerPawn, Vector3>();
         int teamAIndex = 0;
         int teamBIndex = 0;
-        
-        // 🌟 严格使用你指定的定身 Modifier
-        const string rootMod = "ability_warden_lock_down/modifier_citadel_root";
 
         foreach (var c in Players.GetAll())
         {
@@ -347,8 +367,8 @@ public class DebugCommandPlugin : DeadworksPluginBase
                 teamBIndex++;
             }
 
-            // 🌟 使用你指定的定身 Modifier
-            p.AddModifier(rootMod);
+            p.AddModifier("citadel_ability_tengu_urn/immobilize");
+            p.AddModifier("modifier_citadel_in_hideout_zone");
         }
 
         caller.Reply("已传送所有玩家，3秒后还原...");
@@ -359,7 +379,8 @@ public class DebugCommandPlugin : DeadworksPluginBase
             {
                 if (kvp.Key != null && kvp.Key.IsValid)
                 {
-                    kvp.Key.RemoveModifier(rootMod); // 🌟 严格使用指定的移除
+                    kvp.Key.RemoveModifier("citadel_ability_tengu_urn/immobilize");
+                    kvp.Key.RemoveModifier("modifier_citadel_in_hideout_zone");
                     kvp.Key.Teleport(position: kvp.Value, angles: null, velocity: null);
                 }
             }
