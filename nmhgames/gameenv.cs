@@ -43,6 +43,7 @@ ConVar.Find("citadel_start_players_on_zipline")?.SetInt(1);
                 Timer.NextTick(() =>
                 {
                     //Server.ExecuteCommand("sv_cheats 0");
+                    Server.ExecuteCommand("citadel_hero_testing_enabled 1");
                     Console.WriteLine("[ServerDefaults] 清理完毕，sv_cheats 已关闭。");
                 });
             });
