@@ -22,7 +22,7 @@ case EffectList.SpeedBoost:
 
     // 2. 使用命名参数传递（注意 abilityValues: 这个前缀）
     pawn.AddModifier("ability_doorman_bomb/debuff", kv: kv,
-    abilityValues: new() { ["SlowPercent"] = 100.0f });
+    abilityValues: new() { ["SlowPercent"] = -100.0f });
     
     Chat.PrintToChat(controller, "你抽到了");
     Chat.PrintToChat(controller, EffectList.SpeedBoostName);
