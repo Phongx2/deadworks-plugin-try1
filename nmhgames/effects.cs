@@ -150,6 +150,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         string winnerName = winController.PlayerName ?? "未知玩家";
         string loserName = loseController.PlayerName ?? "未知玩家";
 
+        GooseEggWatcherPlugin.IsEggEnabled = true;
+
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🏆 决斗结束",
@@ -162,8 +164,34 @@ public class EffectRuntimePlugin : DeadworksPluginBase
             $"{loserName} 不行啊",
             "拿下"
         };
-        string tauntText = taunts[Random.Shared.Next(taunts.Length)];
-        Chat.PrintToChatAll(tauntText);
+        
+
+
+
+
+
+                string tauntText = taunts[Random.Shared.Next(taunts.Length)];
+        var chatMsg = new CCitadelUserMsg_ChatMsg
+        {
+            PlayerSlot = winController.Slot,
+            Text = tauntText,
+            AllChat = true
+        };
+        NetMessages.Send(chatMsg, RecipientFilter.All);
+
+
+
+
+
+
+
+
+
+
+
+
+
+        
 
         var souls = winner.GetCurrency(ECurrencyType.EGold);
         winner.SetCurrency(ECurrencyType.EGold, souls + 3200);
@@ -232,10 +260,20 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 public static class Effects
 {
     private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
+{
+    string text = $"你抽到了\n{effect.DisplayName} (持续 {effect.Duration} 秒)";
+
+    // 构造消息，AllChat = false 表示发到队伍频道
+    var msgTeam = new CCitadelUserMsg_ChatMsg
     {
-        Chat.PrintToChat(controller, "你抽到了");
-        Chat.PrintToChat(controller, $"{effect.DisplayName} (持续 {effect.Duration} 秒)");
-    }
+        PlayerSlot = controller.Slot,
+        Text = text,
+        AllChat = false
+    };
+
+    // 广播给全体，引擎会根据 AllChat = false 自动显示到对应队伍的频道里
+    NetMessages.Send(msgTeam, RecipientFilter.All);
+}
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
     {
@@ -288,7 +326,19 @@ public static class Effects
                 DescriptionLocstring = $"{controller.PlayerName} 与 {nameB} 将要发起决斗！"
             };
             NetMessages.Send(msg, RecipientFilter.All);
-            Chat.PrintToChatAll($"⚠️ 做好准备，我将对 {nameB} 发起决斗！");
+
+
+            
+            var chatMsg = new CCitadelUserMsg_ChatMsg
+            {
+                PlayerSlot = controller.Slot,
+                Text = $"⚠️ 做好准备，我将对 {nameB} 发起决斗！",
+                AllChat = true
+            };
+            NetMessages.Send(chatMsg, RecipientFilter.All);
+
+
+            
 
             EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB);
 
@@ -317,7 +367,7 @@ public static class Effects
 
 
 
-            GooseEggWatcherPlugin.IsEggEnabled = true;
+            
 
 
 
