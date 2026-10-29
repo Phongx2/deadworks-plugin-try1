@@ -18,7 +18,8 @@ public static class Effects
         Chat.PrintToChat(controller, $"{effect.DisplayName} (持续 {effect.Duration} 秒)");
     }
 
-    public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
+    // 把 ITimer timer 改成 DeadworksManaged.Api.ITimer timer
+public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, DeadworksManaged.Api.ITimer timer)
     {
         if (pawn == null) return;
         
