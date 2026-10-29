@@ -5,13 +5,204 @@ using System.Collections.Generic;
 using System.Linq;
 using ITimer = DeadworksManaged.Api.ITimer;
 
+// ==========================================
+// 1. 坐标工具与点位配置
+// ==========================================
+public static class MapPoints
+{
+    public static Vector3 ParsePos(string posStr)
+    {
+        var parts = posStr.Split(' ', StringSplitOptions.RemoveEmptyEntries);
+        if (parts.Length >= 3 && float.TryParse(parts[0], out var x) && float.TryParse(parts[1], out var y) && float.TryParse(parts[2], out var z))
+            return new Vector3(x, y, z);
+        return new Vector3(0, 0, 0);
+    }
 
+    public static readonly string[] TeamAPoints = {
+        "-591.781250 -697.187500 11.843750",
+        "-637.343750 -316.406250 -2.250000",
+        "-646.750000 -61.281250 40.062500",
+        "-617.093750 336.000000 -2.406250",
+        "-621.312500 699.218750 4.343750"
+    };
+    public static readonly string[] TeamBPoints = {
+        "611.562500 656.562500 7.437500",
+        "607.687500 288.625000 0.718750",
+        "656.031250 44.125000 9.500000",
+        "632.281250 -318.250000 11.531250",
+        "603.906250 -717.437500 -1.250000"
+    };
+}
+
+// ==========================================
+// 2. 运行时状态与事件监听插件 (处理 1v1 前后逻辑)
+// ==========================================
+public class EffectRuntimePlugin : DeadworksPluginBase
+{
+    public override string Name => "Effect Runtime Plugin";
+    
+    public static EffectRuntimePlugin Instance { get; private set; }
+
+    public static CCitadelPlayerPawn ActivePlayerA { get; private set; }
+    public static CCitadelPlayerPawn ActivePlayerB { get; private set; }
+
+    // 记录观战者的初始坐标
+    public static readonly Dictionary<CCitadelPlayerPawn, Vector3> OriginalPositions = new();
+    // 记录死亡待复活的观战者
+    public static readonly HashSet<CCitadelPlayerPawn> WatchingDeadPlayers = new();
+
+    public override void OnLoad(bool isReload)
+    {
+        Instance = this;
+        Console.WriteLine("[EffectRuntimePlugin] 已加载 1v1 运行时逻辑");
+    }
+
+    // 提供给 Effects 调用的准备方法
+    public void Prepare1v1(CCitadelPlayerPawn playerA, CCitadelPlayerPawn playerB)
+    {
+        ActivePlayerA = playerA;
+        ActivePlayerB = playerB;
+        OriginalPositions.Clear();
+        WatchingDeadPlayers.Clear();
+
+        int teamAIndex = 0;
+        int teamBIndex = 0;
+
+        foreach (var c in Players.GetAll())
+        {
+            var p = c.GetHeroPawn();
+            if (p == null || !p.IsValid) continue;
+            if (p == playerA || p == playerB) continue; // 跳过决斗双方
+
+            var originalPos = p.Position;
+            OriginalPositions[p] = originalPos;
+
+            if (p.LifeState != LifeState.Alive)
+            {
+                WatchingDeadPlayers.Add(p);
+                continue;
+            }
+
+            if (p.TeamNum == playerA.TeamNum)
+            {
+                var pointStr = MapPoints.TeamAPoints[teamAIndex % MapPoints.TeamAPoints.Length];
+                p.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
+                teamAIndex++;
+            }
+            else
+            {
+                var pointStr = MapPoints.TeamBPoints[teamBIndex % MapPoints.TeamBPoints.Length];
+                p.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
+                teamBIndex++;
+            }
+
+            p.AddModifier("modifier_citadel_in_hideout_zone");
+            p.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
+        }
+    }
+
+    // 监听玩家死亡
+    [GameEventHandler("player_death")]
+    public HookResult OnPlayerDeath(PlayerDeathEvent args)
+    {
+        if (ActivePlayerA == null || ActivePlayerB == null) return HookResult.Continue;
+
+        var victim = args.UseridController?.GetHeroPawn();
+        var killer = args.AttackerController?.GetHeroPawn();
+
+        if (victim == ActivePlayerA && killer == ActivePlayerB)
+            HandleDuelEnd(ActivePlayerB, ActivePlayerA);
+        else if (victim == ActivePlayerB && killer == ActivePlayerA)
+            HandleDuelEnd(ActivePlayerA, ActivePlayerB);
+
+        return HookResult.Continue;
+    }
+
+    private void HandleDuelEnd(CCitadelPlayerPawn winner, CCitadelPlayerPawn loser)
+    {
+        ActivePlayerA = null;
+        ActivePlayerB = null;
+
+        var winController = winner.Controller;
+        var loseController = loser.Controller;
+        if (winController == null || loseController == null) return;
+
+        var msg = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "🏆 决斗结束",
+            DescriptionLocstring = $"{winController.PlayerName} 战胜了 {loseController.PlayerName}！"
+        };
+        NetMessages.Send(msg, RecipientFilter.All);
+
+        string[] taunts = {
+            $"跟 {loseController.PlayerName} 打真是简简又单单啊！！",
+            $"{loseController.PlayerName} 不行啊",
+            "拿下"
+        };
+        Chat.PrintToChatAll(taunts[Random.Shared.Next(taunts.Length)]);
+
+        var souls = winner.GetCurrency(ECurrencyType.EGold);
+        winner.SetCurrency(ECurrencyType.EGold, souls + 3200);
+
+        // 恢复观战者
+        foreach (var kvp in OriginalPositions)
+        {
+            var p = kvp.Key;
+            if (p != null && p.IsValid)
+            {
+                p.RemoveModifier("modifier_citadel_in_hideout_zone");
+                p.ModifierProp.SetModifierState(EModifierState.Immobilized, false);
+                p.Teleport(position: kvp.Value, angles: null, velocity: null);
+            }
+        }
+        OriginalPositions.Clear();
+        WatchingDeadPlayers.Clear();
+    }
+
+    // 监听玩家复活
+    [GameEventHandler("player_respawned")]
+    public HookResult OnPlayerRespawned(PlayerRespawnedEvent args)
+    {
+        var pawn = args.UserId?.As<CCitadelPlayerPawn>();
+        if (pawn == null) return HookResult.Continue;
+
+        if (WatchingDeadPlayers.Contains(pawn) && ActivePlayerA != null)
+        {
+            WatchingDeadPlayers.Remove(pawn);
+
+            Timer.Once(5.Ticks(), () =>
+            {
+                if (pawn.IsValid && ActivePlayerA != null)
+                {
+                    if (pawn.TeamNum == ActivePlayerA.TeamNum)
+                    {
+                        var pointStr = MapPoints.TeamAPoints[Random.Shared.Next(MapPoints.TeamAPoints.Length)];
+                        pawn.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
+                    }
+                    else
+                    {
+                        var pointStr = MapPoints.TeamBPoints[Random.Shared.Next(MapPoints.TeamBPoints.Length)];
+                        pawn.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
+                    }
+
+                    pawn.AddModifier("modifier_citadel_in_hideout_zone");
+                    pawn.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
+                }
+            });
+        }
+        return HookResult.Continue;
+    }
+}
 
 
 
 
 public static class Effects
 {
+
+
+
+	
     private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
         Chat.PrintToChat(controller, "你抽到了");
@@ -96,40 +287,37 @@ public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer ti
             string nameB = controllerB?.PlayerName ?? "未知敌人";
 
             Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
-            
             var msg = new CCitadelUserMsg_HudGameAnnouncement
             {
                 TitleLocstring = "⚠️ 做好准备",
                 DescriptionLocstring = $"{controller.PlayerName} 与 {nameB} 将要发起决斗！"
             };
             NetMessages.Send(msg, RecipientFilter.All);
-            
-            Chat.PrintToChatAll($"⚠️ 做好准备，{controller.PlayerName} 将对 {nameB} 发起决斗！");
+            Chat.PrintToChatAll($"⚠️ 做好准备，我将对 {nameB} 发起决斗！");
+
+            // 🌟 调用运行时插件准备 1v1（处理观战者传送）
+            EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB);
 
             timer.Once(3.Seconds(), () =>
             {
                 Console.WriteLine("[1v1] 决斗开始，施加时空扭曲");
-                if (pawn != null && pawn.IsValid && pawn.LifeState == LifeState.Alive)
-                {
-                    using var kvA = new KeyValues3();
-                    kvA.SetFloat("duration", 1.0f);
-                    pawn.AddModifier("modifier_chrono_swap_bubble_move", kvA);
-                }
-                if (playerB != null && playerB.IsValid && playerB.LifeState == LifeState.Alive)
-                {
-                    using var kvB = new KeyValues3();
-                    kvB.SetFloat("duration", 1.0f);
-                    playerB.AddModifier("modifier_chrono_swap_bubble_move", kvB);
-                }
+                using var kvA = new KeyValues3();
+                kvA.SetFloat("duration", 1.0f);
+                if (pawn.IsValid) pawn.AddModifier("modifier_chrono_swap_bubble_move", kvA);
+
+                using var kvB = new KeyValues3();
+                kvB.SetFloat("duration", 1.0f);
+                if (playerB != null && playerB.IsValid) playerB.AddModifier("modifier_chrono_swap_bubble_move", kvB);
 
                 timer.Once(1.Seconds(), () =>
                 {
                     Console.WriteLine("[1v1] 移除时空扭曲");
-                    if (pawn != null && pawn.IsValid) pawn.RemoveModifier("modifier_chrono_swap_bubble_move");
+                    if (pawn.IsValid) pawn.RemoveModifier("modifier_chrono_swap_bubble_move");
                     if (playerB != null && playerB.IsValid) playerB.RemoveModifier("modifier_chrono_swap_bubble_move");
                 });
             });
 
+            
         }
         // ================= 未知效果保底 =================
 
@@ -152,5 +340,81 @@ public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer ti
         {
             Console.WriteLine($"[Effects] 未知的效果ID: {effect.Id}");
         }
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+	// ==========================================
+// 4. 调试指令插件 (/s1)
+// ==========================================
+public class DebugCommandPlugin : DeadworksPluginBase
+{
+    public override string Name => "Debug Command Plugin";
+
+    public override void OnLoad(bool isReload)
+    {
+        Console.WriteLine("[DebugCommandPlugin] 调试指令插件已加载！(/s1)");
+    }
+
+    [Command("s1", Description = "全服传送到指定点位，3秒后还原")]
+    public void CmdS1(Caller caller)
+    {
+        var tempPositions = new Dictionary<CCitadelPlayerPawn, Vector3>();
+        int teamAIndex = 0;
+        int teamBIndex = 0;
+
+        foreach (var c in Players.GetAll())
+        {
+            var p = c.GetHeroPawn();
+            if (p == null || !p.IsValid) continue;
+
+            tempPositions[p] = p.Position;
+
+            if (p.TeamNum == 2)
+            {
+                var pointStr = MapPoints.TeamAPoints[teamAIndex % MapPoints.TeamAPoints.Length];
+                p.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
+                teamAIndex++;
+            }
+            else if (p.TeamNum == 3)
+            {
+                var pointStr = MapPoints.TeamBPoints[teamBIndex % MapPoints.TeamBPoints.Length];
+                p.Teleport(position: MapPoints.ParsePos(pointStr), angles: null, velocity: null);
+                teamBIndex++;
+            }
+
+            p.AddModifier("modifier_citadel_in_hideout_zone");
+            p.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
+        }
+
+        caller.Reply("已传送所有玩家，3秒后还原...");
+
+        Timer.Once(3.Seconds(), () =>
+        {
+            foreach (var kvp in tempPositions)
+            {
+                if (kvp.Key != null && kvp.Key.IsValid)
+                {
+                    kvp.Key.RemoveModifier("modifier_citadel_in_hideout_zone");
+                    kvp.Key.ModifierProp.SetModifierState(EModifierState.Immobilized, false);
+                    kvp.Key.Teleport(position: kvp.Value, angles: null, velocity: null);
+                }
+            }
+            caller.Reply("坐标已还原！");
+        });
     }
 }
