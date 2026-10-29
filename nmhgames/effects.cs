@@ -108,8 +108,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     {
         if (ActivePlayerA == null || ActivePlayerB == null) return HookResult.Continue;
 
-        var victim = args.UseridController?.GetHeroPawn();
-        var killer = args.AttackerController?.GetHeroPawn();
+        var victim = (args.UseridController as CCitadelPlayerController)?.GetHeroPawn();
+		var killer = (args.AttackerController as CCitadelPlayerController)?.GetHeroPawn();
 
         if (victim == ActivePlayerA && killer == ActivePlayerB)
             HandleDuelEnd(ActivePlayerB, ActivePlayerA);
@@ -164,7 +164,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     [GameEventHandler("player_respawned")]
     public HookResult OnPlayerRespawned(PlayerRespawnedEvent args)
     {
-        var pawn = args.UserId?.As<CCitadelPlayerPawn>();
+        var pawn = args.Userid?.As<CCitadelPlayerPawn>();  
         if (pawn == null) return HookResult.Continue;
 
         if (WatchingDeadPlayers.Contains(pawn) && ActivePlayerA != null)
