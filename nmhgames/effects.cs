@@ -4,7 +4,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using ITimer = DeadworksManaged.Api.ITimer;
-using System.Numerics; // 👈 尝试加上这个
+using System.Numerics;
 
 // ==========================================
 // 1. 坐标工具与点位配置
@@ -36,7 +36,7 @@ public static class MapPoints
 }
 
 // ==========================================
-// 2. 运行时状态与事件监听插件 (处理 1v1 前后逻辑)
+// 2. 运行时状态与事件监听插件
 // ==========================================
 public class EffectRuntimePlugin : DeadworksPluginBase
 {
@@ -47,10 +47,10 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     public static CCitadelPlayerPawn ActivePlayerA { get; private set; }
     public static CCitadelPlayerPawn ActivePlayerB { get; private set; }
 
-    // 记录观战者的初始坐标
     public static readonly Dictionary<CCitadelPlayerPawn, Vector3> OriginalPositions = new();
-    // 记录死亡待复活的观战者
     public static readonly HashSet<CCitadelPlayerPawn> WatchingDeadPlayers = new();
+
+    private IHandle _duelMonitorTimer;
 
     public override void OnLoad(bool isReload)
     {
@@ -58,7 +58,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         Console.WriteLine("[EffectRuntimePlugin] 已加载 1v1 运行时逻辑");
     }
 
-    // 提供给 Effects 调用的准备方法
     public void Prepare1v1(CCitadelPlayerPawn playerA, CCitadelPlayerPawn playerB)
     {
         ActivePlayerA = playerA;
@@ -73,7 +72,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         {
             var p = c.GetHeroPawn();
             if (p == null || !p.IsValid) continue;
-            if (p == playerA || p == playerB) continue; // 跳过决斗双方
+            if (p == playerA || p == playerB) continue;
 
             var originalPos = p.Position;
             OriginalPositions[p] = originalPos;
@@ -100,23 +99,38 @@ public class EffectRuntimePlugin : DeadworksPluginBase
             p.AddModifier("modifier_citadel_in_hideout_zone");
             p.ModifierProp.SetModifierState(EModifierState.Immobilized, true);
         }
+
+        // 启动每 1 秒一次的轮询检测
+        _duelMonitorTimer?.Cancel();
+        _duelMonitorTimer = Timer.Every(1.Seconds(), () =>
+        {
+            CheckDuelStatus();
+        });
     }
 
-    // 监听玩家死亡
-    [GameEventHandler("player_death")]
-    public HookResult OnPlayerDeath(PlayerDeathEvent args)
+    private void CheckDuelStatus()
     {
-        if (ActivePlayerA == null || ActivePlayerB == null) return HookResult.Continue;
+        if (ActivePlayerA == null || ActivePlayerB == null) return;
 
-        var victim = (args.UseridController as CCitadelPlayerController)?.GetHeroPawn();
-		var killer = (args.AttackerController as CCitadelPlayerController)?.GetHeroPawn();
+        // 只判断 NotAlive，null 或 invalid 不参与判定
+        if (!ActivePlayerA.IsValid || !ActivePlayerB.IsValid) return;
 
-        if (victim == ActivePlayerA && killer == ActivePlayerB)
+        bool isADead = ActivePlayerA.LifeState != LifeState.Alive;
+        bool isBDead = ActivePlayerB.LifeState != LifeState.Alive;
+
+        if (isADead == isBDead) return;
+
+        _duelMonitorTimer?.Cancel();
+        _duelMonitorTimer = null;
+
+        if (isADead)
+        {
             HandleDuelEnd(ActivePlayerB, ActivePlayerA);
-        else if (victim == ActivePlayerB && killer == ActivePlayerA)
+        }
+        else
+        {
             HandleDuelEnd(ActivePlayerA, ActivePlayerB);
-
-        return HookResult.Continue;
+        }
     }
 
     private void HandleDuelEnd(CCitadelPlayerPawn winner, CCitadelPlayerPawn loser)
@@ -128,24 +142,33 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         var loseController = loser.Controller;
         if (winController == null || loseController == null) return;
 
+        string winnerName = winController.PlayerName ?? "未知玩家";
+        string loserName = loseController.PlayerName ?? "未知玩家";
+
+        // 1. 发送决斗结果 HUD
         var msg = new CCitadelUserMsg_HudGameAnnouncement
         {
             TitleLocstring = "🏆 决斗结束",
-            DescriptionLocstring = $"{winController.PlayerName} 战胜了 {loseController.PlayerName}！"
+            DescriptionLocstring = $"{winnerName} 战胜了 {loserName}！"
         };
         NetMessages.Send(msg, RecipientFilter.All);
 
+        // 2. 嘲讽语由胜者名字发出
         string[] taunts = {
-            $"跟 {loseController.PlayerName} 打真是简简又单单啊！！",
-            $"{loseController.PlayerName} 不行啊",
+            $"跟 {loserName} 打真是简简又单单啊！！",
+            $"{loserName} 不行啊",
             "拿下"
         };
-        Chat.PrintToChatAll(taunts[Random.Shared.Next(taunts.Length)]);
+        string tauntText = taunts[Random.Shared.Next(taunts.Length)];
+        
+        // 用 PrintToChatAll，并在前面加上胜者名字模拟
+        Chat.PrintToChatAll($"{winnerName}: {tauntText}");
 
+        // 3. 奖励赢家 3200 钱
         var souls = winner.GetCurrency(ECurrencyType.EGold);
         winner.SetCurrency(ECurrencyType.EGold, souls + 3200);
 
-        // 恢复观战者
+        // 4. 恢复观战者
         foreach (var kvp in OriginalPositions)
         {
             var p = kvp.Key;
@@ -160,11 +183,10 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         WatchingDeadPlayers.Clear();
     }
 
-    // 监听玩家复活
     [GameEventHandler("player_respawned")]
     public HookResult OnPlayerRespawned(PlayerRespawnedEvent args)
     {
-        var pawn = args.Userid?.As<CCitadelPlayerPawn>();  
+        var pawn = args.Userid?.As<CCitadelPlayerPawn>();
         if (pawn == null) return HookResult.Continue;
 
         if (WatchingDeadPlayers.Contains(pawn) && ActivePlayerA != null)
@@ -195,55 +217,31 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     }
 }
 
-
-
-
+// ==========================================
+// 3. 核心效果执行类
+// ==========================================
 public static class Effects
 {
-
-
-
-	
     private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
         Chat.PrintToChat(controller, "你抽到了");
         Chat.PrintToChat(controller, $"{effect.DisplayName} (持续 {effect.Duration} 秒)");
     }
 
-    // 把 ITimer timer 改成 DeadworksManaged.Api.ITimer timer
-public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
+    public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
     {
         if (pawn == null) return;
-        
         var controller = pawn.Controller;
         if (controller == null) return;
 
-        
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		
-		// ================= 效果 1：加速 =================
+        // ================= 效果 1：加速 =================
         if (effect.Id == "speed_boost")
         {
             using var kv = new KeyValues3();
-            kv.SetFloat("duration", effect.Duration); 
+            kv.SetFloat("duration", effect.Duration);
 
             pawn.AddModifier("upgrade_fleetfoot_boots/modifier_intrinsic_base", kv: kv,
-            abilityValues: new() { 
+            abilityValues: new() {
                 ["MoveWhileShootingSpeedPenaltyReductionPercent"] = 200f,
                 ["MoveWhileZoomedSpeedPenaltyReductionPercent"] = 200f,
                 ["SlideScale"] = 299f,
@@ -252,28 +250,14 @@ public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer ti
             });
 
             pawn.AddModifier("upgrade_fleetfoot_boots/modifier_fleetfoot_boots", kv: kv,
-            abilityValues: new() { 
+            abilityValues: new() {
                 ["ActiveBonusMoveSpeed"] = 10f,
                 ["SlowResistancePercent"] = 200f,
             });
 
             pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
-
             SendDrawNotification(controller, effect);
         }
-
-
-
-
-
-
-
-
-
-
-
-
-		
         // ================= 效果 2：1v1 斗殴 =================
         else if (effect.Id == "1v1")
         {
@@ -296,7 +280,6 @@ public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer ti
             NetMessages.Send(msg, RecipientFilter.All);
             Chat.PrintToChatAll($"⚠️ 做好准备，我将对 {nameB} 发起决斗！");
 
-            // 🌟 调用运行时插件准备 1v1（处理观战者传送）
             EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB);
 
             timer.Once(3.Seconds(), () =>
@@ -318,48 +301,16 @@ public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer ti
                 });
             });
 
-            
+            SendDrawNotification(controller, effect);
         }
-        // ================= 未知效果保底 =================
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-		
         else
         {
             Console.WriteLine($"[Effects] 未知的效果ID: {effect.Id}");
         }
     }
+}
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-	// ==========================================
+// ==========================================
 // 4. 调试指令插件 (/s1)
 // ==========================================
 public class DebugCommandPlugin : DeadworksPluginBase
@@ -419,5 +370,3 @@ public class DebugCommandPlugin : DeadworksPluginBase
         });
     }
 }
-}
-
