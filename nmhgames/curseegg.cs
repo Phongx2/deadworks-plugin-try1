@@ -7,6 +7,10 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
 
     private const string TargetItem = "upgrade_goose_egg";
 
+     // 🌟 全局开关：true 表示允许使用，false 表示禁用
+    public static bool IsEggEnabled = true;
+    
+
     public override void OnLoad(bool isReload)
     {
         Console.WriteLine("[GooseEggWatcher] 插件已加载，正在监听 upgrade_goose_egg 的使用情况...");
@@ -24,6 +28,20 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
         if (pawn == null) return HookResult.Continue;
 
         var playerName = pawn.Controller?.PlayerName ?? "未知玩家";
+
+
+
+
+// 🌟 如果开关被关闭，拦截此次使用并提示
+        if (!IsEggEnabled)
+        {
+            Chat.PrintToChat(pawn.Controller, "⚠️ 当前处于特殊状态，无法使用鹅蛋！");
+            return HookResult.Stop; // 阻止后续的抽卡逻辑
+        }
+
+
+
+        
 
         // 🔑 核心修复：在下一帧强行移除玩家身上的蛋，防止取消读条后蛋被退回来
         Timer.NextTick(() =>
