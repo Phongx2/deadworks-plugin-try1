@@ -53,17 +53,13 @@ public static class EffectList
     private static readonly Random _random = new Random();
 
     // 随机抽卡
-    public static void Chouka(CCitadelPlayerPawn pawn)
+     public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
     {
         if (pawn == null) return;
-        
         var effect = Pool[_random.Next(Pool.Length)];
         string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
-        
         Console.WriteLine($"[抽卡] {playerName} 抽到了: {effect.DisplayName} ({effect.Id})");
-        
-        // 传入整个 EffectInfo 结构给执行器
-        Effects.Execute(effect, pawn);
+        Effects.Execute(effect, pawn, timer); // 传进去
     }
 
     // 打印列表
@@ -100,7 +96,7 @@ public static void PrintList(Caller caller)
 }
 
     // 根据序号执行（增加 float? customDuration 参数）
-    public static bool ExecuteByIndex(int index, float? customDuration, Caller caller)
+   public static bool ExecuteByIndex(int index, float? customDuration, Caller caller, ITimer timer)
     {
         int arrayIndex = index - 1;
         if (arrayIndex < 0 || arrayIndex >= Pool.Length) return false;
@@ -110,30 +106,23 @@ public static void PrintList(Caller caller)
 
         if (pawn == null || controller == null)
         {
-            if (controller != null)
-                controller.PrintToConsole("你必须在游戏内且有英雄才能测试效果。");
-            else
-                Console.WriteLine("你必须在游戏内且有英雄才能测试效果。");
+            if (controller != null) controller.PrintToConsole("你必须在游戏内且有英雄才能测试效果。");
+            else Console.WriteLine("你必须在游戏内且有英雄才能测试效果。");
             return true;
         }
 
-        // 获取原始效果
         var effect = Pool[arrayIndex];
-
-        // 🌟 核心修改：如果玩家填了自定义时长，就覆盖掉原本的时长
         if (customDuration.HasValue)
-            {
+        {
             effect.Duration = customDuration.Value;
             controller.PrintToConsole($"（已自定义持续时间：{effect.Duration} 秒）");
-            }
+        }
 
         controller.PrintToConsole($"正在对你执行: {effect.DisplayName}");
-        
-        // 传入修改过时长的 effect 给执行器
-        Effects.Execute(effect, pawn);
+        Effects.Execute(effect, pawn, timer); // 传进去
         return true;
-        }
     }
+}
 
 
 
@@ -163,27 +152,22 @@ public class EffectCommandPlugin : DeadworksPluginBase
     [Command("l", Description = "列出所有效果，或使用 /l <序号> [持续时长] 执行对应效果")]
     public void CmdListEffects(Caller caller, int? index = null, float? duration = null)
     {
-        // 如果没填序号，打印列表
         if (index == null)
         {
             EffectList.PrintList(caller);
             return;
         }
 
-        // 把时长参数传进去
-        bool success = EffectList.ExecuteByIndex(index.Value, duration, caller);
+        // 🌟 传入 this.Timer
+        bool success = EffectList.ExecuteByIndex(index.Value, duration, caller, this.Timer);
         if (!success)
         {
             var controller = caller.Player;
-            if (controller != null)
-                controller.PrintToConsole($"序号 {index.Value} 不存在，请输入 /l 查看列表。");
-            else
-                Console.WriteLine($"序号 {index.Value} 不存在，请输入 /l 查看列表。");
+            if (controller != null) controller.PrintToConsole($"序号 {index.Value} 不存在，请输入 /l 查看列表。");
+            else Console.WriteLine($"序号 {index.Value} 不存在，请输入 /l 查看列表。");
         }
     }
 }
-
-
 
 
 
