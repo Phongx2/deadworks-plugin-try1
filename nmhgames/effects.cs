@@ -1,6 +1,14 @@
 using DeadworksManaged.Api;
+using DeadworksManaged.Api.Sounds;
 using System;
 using System.Collections.Generic;
+using System.Linq;
+
+
+
+
+
+
 
 public static class Effects
 {
@@ -13,48 +21,66 @@ public static class Effects
         Chat.PrintToChat(controller, $"{effect.DisplayName} ，(持续 {effect.Duration} 秒)");
     }
 
+public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
+    {
+        if (pawn == null) return;
+        var controller = pawn.Controller;
+        if (controller == null) return;
 
+        if (effect.Id == "speed_boost")
+        {
 
 
 
 	
     // 参数变成了 EffectInfo
-    public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn)
-    {
-        if (pawn == null) return;
-        
-        // 提前获取 controller 并判空，解决警告
-        var controller = pawn.Controller;
-        if (controller == null) return;
-
-        // 使用 effect.Id 进行判断
-        if (effect.Id == "speed_boost")
+     else if (effect.Id == "1v1")
         {
-            // 1. 设置时长 (使用 effect.Duration 替代写死的 10.0f)
-            using var kv = new KeyValues3();
-            kv.SetFloat("duration", effect.Duration); 
+            var enemies = Players.GetAll()
+                .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+                .Select(c => c.GetHeroPawn())
+                .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum)
+                .ToList();
 
-            // 2. 套用你测试好的格式
-            pawn.AddModifier("upgrade_fleetfoot_boots/modifier_intrinsic_base", kv: kv,
-            abilityValues: new() { 
-                ["MoveWhileShootingSpeedPenaltyReductionPercent"] = 200f,
-                ["MoveWhileZoomedSpeedPenaltyReductionPercent"] = 200f,
-                ["SlideScale"] = 299f,
-                ["BulletResist"] = 15f,
-                ["BaseAttackDamagePercent"] = 15f,
+            var playerB = enemies.Count > 0 ? enemies[Random.Shared.Next(enemies.Count)] : null;
+            var controllerB = playerB?.Controller;
+            string nameB = controllerB?.PlayerName ?? "未知敌人";
+
+            Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+            var msg = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "⚠️ 做好准备",
+                DescriptionLocstring = $"{controller.PlayerName} 与 {nameB} 将要发起决斗！"
+            };
+            NetMessages.Send(msg, RecipientFilter.All);
+            Chat.PrintToChatAll($"⚠️ 做好准备，我将对 {nameB} 发起决斗！");
+
+            // 🌟 使用传进来的 timer，而不是直接写 Timer.Once
+            timer.Once(3.Seconds(), () =>
+            {
+                Console.WriteLine("[1v1] 决斗开始，施加时空扭曲");
+                if (pawn != null && pawn.IsValid && pawn.LifeState == LifeState.Alive)
+                {
+                    using var kvA = new KeyValues3();
+                    kvA.SetFloat("duration", 1.0f);
+                    pawn.AddModifier("modifier_chrono_swap_bubble_move", kvA);
+                }
+                if (playerB != null && playerB.IsValid && playerB.LifeState == LifeState.Alive)
+                {
+                    using var kvB = new KeyValues3();
+                    kvB.SetFloat("duration", 1.0f);
+                    playerB.AddModifier("modifier_chrono_swap_bubble_move", kvB);
+                }
+
+                timer.Once(1.Seconds(), () =>
+                {
+                    Console.WriteLine("[1v1] 移除时空扭曲");
+                    if (pawn != null && pawn.IsValid) pawn.RemoveModifier("modifier_chrono_swap_bubble_move");
+                    if (playerB != null && playerB.IsValid) playerB.RemoveModifier("modifier_chrono_swap_bubble_move");
+                });
             });
 
-            pawn.AddModifier("upgrade_fleetfoot_boots/modifier_fleetfoot_boots", kv: kv,
-            abilityValues: new() { 
-                ["ActiveBonusMoveSpeed"] = 10f,
-                ["SlowResistancePercent"] = 200f,
-            });
-
-            // 测试用的移速 Modifier (如果你的 kv 是给上面两个用的，这里可以直接传，或者单独 new 一个)
-            pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
-
-            // 聊天提示 (使用 effect.DisplayName)
-            SendDrawNotification(controller, effect);
+        
         }
 
 
