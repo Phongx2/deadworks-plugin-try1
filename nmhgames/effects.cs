@@ -3,7 +3,7 @@ using DeadworksManaged.Api.Sounds;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-
+using ITimer = DeadworksManaged.Api.ITimer;
 
 
 
@@ -19,7 +19,7 @@ public static class Effects
     }
 
     // 把 ITimer timer 改成 DeadworksManaged.Api.ITimer timer
-public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, DeadworksManaged.Api.ITimer timer)
+public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
     {
         if (pawn == null) return;
         
