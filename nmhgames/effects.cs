@@ -130,7 +130,6 @@ public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer ti
                 });
             });
 
-            SendDrawNotification(controller, effect);
         }
         // ================= 未知效果保底 =================
 
