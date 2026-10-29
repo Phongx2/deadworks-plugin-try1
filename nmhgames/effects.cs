@@ -430,4 +430,53 @@ public class SelfEffectCommandPlugin : DeadworksPluginBase
             caller.Reply($"施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
         }
     }
+
+
+
+
+
+
+
+[Command("say", Description = "以你的身份向全服发送消息。用法: /say <消息>")]
+    public void CmdSay(Caller caller, params string[] messageParts)
+    {
+        var controller = caller.Player;
+        if (controller == null)
+        {
+            caller.Reply("你必须在游戏内才能使用此命令。");
+            return;
+        }
+
+        string text = string.Join(' ', messageParts);
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            caller.Reply("请提供要发送的消息。");
+            return;
+        }
+
+        // 构造聊天网络消息，指定发送者为执行者
+        var chatMsg = new CCitadelUserMsg_ChatMsg
+        {
+            PlayerSlot = controller.Slot,
+            Text = text,
+            AllChat = true
+        };
+
+        // 广播给所有玩家
+        NetMessages.Send(chatMsg, RecipientFilter.All);
+    }
+
+
+
+
+
+
+
+
+
+
+
+
+
+    
 }
