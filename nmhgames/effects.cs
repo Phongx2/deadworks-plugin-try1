@@ -387,9 +387,8 @@ public class DebugCommandPlugin : DeadworksPluginBase
             caller.Reply("坐标已还原！");
         });
     }
-}
 
- [Command("e", Description = "给自己施加指定的 Modifier。用法: /e <ModifierName>")]
+[Command("e", Description = "给自己施加指定的 Modifier。用法: /e <ModifierName>")]
     public void CmdApplyModifier(Caller caller, string modifierName)
     {
         // 1. 确保是玩家执行
@@ -418,3 +417,15 @@ public class DebugCommandPlugin : DeadworksPluginBase
             caller.Reply($"施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
         }
     }
+
+
+
+
+
+
+
+
+    
+}
+
+ 
