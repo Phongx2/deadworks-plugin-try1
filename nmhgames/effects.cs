@@ -4,6 +4,20 @@ using System.Collections.Generic;
 
 public static class Effects
 {
+	private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
+    {
+        // 第一行：固定提示
+        Chat.PrintToChat(controller, "你抽到了");
+        
+        // 第二行：效果名 + 持续时长
+        Chat.PrintToChat(controller, $"{effect.DisplayName} ，(持续 {effect.Duration} 秒)");
+    }
+
+
+
+
+
+	
     // 参数变成了 EffectInfo
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn)
     {
@@ -40,8 +54,7 @@ public static class Effects
             pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
 
             // 聊天提示 (使用 effect.DisplayName)
-            Chat.PrintToChat(controller, "你抽到了");
-            Chat.PrintToChat(controller, effect.DisplayName);
+            SendDrawNotification(controller, effect);
         }
 
 
