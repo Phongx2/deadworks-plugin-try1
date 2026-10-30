@@ -381,24 +381,25 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 }, RecipientFilter.All);
 		
    int casterTeam = pawn.TeamNum;
-    var enemies = Players.GetAll()
-        .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
-        .Select(c => c.GetHeroPawn())
-        .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
-        .ToList();
+            var enemies = Players.GetAll()
+                .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+                .Select(c => c.GetHeroPawn())
+                .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
+                .ToList();
 
-    foreach (var enemy in enemies)
-        enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
+            foreach (var enemy in enemies)
+                enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
 
-    timer.Once(30.Seconds(), () =>
-    {
-        foreach (var enemy in enemies)
-        {
-            if (enemy == null || !enemy.IsValid) continue;
-            enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, false);
+            // 🌟 把 30.Seconds() 改成读取 effect.Duration
+            timer.Once(((double)effect.Duration).Seconds(), () =>
+            {
+                foreach (var enemy in enemies)
+                {
+                    if (enemy == null || !enemy.IsValid) continue;
+                    enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, false);
+                }
+            });
         }
-    });
-}
 
 
 	        // ================= 效果：无限子弹 =================
@@ -411,7 +412,7 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             EffectList.SendDrawNotification(controller, effect);
 
             // 使用传入的 timer，在 effect.Duration 秒后自动关闭
-            timer.Once(effect.Duration.Seconds(), () =>
+            timer.Once(((double)effect.Duration).Seconds(), () =>
             {
                 if (pawn != null && pawn.IsValid)
                 {
