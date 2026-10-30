@@ -12,7 +12,7 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
     public static bool IsEggEnabled = true;
 
     // 供外部调用的单例
-    public static GooseEggWatcherPlugin Instance { get; private set; }
+    public static GooseEggWatcherPlugin? Instance { get; private set; }
 
     public override void OnLoad(bool isReload)
     {
