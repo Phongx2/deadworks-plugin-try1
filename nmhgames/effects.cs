@@ -340,7 +340,7 @@ public static class Effects
 
             
 
-            EffectRuntimePlugin.Instance?.Prepare1v1(CCitadelPlayerPawn playerA, CCitadelPlayerPawn? playerB);
+            EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB!);
 
             timer.Once(3.Seconds(), () =>
             {
