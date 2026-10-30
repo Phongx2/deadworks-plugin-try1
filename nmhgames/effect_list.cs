@@ -33,8 +33,8 @@ public static class EffectList
     // ==========================================
     public static readonly EffectInfo[] Pool = new EffectInfo[]
     {
-        new EffectInfo("speed_boost", "加速", 10.0f),
-        new EffectInfo("1v1", "斗殴", 3.0f), 
+        new EffectInfo("speed_boost", "加速", 10.0f,1),
+        new EffectInfo("1v1", "斗殴", 3.0f,1), 
 
 
 
@@ -55,18 +55,78 @@ public static class EffectList
 
     
 
-    private static readonly Random _random = new Random();
+  private static readonly Random _random = new Random();
 
-    // 随机抽卡
-     public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
+    // ==========================================
+    // 核心抽卡逻辑
+    // ==========================================
+    public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
     {
         if (pawn == null) return;
-        var effect = Pool[_random.Next(Pool.Length)];
         string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
-        Console.WriteLine($"[抽卡] {playerName} 抽到了: {effect.DisplayName} ({effect.Id})");
-        Effects.Execute(effect, pawn, timer); // 传进去
+
+        // 🌟 第一步：按概率抽取效果等级
+        int rolledLevel = RollLevel();
+        Console.WriteLine($"[抽卡] {playerName} 抽到了等级: {rolledLevel}");
+
+        // 🌟 第二步：在这个等级的效果池里筛选
+        var levelPool = Pool.Where(e => e.Level == rolledLevel).ToArray();
+
+        if (levelPool.Length == 0)
+        {
+            // 如果这个等级没写效果，给个兜底提示并直接返回
+            Chat.PrintToChat(pawn.Controller, $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！");
+            Console.WriteLine($"[抽卡] 等级 {rolledLevel} 的效果池为空，取消执行。");
+            return;
+        }
+
+        // 🌟 第三步：从筛选后的池子里随机抽一个
+        var effect = levelPool[_random.Next(levelPool.Length)];
+        
+        Console.WriteLine($"[抽卡] {playerName} 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
+        
+        // 执行效果
+        Effects.Execute(effect, pawn, timer); 
     }
 
+    // ==========================================
+    // 等级概率计算
+    // 75% -> 1级, 20% -> 2级, 4% -> 3级, 1% -> 4级
+    // ==========================================
+    private static int RollLevel()
+    {
+        // 生成 0 到 99 的随机数
+        int roll = _random.Next(100); 
+        int level;
+        
+        if (roll < 75) level = 1;       // 0-74: 1级
+        else if (roll < 95) level = 2;  // 75-94: 2级
+        else if (roll < 99) level = 3;  // 95-98: 3级
+        else level = 4;                 // 99: 4级
+
+        // 🌟 输出 roll 原始数值和最终计算的等级到服务器控制台
+        Console.WriteLine($"[抽卡测试] 随机数 Roll: {roll}, 判定等级: {level}");
+        
+        return level;
+    }
+}
+
+
+
+public class RollTestCommandPlugin : DeadworksPluginBase
+{
+    public override string Name => "Roll Test Command Plugin";
+
+    [Command("tr", Description = "测试抽卡等级概率")]
+    public void CmdTestRoll(Caller caller)
+    {
+        // 调用 RollLevel 触发控制台输出
+        int result = EffectList.RollLevel();
+        
+        // 给执行命令的人一个反馈
+        caller.Reply($"[测试] 本次抽卡等级判定为: {result} 级");
+    }
+}
     // 打印列表
    
 
