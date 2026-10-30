@@ -58,79 +58,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 
 	    // ===== 1v1 区域与流血 =====
-    private Zone? _duelZone;
-    private List<CBeam>? _duelZoneOutline;
-    private readonly Dictionary<CCitadelPlayerPawn, IHandle?> _bleeding = new();
-
-    public void StartDuelZone(CCitadelPlayerPawn playerA, CCitadelPlayerPawn playerB)
-    {
-        CleanupDuelZone();
-
-        _duelZone = new Zone(
-            new Vector3(-646.75f, -717.44f, -100f),
-            new Vector3(656.03f, 699.22f, 300f)
-        );
-        _duelZoneOutline = CBeam.CreateBox(_duelZone.Mins, _duelZone.Maxs, width: 4f, color: System.Drawing.Color.Red);
-
-        void StartBleed(CCitadelPlayerPawn p)
-        {
-            if (p == null || !p.IsValid) return;
-            if (_bleeding.TryGetValue(p, out var existing) && existing != null) return;
-
-            void Tick()
-            {
-                if (p == null || !p.IsValid || p.LifeState != LifeState.Alive) return;
-                float maxHealth = p.GetMaxHealth();
-                float damage = Math.Max(1f, maxHealth * 0.10f);
-                p.Hurt(damage, attacker: null, inflictor: null, ability: null, damageType: 8);
-            }
-            Tick();
-            _bleeding[p] = Timer.Every(1.Seconds(), Tick);
-        }
-
-        void StopBleed(CCitadelPlayerPawn p)
-        {
-            if (p == null) return;
-            if (_bleeding.TryGetValue(p, out var h) && h != null)
-            {
-                h.Cancel();
-                _bleeding[p] = null;
-            }
-        }
-
-        _duelZone.Left += (z, player, p) =>
-        {
-            if (p == null || !p.IsValid) return;
-            if (p != playerA && p != playerB) return;
-            Chat.PrintToChat(player, "⚠️ 你离开了决斗区域，开始流血！");
-            StartBleed(p);
-        };
-
-        _duelZone.Entered += (z, player, p) =>
-        {
-            if (p == null || !p.IsValid) return;
-            if (p != playerA && p != playerB) return;
-            StopBleed(p);
-        };
-    }
-
-    public void CleanupDuelZone()
-    {
-        foreach (var kvp in _bleeding)
-        {
-            kvp.Value?.Cancel();
-        }
-        _bleeding.Clear();
-
-        _duelZone?.Dispose();
-        _duelZone = null;
-
-        if (_duelZoneOutline != null)
-        {
-            CBeam.RemoveAll(_duelZoneOutline);
-            _duelZoneOutline = null;
-        }
-    }
+   
+    
 
 
 
@@ -225,7 +154,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     private void HandleDuelEnd(CCitadelPlayerPawn winner, CCitadelPlayerPawn loser)
     {
 
-       CleanupDuelZone();
 		
         ActivePlayerA = null;
         ActivePlayerB = null;
@@ -425,7 +353,6 @@ public static class Effects
 
 
              // ===== 启动 1v1 区域、边框、流血逻辑 =====
-            EffectRuntimePlugin.Instance?.StartDuelZone(pawn, playerB!);
 
             EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB!);
 
