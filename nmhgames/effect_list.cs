@@ -28,6 +28,8 @@ public struct EffectInfo
 
 public static class EffectList
 {
+    public static bool IsRandomMode = false; 
+
     
     public static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
