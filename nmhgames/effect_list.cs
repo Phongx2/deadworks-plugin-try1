@@ -214,24 +214,53 @@ public class EffectCommandPlugin : DeadworksPluginBase
     }
 
 
-    [Command("tr", Description = "测试抽卡等级概率")]
-    public void CmdTestRoll(Caller caller)
+        [Command("tr", Description = "测试抽卡等级概率。用法: /tr [测试次数]")]
+    public void CmdTestRoll(Caller caller, int? count = null)
     {
-        // 调用 RollLevel 触发控制台输出
-        int result = EffectList.RollLevel();
-        
-        // 获取执行命令的玩家控制器
         var controller = caller.Player;
-        
+        int times = count ?? 1;
+
+        if (times > 10000) times = 10000;
+        if (times <= 0) return;
+
+        var stats = new Dictionary<int, int> { { 1, 0 }, { 2, 0 }, { 3, 0 }, { 4, 0 } };
+
+        // 🌟 核心：暂存原本的服务器控制台输出流
+        var originalOut = Console.Out;
+        try
+        {
+            // 把控制台输出重定向到一个空写入器（相当于静音）
+            Console.SetOut(System.IO.TextWriter.Null);
+
+            // 循环执行抽卡（此时里面再怎么 Console.WriteLine 都不会输出到后台）
+            for (int i = 0; i < times; i++)
+            {
+                int level = EffectList.RollLevel(); 
+                if (stats.ContainsKey(level)) stats[level]++;
+            }
+        }
+        finally
+        {
+            // 🌟 无论循环是否报错，最后一定要恢复原版的控制台输出，否则整个插件的日志都会消失
+            Console.SetOut(originalOut);
+        }
+
+        // 打印最终统计结果
+        string resultMsg = $"\n========== 抽卡测试结果 ({times}次) ==========\n" +
+                           $"1级: {stats[1]} 次\n" +
+                           $"2级: {stats[2]} 次\n" +
+                           $"3级: {stats[3]} 次\n" +
+                           $"4级: {stats[4]} 次\n" +
+                           $"==============================================";
+
+        // 只发到执行者的控制台
         if (controller != null)
         {
-            // 🌟 输出到玩家的游戏控制台
-            controller.PrintToConsole($"[测试] 本次抽卡等级判定为: {result} 级");
+            controller.PrintToConsole(resultMsg);
         }
         else
         {
-            // 如果是服务器后台执行的，输出到服务器控制台
-            Console.WriteLine($"[测试] 本次抽卡等级判定为: {result} 级");
+            Console.WriteLine(resultMsg);
         }
     }
 
