@@ -81,72 +81,7 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
 
 
 
-    // ==========================================
-    // 🌟 金鹅蛋购买冷却记录
-    // ==========================================
-    // 记录每个玩家的冷却结束时间（游戏时钟秒数）
-    // 使用 SteamID64 而不是 Slot，防止玩家重连后绕过冷却
-    private readonly Dictionary<ulong, float> _gooseEggCooldownEnd = new();
-
-    // 监听玩家获得物品
-    [GameEventHandler("ability_added")]
-    public HookResult OnAbilityAdded(AbilityAddedEvent args)
-    {
-        var pawn = args.Userid?.As<CCitadelPlayerPawn>();
-        var name = args.Ability?.SubclassVData?.Name;
-        
-        if (pawn == null || name != "upgrade_goose_egg")
-            return HookResult.Continue;
-
-        var controller = pawn.Controller;
-        if (controller == null) return HookResult.Continue;
-
-        ulong steamId = Permissions.GetSteamId64(controller.Slot);
-        if (steamId == 0) return HookResult.Continue;
-
-        // 记录冷却结束时间：当前时间 + 300秒
-        _gooseEggCooldownEnd[steamId] = GlobalVars.CurTime + 300f;
-        
-        Console.WriteLine($"[GooseEggWatcher] 玩家 {controller.PlayerName} 购买了鹅蛋，进入 5 分钟冷却。");
-        
-        return HookResult.Continue;
-    }
-
-    // 购买前检查冷却
-        // 购买前检查冷却
-    public override HookResult OnModifyCurrency(ModifyCurrencyEvent args)
-    {
-        // 判断是否是购买金鹅蛋的扣钱行为
-        if (args.Source != ECurrencySource.EItemGooseEgg)
-            return HookResult.Continue;
-
-        // 🌟 直接从 args 里拿 Pawn
-        var pawn = args.Pawn;
-        if (pawn == null || !pawn.IsValid) 
-            return HookResult.Continue;
-
-        var controller = pawn.Controller;
-        if (controller == null) 
-            return HookResult.Continue;
-
-        ulong steamId = Permissions.GetSteamId64(controller.Slot);
-        if (steamId == 0) 
-            return HookResult.Continue;
-
-        // 检查是否在冷却中
-        if (_gooseEggCooldownEnd.TryGetValue(steamId, out float endTime)
-            && GlobalVars.CurTime < endTime)
-        {
-            float remaining = endTime - GlobalVars.CurTime;
-            
-            // 提示玩家并阻止购买（拦截扣钱逻辑）
-            Chat.PrintToChat(controller, $"⚠️ 金鹅蛋冷却中，还需等待 {remaining:F0} 秒。");
-            return HookResult.Stop; 
-        }
-
-        return HookResult.Continue;
-    }
-
+ 
 
 
 
