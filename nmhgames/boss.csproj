@@ -4,6 +4,7 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+<NoWarn>CS8602;CS8625;CS8604;CS8618</NoWarn>
   </PropertyGroup>
 
   <ItemGroup>
@@ -14,5 +15,4 @@
       <HintPath>../infect/managed/Google.Protobuf.dll</HintPath>
     </Reference>
   </ItemGroup>
-<NoWarn>CS8602;CS8625;CS8604;CS8618</NoWarn>
 </Project>
