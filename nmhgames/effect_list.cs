@@ -184,13 +184,6 @@ public static void PrintList(Caller caller)
 
 
 
-
-
-
-    
-
-
-
 public class EffectCommandPlugin : DeadworksPluginBase
 {
     public override string Name => "Effect Command Plugin";
@@ -219,6 +212,25 @@ public class EffectCommandPlugin : DeadworksPluginBase
             else Console.WriteLine($"序号 {index.Value} 不存在，请输入 /l 查看列表。");
         }
     }
+
+
+    [Command("tr", Description = "测试抽卡等级概率")]
+    public void CmdTestRoll(Caller caller)
+    {
+        // 调用 RollLevel 触发控制台输出
+        int result = EffectList.RollLevel();
+        
+        // 给执行命令的人一个反馈
+        caller.Reply($"[测试] 本次抽卡等级判定为: {result} 级");
+    }
+
+
+
+
+
+
+
+    
 }
 
 
