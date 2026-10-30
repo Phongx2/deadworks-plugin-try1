@@ -373,12 +373,13 @@ public static class Effects
     // 变量名 UAV：抽到的人对敌方所有人施加 30s VisibleToEnemy
 	EffectList.SendDrawNotification(controller, effect);
 
-
-
-
-
-
-			
+NetMessages.Send(new CCitadelUserMsg_ChatMsg
+{
+    PlayerSlot = controller.Slot,
+    Text = "我方无人侦察机已升空",
+    AllChat = true
+}, RecipientFilter.All);
+		
     int casterTeam = pawn.TeamNum;
     var enemies = new List<CCitadelPlayerPawn>();
 
@@ -405,7 +406,7 @@ public static class Effects
     });
 }
 
-
+//写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写
 
 
 
