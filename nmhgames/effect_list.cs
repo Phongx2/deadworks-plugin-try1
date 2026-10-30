@@ -93,7 +93,7 @@ public static class EffectList
     // 等级概率计算
     // 75% -> 1级, 20% -> 2级, 4% -> 3级, 1% -> 4级
     // ==========================================
-    private static int RollLevel()
+    public static int RollLevel()
     {
         // 生成 0 到 99 的随机数
         int roll = _random.Next(100); 
