@@ -383,20 +383,18 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
     int casterTeam = pawn.TeamNum;
     var enemies = new List<CCitadelPlayerPawn>();
 
-    foreach (var controller in Players.GetAll())
+    foreach (var c in Players.GetAll())
     {
-        var enemyPawn = controller.GetHeroPawn();
+        var enemyPawn = c.GetHeroPawn();
         if (enemyPawn == null) continue;
-        if (enemyPawn.TeamNum == casterTeam) continue; // 跳过队友
+        if (enemyPawn.TeamNum == casterTeam) continue;
         enemies.Add(enemyPawn);
     }
 
     foreach (var enemy in enemies)
-    {
         enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
-    }
 
-    Timer.Once(30.Seconds(), () =>
+    this.Timer.Once(30.Seconds(), () =>
     {
         foreach (var enemy in enemies)
         {
