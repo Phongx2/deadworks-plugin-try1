@@ -506,8 +506,14 @@ public class SelfEffectCommandPlugin : DeadworksPluginBase
         Console.WriteLine("[SelfEffectCommandPlugin] /e 命令已加载！");
     }
 
-    [Command("e", Description = "给自己施加指定的 Modifier。用法: /e <ModifierName>")]
-    public void CmdApplyModifier(Caller caller, string modifierName)
+    
+
+
+
+
+
+	    [Command("e", Description = "用法: /e <ModifierName> 或 /e s <状态名>")]
+    public void CmdApplyModifier(Caller caller, string param1, string? param2 = null)
     {
         var pawn = caller.Player?.GetHeroPawn();
         if (pawn == null || !pawn.IsValid)
@@ -516,20 +522,49 @@ public class SelfEffectCommandPlugin : DeadworksPluginBase
             return;
         }
 
-        if (string.IsNullOrWhiteSpace(modifierName))
+        if (string.IsNullOrWhiteSpace(param1))
         {
-            caller.Reply("请提供 Modifier 名称，例如: /e modifier_hero_testing_fast_movespeed");
+            caller.Reply("请提供 Modifier 或状态名。例如: /e modifier_hero_testing_fast_movespeed");
             return;
         }
 
+        // 🌟 情况一：/e s xxxxx (开关状态)
+        if (param1.ToLower() == "s")
+        {
+            if (string.IsNullOrWhiteSpace(param2))
+            {
+                caller.Reply("请提供要开关的状态名。例如: /e s UnlimitedAirJumps");
+                return;
+            }
+
+            // 尝试把玩家输入的字符串转换为 EModifierState 枚举
+            if (Enum.TryParse<EModifierState>(param2, true, out var state))
+            {
+                // 检查当前是否已经开启
+                bool isOn = pawn.ModifierProp.HasModifierState(state);
+                
+                // 切换状态 (取反)
+                pawn.ModifierProp.SetModifierState(state, !isOn);
+
+                caller.Reply($"✅ 状态 {state} 已切换为: {(!isOn ? "开启" : "关闭")}");
+            }
+            else
+            {
+                caller.Reply($"❌ 找不到状态名: {param2}。请检查拼写是否正确。");
+            }
+            return;
+        }
+
+        // 🌟 情况二：/e xxxxx (施加 Modifier)
+        string modifierName = param1;
         try
         {
             pawn.AddModifier(modifierName);
-            caller.Reply($"已成功对你施加 Modifier: {modifierName}");
+            caller.Reply($"✅ 已成功对你施加 Modifier: {modifierName}");
         }
         catch (Exception ex)
         {
-            caller.Reply($"施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
+            caller.Reply($"❌ 施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
         }
     }
 
