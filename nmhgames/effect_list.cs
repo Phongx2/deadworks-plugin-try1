@@ -55,13 +55,13 @@ public static class EffectList
     
     
     // ==========================================
-    // 核心数据池：增删改查只需改这里
+    // 核心数据池：增删改查只需改这里🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟🌟
     // ==========================================
     public static readonly EffectInfo[] Pool = new EffectInfo[]
     {
         new EffectInfo("speed_boost", "加速", 10.0f,1),
         new EffectInfo("1v1", "斗殴", 3.0f,1), 
-        new EffectInfo("undie", "幸免遇难", 60.0f, 3), // 🌟 新加的 undie
+        new EffectInfo("undie", "幸免遇难", 60.0f, 4), // 🌟 新加的 undie
 
 
 
