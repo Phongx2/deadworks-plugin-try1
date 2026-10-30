@@ -61,7 +61,7 @@ public static class EffectList
     {
         new EffectInfo("speed_boost", "加速", 10.0f,1),
         new EffectInfo("1v1", "斗殴", 3.0f,1), 
-        new EffectInfo("undie", "无法死亡", 60.0f, 3), // 🌟 新加的 undie
+        new EffectInfo("undie", "幸免遇难", 60.0f, 3), // 🌟 新加的 undie
 
 
 
