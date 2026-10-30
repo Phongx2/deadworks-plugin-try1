@@ -133,7 +133,7 @@ public static class EffectList
         int roll = _random.Next(100); 
         int level;
         
-        if (roll < 60) level = 1;       // 0-74: 1级
+        if (roll < 50) level = 1;       // 0-74: 1级
         else if (roll < 80) level = 2;  // 75-94: 2级
         else if (roll < 95) level = 3;  // 95-98: 3级
         else level = 4;                 // 99: 4级
