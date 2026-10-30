@@ -367,9 +367,46 @@ public static class Effects
             EffectList.SendDrawNotification(controller, effect);
         }
 
+			
+		else if (effect.Id == "UAV")
+{
+    // 变量名 UAV：抽到的人对敌方所有人施加 30s VisibleToEnemy
+    int casterTeam = pawn.TeamNum;
+    var enemies = new List<CCitadelPlayerPawn>();
+
+    foreach (var controller in Players.GetAll())
+    {
+        var enemyPawn = controller.GetHeroPawn();
+        if (enemyPawn == null) continue;
+        if (enemyPawn.TeamNum == casterTeam) continue; // 跳过队友
+        enemies.Add(enemyPawn);
+    }
+
+    foreach (var enemy in enemies)
+    {
+        enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
+    }
+
+    Timer.Once(30.Seconds(), () =>
+    {
+        foreach (var enemy in enemies)
+        {
+            if (enemy == null || !enemy.IsValid) continue;
+            enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, false);
+        }
+    });
+}
 
 
 
+
+
+
+
+
+
+
+		
 
 
 
