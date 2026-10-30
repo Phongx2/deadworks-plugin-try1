@@ -8,15 +8,17 @@ using ITimer = DeadworksManaged.Api.ITimer;
 // 定义一个结构，代表一种效果
 public struct EffectInfo
 {
-    public string Id;         // 变量名 (如 speed_boost)
+    public string Id;          // 变量名 (如 speed_boost)
     public string DisplayName; // 中文名 (如 加速)
     public float Duration;     // 持续时间(秒)
+    public int Level;          // 🌟 新增：效果等级 (1-4)
 
-    public EffectInfo(string id, string displayName, float duration)
+    public EffectInfo(string id, string displayName, float duration, int level = 1)
     {
         Id = id;
         DisplayName = displayName;
         Duration = duration;
+        Level = level;
     }
 }
 
