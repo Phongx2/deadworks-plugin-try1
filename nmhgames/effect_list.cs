@@ -99,9 +99,9 @@ public static class EffectList
         int roll = _random.Next(100); 
         int level;
         
-        if (roll < 75) level = 1;       // 0-74: 1级
-        else if (roll < 95) level = 2;  // 75-94: 2级
-        else if (roll < 99) level = 3;  // 95-98: 3级
+        if (roll < 60) level = 1;       // 0-74: 1级
+        else if (roll < 80) level = 2;  // 75-94: 2级
+        else if (roll < 95) level = 3;  // 95-98: 3级
         else level = 4;                 // 99: 4级
 
         // 🌟 输出 roll 原始数值和最终计算的等级到服务器控制台
@@ -220,8 +220,19 @@ public class EffectCommandPlugin : DeadworksPluginBase
         // 调用 RollLevel 触发控制台输出
         int result = EffectList.RollLevel();
         
-        // 给执行命令的人一个反馈
-        caller.Reply($"[测试] 本次抽卡等级判定为: {result} 级");
+        // 获取执行命令的玩家控制器
+        var controller = caller.Player;
+        
+        if (controller != null)
+        {
+            // 🌟 输出到玩家的游戏控制台
+            controller.PrintToConsole($"[测试] 本次抽卡等级判定为: {result} 级");
+        }
+        else
+        {
+            // 如果是服务器后台执行的，输出到服务器控制台
+            Console.WriteLine($"[测试] 本次抽卡等级判定为: {result} 级");
+        }
     }
 
 
