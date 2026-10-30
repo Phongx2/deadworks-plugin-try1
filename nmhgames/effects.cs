@@ -168,7 +168,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
         BleedingPawns.Clear();
 
 
-		
+		Vector3 winnerPos = winner == ActivePlayerA ? PlayerAOriginalPos : PlayerBOriginalPos;
         ActivePlayerA = null;
         ActivePlayerB = null;
 
@@ -227,8 +227,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
         if (winner.IsValid)
         {
-            var originalPos = winner == ActivePlayerA ? PlayerAOriginalPos : PlayerBOriginalPos;
-            winner.Teleport(position: originalPos, angles: null, velocity: null);
+            // 🌟 直接用上面存好的坐标
+            winner.Teleport(position: winnerPos, angles: null, velocity: null);
         }
 
         // 恢复观战者
@@ -467,19 +467,19 @@ public static class Effects
 
  else if (effect.Id == "undie")
         {
-            // 设置持续时间为 60 秒
+            // 🌟 把写死的 60.0f 改成读取你配置的时长
             using var kv = new KeyValues3();
-            kv.SetFloat("duration", 60.0f);
+            kv.SetFloat("duration", effect.Duration);
 
             // 给玩家挂上殊死一搏的 Modifier
             pawn.AddModifier("upgrade_cheat_death/modifier_cheat_death_immunity", kv: kv,
             abilityValues: new() {
                 ["DeathImmunityDamageReduction"] = -1f,
-	            ["HealAmpReceivePenaltyPercent"] = -1f,
-            	["HealAmpRegenPenaltyPercent"] = -1f,
-	            ["BonusMoveSpeed"] = 5f,
+                ["HealAmpReceivePenaltyPercent"] = -1f,
+                ["HealAmpRegenPenaltyPercent"] = -1f,
+                ["BonusMoveSpeed"] = 5f,
             });
-            // 可选：发送提示
+            // 发送提示
             EffectList.SendDrawNotification(controller, effect);
         }
 
