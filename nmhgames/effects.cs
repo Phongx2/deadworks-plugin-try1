@@ -1,4 +1,4 @@
-using DeadworksManaged.Api;
+	using DeadworksManaged.Api;
 using DeadworksManaged.Api.Sounds;
 using System;
 using System.Collections.Generic;
@@ -519,23 +519,15 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 
 
 	        // ================= 效果：无限子弹 =================
-        else if (effect.Id == "infbullet")
+         else if (effect.Id == "infbullet")
         {
-            // 开启无限子弹状态
-            pawn.ModifierProp.SetModifierState(EModifierState.InfiniteClip, true);
+            // 施加无限弹匣 Modifier，duration 到期后自动结束
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", effect.Duration);
+            pawn.AddModifier("upgrade_infinitemagazine/modifier_infinite_magazine_active", kv: kv);
 
             // 发送抽卡提示
             EffectList.SendDrawNotification(controller, effect);
-
-            // 使用传入的 timer，在 effect.Duration 秒后自动关闭
-            timer.Once(((double)effect.Duration).Seconds(), () =>
-            {
-                if (pawn != null && pawn.IsValid)
-                {
-                    pawn.ModifierProp.SetModifierState(EModifierState.InfiniteClip, false);
-                    Chat.PrintToChat(controller, "🔫 无限子弹效果已结束。");
-                }
-            });
         }
 
 
