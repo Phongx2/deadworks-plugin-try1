@@ -380,21 +380,17 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
     AllChat = true
 }, RecipientFilter.All);
 		
-    int casterTeam = pawn.TeamNum;
-    var enemies = new List<CCitadelPlayerPawn>();
-
-    foreach (var c in Players.GetAll())
-    {
-        var enemyPawn = c.GetHeroPawn();
-        if (enemyPawn == null) continue;
-        if (enemyPawn.TeamNum == casterTeam) continue;
-        enemies.Add(enemyPawn);
-    }
+   int casterTeam = pawn.TeamNum;
+    var enemies = Players.GetAll()
+        .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+        .Select(c => c.GetHeroPawn())
+        .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
+        .ToList();
 
     foreach (var enemy in enemies)
         enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
 
-    this.Timer.Once(30.Seconds(), () =>
+    timer.Once(30.Seconds(), () =>
     {
         foreach (var enemy in enemies)
         {
