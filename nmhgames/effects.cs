@@ -345,10 +345,11 @@ public static class Effects
                     if (pawn.IsValid) pawn.RemoveModifier("modifier_chrono_swap_bubble_move");
                     if (playerB != null && playerB.IsValid) playerB.RemoveModifier("modifier_chrono_swap_bubble_move");
                 });
-            });
+            });  
+        }
 
 
-            else if (effect.Id == "undie")
+ else if (effect.Id == "undie")
         {
             // 设置持续时间为 60 秒
             using var kv = new KeyValues3();
@@ -372,20 +373,14 @@ public static class Effects
 
 
 
-            
 
 
 
 
 
 
-            
 
-
-
-
-            
-        }
+        
         else
         {
             Console.WriteLine($"[Effects] 未知的效果ID: {effect.Id}");
