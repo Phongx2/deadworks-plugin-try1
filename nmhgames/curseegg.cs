@@ -113,24 +113,25 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
     }
 
     // 购买前检查冷却
+        // 购买前检查冷却
     public override HookResult OnModifyCurrency(ModifyCurrencyEvent args)
     {
         // 判断是否是购买金鹅蛋的扣钱行为
         if (args.Source != ECurrencySource.EItemGooseEgg)
             return HookResult.Continue;
 
-        // 注意：如果这里的 args.Controller 报错，请尝试换成 args.Player
-        var controller = Players.FromSlot(args.PlayerSlot);
-    if (controller == null) return HookResult.Continue;
+        // 🌟 直接从 args 里拿 Pawn
+        var pawn = args.Pawn;
+        if (pawn == null || !pawn.IsValid) 
+            return HookResult.Continue;
 
+        var controller = pawn.Controller;
+        if (controller == null) 
+            return HookResult.Continue;
 
-
-
-
-
-        
         ulong steamId = Permissions.GetSteamId64(controller.Slot);
-        if (steamId == 0) return HookResult.Continue;
+        if (steamId == 0) 
+            return HookResult.Continue;
 
         // 检查是否在冷却中
         if (_gooseEggCooldownEnd.TryGetValue(steamId, out float endTime)
