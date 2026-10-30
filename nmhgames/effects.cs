@@ -356,8 +356,13 @@ public static class Effects
             kv.SetFloat("duration", 60.0f);
 
             // 给玩家挂上殊死一搏的 Modifier
-            pawn.AddModifier("upgrade_cheat_death/cheat_death", kv);
-
+            pawn.AddModifier("upgrade_cheat_death/modifier_cheat_death_immunity", kv: kv,
+            abilityValues: new() {
+                ["DeathImmunityDamageReduction"] = -1f,
+	            ["HealAmpReceivePenaltyPercent"] = -1f,
+            	["HealAmpRegenPenaltyPercent"] = -1f,
+	            ["BonusMoveSpeed"] = 5f,
+            });
             // 可选：发送提示
             EffectList.SendDrawNotification(controller, effect);
         }
