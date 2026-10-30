@@ -693,8 +693,8 @@ public class SelfEffectCommandPlugin : DeadworksPluginBase
 
         // 1. 创建区域并画框
         _drawZone = new Zone(
-            new Vector3(-646.75f, -717.44f, -100f),
-            new Vector3(656.03f, 699.22f, 300f)
+            new Vector3(-600.75f, -680.44f, -90f),
+            new Vector3(600.03f, 680.22f, 200f)
         );
         
         _drawBeams = CBeam.CreateBox(_drawZone.Mins, _drawZone.Maxs, width: 4f, color: System.Drawing.Color.Red);
