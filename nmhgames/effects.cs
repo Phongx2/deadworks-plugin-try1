@@ -259,21 +259,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 // ==========================================
 public static class Effects
 {
-    private static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
-{
-    string text = $"你抽到了\n{effect.DisplayName} (持续 {effect.Duration} 秒)";
-
-    // 构造消息，AllChat = false 表示发到队伍频道
-    var msgTeam = new CCitadelUserMsg_ChatMsg
-    {
-        PlayerSlot = controller.Slot,
-        Text = text,
-        AllChat = false
-    };
-
-    // 广播给全体，引擎会根据 AllChat = false 自动显示到对应队伍的频道里
-    NetMessages.Send(msgTeam, RecipientFilter.All);
-}
+   
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
     {
@@ -302,7 +288,7 @@ public static class Effects
             });
 
             pawn.AddModifier("modifier_hero_testing_fast_movespeed", kv);
-            SendDrawNotification(controller, effect);
+            EffectList.SendDrawNotification(controller, effect);
         }
         else if (effect.Id == "1v1")
         {
