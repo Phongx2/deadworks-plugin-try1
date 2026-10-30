@@ -342,6 +342,30 @@ public class EffectCommandPlugin : DeadworksPluginBase
 
 
 
+        [Command("rand", Description = "设置抽卡模式：1=随机，0=按时间等级")]
+    public void CmdRandMode(Caller caller, int mode)
+    {
+        if (mode == 1)
+        {
+            EffectList.IsRandomMode = true;
+            caller.Reply("✅ 已切换为：纯随机抽卡模式 (无视蛋的等级)。");
+        }
+        else if (mode == 0)
+        {
+            EffectList.IsRandomMode = false;
+            caller.Reply("✅ 已切换为：按蛋孵化的时间等级抽卡。");
+        }
+        else
+        {
+            caller.Reply("❌ 参数错误，请使用 /rand 1 或 /rand 0");
+        }
+    }
+
+
+
+
+
+
 
     
 }
