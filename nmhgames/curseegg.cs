@@ -188,8 +188,17 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
         Console.WriteLine($"[GooseEggWatcher] {controller.PlayerName} 按下了蛋，持有 {heldSeconds:F0} 秒，等级 {finalLevel}，开始抽卡！");
 
         // 立刻抽卡
-        EffectList.ChoukaByLevel(pawn, finalLevel, this.Timer);
-
+      // 🌟 根据全局开关决定用哪种方式抽卡
+if (EffectList.IsRandomMode)
+{
+    // 随机模式（执行你原来的随机抽卡）
+    EffectList.Chouka(pawn, this.Timer);
+}
+else
+{
+    // 按时间等级模式（执行你刚才写的固定等级抽卡）
+    EffectList.ChoukaByLevel(pawn, finalLevel, this.Timer);
+}
         return HookResult.Stop;
     }
 }
