@@ -84,7 +84,13 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
         }
     }
 
-    // ==========================================
+   
+
+
+
+
+
+// ==========================================
     // 🌟 获得蛋：记录时间并启动等级提示
     // ==========================================
     [GameEventHandler("ability_added")]
@@ -103,34 +109,49 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
 
         // 记录拿蛋时间
         _eggHoldStartTime[steamId] = GlobalVars.CurTime;
-        CurrentEggLevels[steamId] = 1;
-        Chat.PrintToChat(controller, "🥚 拿到金鹅蛋！拿着不动，1-4分钟对应1-4级。当前：1级");
+        CurrentEggLevels[steamId] = 0; // 初始 0 级
+        
+        Chat.PrintToChat(controller, "🥚 金鹅蛋！拿着别用，孵化 1-4 分钟对应 1-4 级。当前：0级");
 
         // 取消旧的提示定时器
         if (_eggLevelTimers.TryGetValue(steamId, out var oldTimer)) oldTimer.Cancel();
 
-        // 每 10 秒检查一次等级
-        _eggLevelTimers[steamId] = Timer.Every(10.Seconds(), () =>
+        // 每 5 秒检查一次等级
+        _eggLevelTimers[steamId] = Timer.Every(5.Seconds(), () =>
         {
             if (!pawn.IsValid) return;
             if (!_eggHoldStartTime.TryGetValue(steamId, out float startTime)) return;
 
             float heldSeconds = GlobalVars.CurTime - startTime;
-            int level = 1;
+            int level = 0;
+            
+            // 🌟 根据你的新规则计算等级
             if (heldSeconds >= 240f) level = 4;
             else if (heldSeconds >= 180f) level = 3;
             else if (heldSeconds >= 120f) level = 2;
+            else if (heldSeconds >= 60f) level = 1;
 
+            // 只有等级发生跨越时，才发消息提醒
             if (CurrentEggLevels[steamId] < level)
             {
                 CurrentEggLevels[steamId] = level;
-                // 用控制台输出，不刷屏聊天
-                controller.PrintToConsole($"🥚 鹅蛋等级提升！当前为 {level} 级");
+                
+                // 计算当前是第几分钟（向下取整）
+                int minutes = (int)(heldSeconds / 60f); 
+                
+                // 🌟 改为聊天框输出
+                Chat.PrintToChat(controller, $"🥚 孵化时间已达 {minutes} 分钟，当前蛋等级：{level} 级！");
             }
         });
 
         return HookResult.Continue;
     }
+
+
+
+
+
+    
 
     // ==========================================
     // 🌟 使用蛋：立刻判定并抽卡
