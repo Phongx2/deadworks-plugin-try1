@@ -42,10 +42,10 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 {
     public override string Name => "Effect Runtime Plugin";
     
-    public static EffectRuntimePlugin Instance { get; private set; }
+    public static EffectRuntimePlugin? Instance { get; private set; }
 
-    public static CCitadelPlayerPawn ActivePlayerA { get; private set; }
-    public static CCitadelPlayerPawn ActivePlayerB { get; private set; }
+    public static CCitadelPlayerPawn? ActivePlayerA { get; private set; }
+    public static CCitadelPlayerPawn? ActivePlayerB { get; private set; }
 
     public static Vector3 PlayerAOriginalPos { get; private set; }
     public static Vector3 PlayerBOriginalPos { get; private set; }
@@ -53,7 +53,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     public static readonly Dictionary<CCitadelPlayerPawn, Vector3> OriginalPositions = new();
     public static readonly HashSet<CCitadelPlayerPawn> WatchingDeadPlayers = new();
 
-    private IHandle _duelMonitorTimer;
+    private IHandle? _duelMonitorTimer;
 
     public override void OnLoad(bool isReload)
     {
@@ -340,7 +340,7 @@ public static class Effects
 
             
 
-            EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB);
+            EffectRuntimePlugin.Instance?.Prepare1v1(CCitadelPlayerPawn playerA, CCitadelPlayerPawn? playerB);
 
             timer.Once(3.Seconds(), () =>
             {
