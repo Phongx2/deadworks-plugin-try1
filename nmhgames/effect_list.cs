@@ -73,10 +73,46 @@ public static class EffectList
 
 
 
+    // ==========================================
+    // 🌟 新增：根据固定等级抽卡（专供鹅蛋使用）
+    // ==========================================
+    public static void ChoukaByLevel(CCitadelPlayerPawn pawn, int level, ITimer timer)
+    {
+        if (pawn == null) return;
+        
+        string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
+
+        // 1. 筛选出对应等级的池子
+        var levelPool = Pool.Where(e => e.Level == level).ToArray();
+
+        if (levelPool.Length == 0)
+        {
+            // 如果这个等级没写效果，兜底提示
+            if (pawn.Controller != null)
+            {
+                NetMessages.Send(new CCitadelUserMsg_ChatMsg
+                {
+                    PlayerSlot = pawn.Controller.Slot,
+                    Text = $"❌ 触发了 {level} 级效果，但该等级下暂无效果配置！",
+                    AllChat = false
+                }, RecipientFilter.All);
+            }
+            Console.WriteLine($"[抽卡] 等级 {level} 的效果池为空，取消执行。");
+            return;
+        }
+
+        // 2. 从筛选后的池子里随机抽一个
+        var effect = levelPool[_random.Next(levelPool.Length)];
+        
+        Console.WriteLine($"[抽卡] {playerName} 触发了 {level} 级蛋，抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
+        
+        // 3. 执行效果
+        Effects.Execute(effect, pawn, timer); 
+    }
 
 
 
-
+    
 
     
 
