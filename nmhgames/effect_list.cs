@@ -113,20 +113,7 @@ public static class EffectList
 
 
 
-public class RollTestCommandPlugin : DeadworksPluginBase
-{
-    public override string Name => "Roll Test Command Plugin";
 
-    [Command("tr", Description = "测试抽卡等级概率")]
-    public void CmdTestRoll(Caller caller)
-    {
-        // 调用 RollLevel 触发控制台输出
-        int result = EffectList.RollLevel();
-        
-        // 给执行命令的人一个反馈
-        caller.Reply($"[测试] 本次抽卡等级判定为: {result} 级");
-    }
-}
     // 打印列表
    
 
