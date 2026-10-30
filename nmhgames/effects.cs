@@ -348,6 +348,32 @@ public static class Effects
             });
 
 
+            else if (effect.Id == "undie")
+        {
+            // 设置持续时间为 60 秒
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", 60.0f);
+
+            // 给玩家挂上殊死一搏的 Modifier
+            pawn.AddModifier("upgrade_cheat_death/cheat_death", kv);
+
+            // 可选：发送提示
+            EffectList.SendDrawNotification(controller, effect);
+        }
+
+
+
+
+
+
+
+
+
+
+
+
+            
+
 
 
 
