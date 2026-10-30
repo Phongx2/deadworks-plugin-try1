@@ -120,9 +120,15 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
             return HookResult.Continue;
 
         // 注意：如果这里的 args.Controller 报错，请尝试换成 args.Player
-        var controller = args.Controller; 
-        if (controller == null) return HookResult.Continue;
+        var controller = Players.FromSlot(args.PlayerSlot);
+    if (controller == null) return HookResult.Continue;
 
+
+
+
+
+
+        
         ulong steamId = Permissions.GetSteamId64(controller.Slot);
         if (steamId == 0) return HookResult.Continue;
 
