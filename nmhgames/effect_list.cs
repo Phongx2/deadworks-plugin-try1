@@ -108,8 +108,8 @@ public static class EffectList
         Console.WriteLine($"[抽卡测试] 随机数 Roll: {roll}, 判定等级: {level}");
         
         return level;
+    
     }
-}
 
 
 
