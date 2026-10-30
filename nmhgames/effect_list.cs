@@ -99,7 +99,17 @@ public static class EffectList
         if (levelPool.Length == 0)
         {
             // 如果这个等级没写效果，给个兜底提示并直接返回
-            Chat.PrintToChat(pawn.Controller, $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！");
+            NetMessages.Send(new CCitadelUserMsg_ChatMsg
+                {
+                    PlayerSlot = pawn.Controller.Slot,
+                    Text = $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！",
+                    AllChat = false
+                }, RecipientFilter.All);
+
+
+
+
+            
             Console.WriteLine($"[抽卡] 等级 {rolledLevel} 的效果池为空，取消执行。");
             return;
         }
