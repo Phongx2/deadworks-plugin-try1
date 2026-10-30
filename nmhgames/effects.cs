@@ -56,6 +56,11 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
     private IHandle _duelMonitorTimer;
 
+	    // 🌟 这些是你清理代码里用到的变量，必须先声明
+    public static Zone? VisualZone;
+    public static Zone? DamageZone;
+    public static List<CBeam>? VisualBeams;
+    public static readonly Dictionary<CCitadelPlayerPawn, IHandle?> BleedingPawns = new();
 
 	    // ===== 1v1 区域与流血 =====
    
@@ -153,6 +158,15 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
     private void HandleDuelEnd(CCitadelPlayerPawn winner, CCitadelPlayerPawn loser)
     {
+
+		 // 🌟 直接在这里清理决斗区域和流血
+        if (VisualZone != null) { VisualZone.Dispose(); VisualZone = null; }
+        if (DamageZone != null) { DamageZone.Dispose(); DamageZone = null; }
+        if (VisualBeams != null) { CBeam.RemoveAll(VisualBeams); VisualBeams = null; }
+        
+        foreach (var h in BleedingPawns.Values) h?.Cancel();
+        BleedingPawns.Clear();
+
 
 		
         ActivePlayerA = null;
@@ -353,6 +367,80 @@ public static class Effects
 
 
              // ===== 启动 1v1 区域、边框、流血逻辑 =====
+
+			            // ===== 启动 1v1 区域、边框、流血逻辑 =====
+            if (playerB != null)
+            {
+                // 清理上一局可能遗留的状态
+                if (EffectRuntimePlugin.VisualZone != null) { EffectRuntimePlugin.VisualZone.Dispose(); EffectRuntimePlugin.VisualZone = null; }
+                if (EffectRuntimePlugin.DamageZone != null) { EffectRuntimePlugin.DamageZone.Dispose(); EffectRuntimePlugin.DamageZone = null; }
+                if (EffectRuntimePlugin.VisualBeams != null) { CBeam.RemoveAll(EffectRuntimePlugin.VisualBeams); EffectRuntimePlugin.VisualBeams = null; }
+                foreach (var h in EffectRuntimePlugin.BleedingPawns.Values) h?.Cancel();
+                EffectRuntimePlugin.BleedingPawns.Clear();
+
+                // 1. 创建视觉框
+                EffectRuntimePlugin.VisualZone = new Zone(
+                    new Vector3(-600.75f, -680.44f, -90f),
+                    new Vector3(600.03f, 680.22f, 200f)
+                );
+                EffectRuntimePlugin.VisualBeams = CBeam.CreateBox(EffectRuntimePlugin.VisualZone.Mins, EffectRuntimePlugin.VisualZone.Maxs, width: 4f, color: System.Drawing.Color.Red);
+
+                // 2. 创建伤害判定框
+                EffectRuntimePlugin.DamageZone = new Zone(
+                    new Vector3(-646.75f, -717.44f, -100f),
+                    new Vector3(656.03f, 699.22f, 300f)
+                );
+
+                // 3. 局部扣血函数
+                void StartBleed(CCitadelPlayerPawn p)
+                {
+                    if (p == null || !p.IsValid) return;
+                    if (EffectRuntimePlugin.BleedingPawns.TryGetValue(p, out var existing) && existing != null) return;
+
+                    void Tick()
+                    {
+                        if (p == null || !p.IsValid || p.LifeState != LifeState.Alive) return;
+                        p.Hurt(Math.Max(1f, p.GetMaxHealth() * 0.10f), attacker: null, inflictor: null, ability: null, damageType: 8);
+                    }
+                    Tick();
+                    EffectRuntimePlugin.BleedingPawns[p] = timer.Every(1.Seconds(), Tick);
+                }
+
+                void StopBleed(CCitadelPlayerPawn p)
+                {
+                    if (p == null) return;
+                    if (EffectRuntimePlugin.BleedingPawns.TryGetValue(p, out var h) && h != null)
+                    {
+                        h.Cancel();
+                        EffectRuntimePlugin.BleedingPawns[p] = null;
+                    }
+                }
+
+                // 4. 绑定事件（只对 A 和 B 生效）
+                var a = pawn;
+                var b = playerB;
+                EffectRuntimePlugin.DamageZone.Left += (z, player, p) =>
+                {
+                    if (p == null || !p.IsValid) return;
+                    if (p != a && p != b) return;
+                    Chat.PrintToChat(player, "⚠️ 你离开了决斗区域，开始流血！");
+                    StartBleed(p);
+                };
+
+                EffectRuntimePlugin.DamageZone.Entered += (z, player, p) =>
+                {
+                    if (p == null || !p.IsValid) return;
+                    if (p != a && p != b) return;
+                    Chat.PrintToChat(player, "✅ 你进入了安全区域，停止流血。");
+                    StopBleed(p);
+                };
+
+                EffectRuntimePlugin.DamageZone.ResetOccupants();
+            }
+
+
+
+			
 
             EffectRuntimePlugin.Instance?.Prepare1v1(pawn, playerB!);
 
