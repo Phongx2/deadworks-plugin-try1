@@ -371,6 +371,14 @@ public static class Effects
 		else if (effect.Id == "UAV")
 {
     // 变量名 UAV：抽到的人对敌方所有人施加 30s VisibleToEnemy
+	EffectList.SendDrawNotification(controller, effect);
+
+
+
+
+
+
+			
     int casterTeam = pawn.TeamNum;
     var enemies = new List<CCitadelPlayerPawn>();
 
