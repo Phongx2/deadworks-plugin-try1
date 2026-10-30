@@ -734,7 +734,90 @@ public class SelfEffectCommandPlugin : DeadworksPluginBase
 
 
 
+    // 用来记录当前区域和流血状态，防止多次执行 /draw 叠加上百个
+    private Zone? _drawZone;
+    private List<CBeam>? _drawBeams;
+    private readonly Dictionary<CCitadelPlayerPawn, IHandle?> _bleedingPawns = new();
 
+    [Command("draw", Description = "开关决斗区域绘制与出界流血")]
+    public void CmdDraw(Caller caller)
+    {
+        // 如果区域已经存在，说明是关闭操作
+        if (_drawZone != null)
+        {
+            foreach (var handle in _bleedingPawns.Values)
+            {
+                handle?.Cancel();
+            }
+            _bleedingPawns.Clear();
+
+            _drawZone.Dispose();
+            _drawZone = null;
+
+            if (_drawBeams != null)
+            {
+                CBeam.RemoveAll(_drawBeams);
+                _drawBeams = null;
+            }
+
+            caller.Reply("🛑 决斗区域已关闭。");
+            return;
+        }
+
+        // 1. 创建区域并画框
+        _drawZone = new Zone(
+            new Vector3(-646.75f, -717.44f, -100f),
+            new Vector3(656.03f, 699.22f, 300f)
+        );
+        
+        _drawBeams = CBeam.CreateBox(_drawZone.Mins, _drawZone.Maxs, width: 4f, color: System.Drawing.Color.Red);
+
+        // 2. 定义扣血和停止扣血的局部函数
+        void StartBleed(CCitadelPlayerPawn p)
+        {
+            if (p == null || !p.IsValid) return;
+            if (_bleedingPawns.TryGetValue(p, out var existing) && existing != null) return;
+
+            void Tick()
+            {
+                if (p == null || !p.IsValid || p.LifeState != LifeState.Alive) return;
+                float maxHealth = p.GetMaxHealth();
+                float damage = Math.Max(1f, maxHealth * 0.10f);
+                p.Hurt(damage, attacker: null, inflictor: null, ability: null, damageType: 8);
+            }
+            Tick();
+            _bleedingPawns[p] = Timer.Every(1.Seconds(), Tick);
+        }
+
+        void StopBleed(CCitadelPlayerPawn p)
+        {
+            if (p == null) return;
+            if (_bleedingPawns.TryGetValue(p, out var h) && h != null)
+            {
+                h.Cancel();
+                _bleedingPawns[p] = null;
+            }
+        }
+
+        // 3. 绑定事件：出去就流血，进来就安全
+        _drawZone.Left += (z, player, p) =>
+        {
+            if (p == null || !p.IsValid) return;
+            Chat.PrintToChat(player, "⚠️ 你离开了决斗区域，开始流血！");
+            StartBleed(p);
+        };
+
+        _drawZone.Entered += (z, player, p) =>
+        {
+            if (p == null || !p.IsValid) return;
+            Chat.PrintToChat(player, "✅ 你进入了安全区域，停止流血。");
+            StopBleed(p);
+        };
+
+        // 4. 强制刷新一次状态，确保里面的人被视为“已进入”
+        _drawZone.ResetOccupants();
+        caller.Reply("✅ 决斗区域已开启并绘制，出界流血已生效。");
+    }
 
 
 
