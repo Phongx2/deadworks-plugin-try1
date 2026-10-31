@@ -534,6 +534,23 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 
 
 
+
+
+                // ================= 效果：霸体（免控） =================
+        else if (effect.Id == "unstop")
+        {
+            // 使用 effect.Duration 作为持续时间
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", effect.Duration);
+
+            // 挂载霸体 Modifier
+            pawn.AddModifier("upgrade_unstoppable/modifier_unstoppable", kv);
+
+            // 发送抽卡提示
+            EffectList.SendDrawNotification(controller, effect);
+        }
+
+
 		
 //写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写
 
