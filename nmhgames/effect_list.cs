@@ -67,7 +67,7 @@ public static class EffectList
         new EffectInfo("unstop", "霸体", 30.0f, 4), // 你可以自己调整时长和等级
         new EffectInfo("yoshiban", "大手的力量", 15.0f, 3), 
         new EffectInfo("double_curse", "双人诅咒", 30.0f, 4), // 示例：8秒，3级
-
+        new EffectInfo("wallhack", "YOSHI之父赐予我视野", 60.0f, 3), // 示例：5秒，4级卡
 
         
 
