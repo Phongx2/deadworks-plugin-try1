@@ -684,6 +684,7 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             foreach (var enemy in enemies)
             {
                 enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemy, true);
+				enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToProvider, true);
             }
 			
 			Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
@@ -704,7 +705,8 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
                 foreach (var enemy in enemies)
                 {
                     if (enemy == null || !enemy.IsValid) continue;
-                    enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemy, false);
+                                    enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemy, false);
+				enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToProvider, false);
                 }
             });
         }
