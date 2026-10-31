@@ -609,7 +609,46 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             // 发送抽卡提示
             EffectList.SendDrawNotification(controller, effect);
         }
-		
+
+
+
+
+
+
+
+
+		        // ================= 效果：双人诅咒 =================
+        else if (effect.Id == "double_curse")
+        {
+				EffectList.SendDrawNotification(controller, effect);
+
+			
+            // 1. 找对面队伍的人
+            var enemies = Players.GetAll()
+                .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+                .Select(c => c.GetHeroPawn())
+                .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum)
+                .ToList();
+
+            if (enemies.Count == 0) return;
+
+            // 2. 打乱敌人顺序，然后取前两个（如果只有一个敌人，就只诅咒一个）
+            var shuffled = enemies.OrderBy(_ => Random.Shared.Next()).ToList();
+            var targets = shuffled.Take(2).ToList();
+
+            // 3. 给选中的倒霉蛋挂上故障 Modifier
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", effect.Duration);
+            
+            foreach (var target in targets)
+            {
+                target.AddModifier("upgrade_glitch/modifier_glitch_debuff", kv);
+                Chat.PrintToChat(target.Controller, "⚠️ 你被双人诅咒命中了！");
+            }
+
+
+            
+        }
 //写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写
 
 
