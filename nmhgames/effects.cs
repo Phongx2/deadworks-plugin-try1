@@ -707,16 +707,37 @@ public class SelfEffectCommandPlugin : DeadworksPluginBase
             return;
         }
 
-        // 🌟 情况二：/e xxxxx (施加 Modifier)
+                // ==========================================
+        // 🌟 情况二：/e xxxxx [时长] (施加或移除 Modifier)
+        // ==========================================
         string modifierName = param1;
         try
         {
+            // 如果玩家输入了第二个参数且是 0，则移除效果
+            if (param2 == "0")
+            {
+                pawn.RemoveModifier(modifierName);
+                caller.Reply($"🗑️ 已成功移除 Modifier: {modifierName}");
+                return;
+            }
+
+            // 如果输入了大于 0 的数字（比如 /e xxx 10），则为指定时长
+            if (float.TryParse(param2, out float duration) && duration > 0)
+            {
+                using var kv = new KeyValues3();
+                kv.SetFloat("duration", duration);
+                pawn.AddModifier(modifierName, kv);
+                caller.Reply($"✅ 已对你施加 Modifier: {modifierName} (持续 {duration} 秒)");
+                return;
+            }
+
+            // 如果没输入第二个参数，则按默认方式施加（可能是默认时长或永久）
             pawn.AddModifier(modifierName);
             caller.Reply($"✅ 已成功对你施加 Modifier: {modifierName}");
         }
         catch (Exception ex)
         {
-            caller.Reply($"❌ 施加失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
+            caller.Reply($"❌ 操作失败，请检查 Modifier 名称是否正确。错误信息: {ex.Message}");
         }
     }
 
