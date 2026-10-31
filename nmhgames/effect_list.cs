@@ -61,13 +61,21 @@ public static class EffectList
     {
         new EffectInfo("speed_boost", "加速", 60.0f,1),
         new EffectInfo("1v1", "斗殴", 3.0f,1), 
-        new EffectInfo("undie", "幸免遇难", 30.0f, 3), // 🌟 新加的 undie
+
         new EffectInfo("UAV", "无人侦察机", 30.0f, 2), // 🌟 新加的 UAV
+        new EffectInfo("yoshiban", "大手的力量", 10.0f, 2), 
+         new EffectInfo("wallhack", "YOSHI之父赐予我视野", 60.0f, 2), // 示例：5秒，4级卡
+
+        
+        new EffectInfo("undie", "幸免遇难", 30.0f, 3), // 🌟 新加的 undie
+        new EffectInfo("double_curse", "双人诅咒", 30.0f, 3), // 示例：8秒，3级
+
+        
         new EffectInfo("infbullet", "无限子弹", 60.0f, 4), 
         new EffectInfo("unstop", "霸体", 30.0f, 4), // 你可以自己调整时长和等级
-        new EffectInfo("yoshiban", "大手的力量", 10.0f, 2), 
-        new EffectInfo("double_curse", "双人诅咒", 30.0f, 3), // 示例：8秒，3级
-        new EffectInfo("wallhack", "YOSHI之父赐予我视野", 60.0f, 2), // 示例：5秒，4级卡
+        
+        
+       
 
         
 
