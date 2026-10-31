@@ -649,6 +649,49 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 
             
         }
+
+
+		        // ================= 效果：wallhack (透视) =================
+        else if (effect.Id == "wallhack")
+        {
+            // 1. 获取敌方所有人
+            int casterTeam = pawn.TeamNum;
+            var enemies = Players.GetAll()
+                .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+                .Select(c => c.GetHeroPawn())
+                .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
+                .ToList();
+
+            if (enemies.Count == 0) return;
+
+            // 2. 给敌方所有人开启透视
+            foreach (var enemy in enemies)
+            {
+                enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToProvider, true);
+            }
+			
+			Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+			
+            // 3. 给所有人发送 HUD 提示（可选）
+            NetMessages.Send(new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "👁️ yoshi之父赐予我视野",
+                DescriptionLocstring = $"{controller.PlayerName} 开启了透视！"
+            }, RecipientFilter.All);
+
+            // 4. 发送抽卡提示
+            EffectList.SendDrawNotification(controller, effect);
+
+            // 5. 时间结束后关闭透视
+            timer.Once(((double)effect.Duration).Seconds(), () =>
+            {
+                foreach (var enemy in enemies)
+                {
+                    if (enemy == null || !enemy.IsValid) continue;
+                    enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToProvider, false);
+                }
+            });
+        }
 //写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写
 
 
