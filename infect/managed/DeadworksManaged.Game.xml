@@ -9938,7 +9938,7 @@
             <summary>Default <c>False</c>. Flags: developmentonly.</summary>
         </member>
         <member name="F:DeadworksManaged.Game.ConVars.r_particle_max_detail_level">
-            <summary>The maximum detail level of particle to create. Default <c>3</c>. Flags: defensive, developmentonly, gameinfo_cannot_override.</summary>
+            <summary>The maximum detail level of particle to create. Default <c>3</c>, range 0 to 3. Flags: defensive, developmentonly.</summary>
         </member>
         <member name="F:DeadworksManaged.Game.ConVars.r_particle_max_draw_distance">
             <summary>The maximum distance that particles will render. Default <c>1000000</c>. Flags: cheat.</summary>
@@ -49605,10 +49605,10 @@
             <summary><c>CAI_ScheduleBits</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_IdealNPCState">
-            <summary><c>NPC_STATE</c>.</summary>
+            <summary><c>NPC_STATE</c>. Wrapped by <c>CAI_BaseNPC.IdealState</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_NPCState">
-            <summary><c>NPC_STATE</c>. Networked: a write is sent to clients.</summary>
+            <summary><c>NPC_STATE</c>. Networked: a write is sent to clients. Wrapped by <c>CAI_BaseNPC.State</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_NonGatherConditions">
             <summary><c>CAI_ScheduleBits</c>.</summary>
@@ -49665,7 +49665,7 @@
             <summary><c>CAI_ScheduleBits</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_Scheduler">
-            <summary><c>CAI_Scheduler</c>.</summary>
+            <summary><c>CAI_Scheduler</c>. Wrapped by <c>CAI_BaseNPC.Schedule</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_UnreachableTargets">
             <summary><c>CUnreachableTargetList</c>.</summary>
@@ -49800,7 +49800,7 @@
             <summary><c>CAI_AnimGraphServices*</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_pEnemyServices">
-            <summary><c>CAI_EnemyServices*</c>.</summary>
+            <summary><c>CAI_EnemyServices*</c>. Wrapped by <c>CAI_BaseNPC.Enemy</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_pFacingServices">
             <summary><c>CAI_FacingServices*</c>.</summary>
@@ -49831,6 +49831,9 @@
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.m_vecSynchronizedSecondaryNPCs">
             <summary><c>CUtlVector&lt;CHandle&lt;CAI_BaseNPC&gt;&gt;</c>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.Entity">
+            <summary>The curated <see cref="T:DeadworksManaged.Api.CAI_BaseNPC"/> for this entity, or null if it is gone.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_BaseNPC.VData">
             <summary>The data entry this was created from, as <see cref="T:DeadworksManaged.Game.Schema.CAI_BaseNPCVData"/>, or null if it has none.</summary>
@@ -49998,7 +50001,7 @@
             <summary>Schema class <c>CAI_CitadelNPC</c>. <see href="https://deadworks.net/db/schema/server/CAI_CitadelNPC">Modding database</see>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.m_CCitadelAbilityComponent">
-            <summary><c>CCitadelAbilityComponent</c>. Networked: a write is sent to clients.</summary>
+            <summary><c>CCitadelAbilityComponent</c>. Networked: a write is sent to clients. Wrapped by <c>CAI_CitadelNPC.AbilityComponent</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.m_CCitadelMinimapComponent">
             <summary><c>CCitadelMinimapComponent</c>. Networked: a write is sent to clients.</summary>
@@ -50010,10 +50013,10 @@
             <summary><c>bool</c>. Networked: a write is sent to clients.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.m_bMinion">
-            <summary><c>bool</c>. Networked: a write is sent to clients.</summary>
+            <summary><c>bool</c>. Networked: a write is sent to clients. Wrapped by <c>CAI_CitadelNPC.IsMinion</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.m_hAbilityOwner">
-            <summary><c>CHandle&lt;CCitadelBaseAbility&gt;</c>.</summary>
+            <summary><c>CHandle&lt;CCitadelBaseAbility&gt;</c>. Wrapped by <c>CAI_CitadelNPC.OwningAbility</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.m_hLookTarget">
             <summary><c>CHandle&lt;CBaseEntity&gt;</c>. Networked: a write is sent to clients.</summary>
@@ -50023,6 +50026,9 @@
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.m_vecWeakPoints">
             <summary><c>CUtlVectorEmbeddedNetworkVar&lt;WeakPoint_t&gt;</c>. Networked: a write is sent to clients.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.Entity">
+            <summary>The curated <see cref="T:DeadworksManaged.Api.CAI_CitadelNPC"/> for this entity, or null if it is gone.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_CitadelNPC.VData">
             <summary>The data entry this was created from, as <see cref="T:DeadworksManaged.Game.Schema.CAI_CitadelNPCVData"/>, or null if it has none.</summary>
@@ -50376,7 +50382,7 @@
             <summary><c>GameTime_t</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_EnemyServices.m_hEnemy">
-            <summary><c>CHandle&lt;CBaseEntity&gt;</c>.</summary>
+            <summary><c>CHandle&lt;CBaseEntity&gt;</c>. Wrapped by <c>CAI_BaseNPC.Enemy</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="T:DeadworksManaged.Game.Schema.CAI_Expresser">
             <summary>Schema class <c>CAI_Expresser</c>. <see href="https://deadworks.net/db/schema/server/CAI_Expresser">Modding database</see>.</summary>
@@ -51972,7 +51978,7 @@
             <summary><c>CUtlString</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_Scheduler.m_translatedSchedule">
-            <summary><c>ScheduleId_t</c>.</summary>
+            <summary><c>ScheduleId_t</c>. Wrapped by <c>CAI_BaseNPC.Schedule</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CAI_Scheduler.m_untranslatedSchedule">
             <summary><c>ScheduleId_t</c>.</summary>
@@ -55020,7 +55026,7 @@
             <summary><c>float32</c>. Bots pick on a time interval.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CBotDifficultyDefinition.difficulty">
-            <summary><c>ECitadelBotDifficulty</c>. Difficulty Enum.</summary>
+            <summary><c>ECitadelBotDifficulty</c>. Difficulty Enum. Wrapped by <c>CCitadelPlayerPawn.BotDifficulty</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CBotDifficultyDefinition.enemy_hero_engage_distance">
             <summary><c>float32</c>. Distance away from target to search for an attack location.</summary>
@@ -57676,6 +57682,9 @@
         </member>
         <member name="T:DeadworksManaged.Game.Schema.CCitadelPlayerBotNPCBrain">
             <summary>Schema class <c>CCitadelPlayerBotNPCBrain</c>. <see href="https://deadworks.net/db/schema/server/CCitadelPlayerBotNPCBrain">Modding database</see>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CCitadelPlayerBotNPCBrain.Entity">
+            <summary>The curated <see cref="T:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain"/> for this entity, or null if it is gone.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadelPlayerBotNPCBrain.VData">
             <summary>The data entry this was created from, as <see cref="T:DeadworksManaged.Game.Schema.CCitadelPlayerBotNPCBrainVData"/>, or null if it has none.</summary>
@@ -60384,6 +60393,9 @@
             <summary><c>float32</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Ability_Artist_PullBrushVData.m_flDrawingLingerTime">
+            <summary><c>float32</c>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CCitadel_Ability_Artist_PullBrushVData.m_flMinStrokeDistance">
             <summary><c>float32</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Ability_Artist_PullBrushVData.m_flSpacingBetweenBlockers">
@@ -63637,6 +63649,9 @@
         </member>
         <member name="T:DeadworksManaged.Game.Schema.CCitadel_Ability_Doorman_Doorway">
             <summary>Schema class <c>CCitadel_Ability_Doorman_Doorway</c>. <see href="https://deadworks.net/db/schema/server/CCitadel_Ability_Doorman_Doorway">Modding database</see>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CCitadel_Ability_Doorman_Doorway.m_flDebugDrawDuration">
+            <summary><c>float32</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Ability_Doorman_Doorway.m_flDoorBreakableRadius">
             <summary><c>float32</c>.</summary>
@@ -79701,6 +79716,9 @@
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Modifier_ItemWalkBackVData.m_flMoveSpeed">
             <summary><c>float32</c>.</summary>
         </member>
+        <member name="P:DeadworksManaged.Game.Schema.CCitadel_Modifier_ItemWalkBackVData.m_flPathHeightPenaltyScale">
+            <summary><c>float32</c>.</summary>
+        </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Modifier_ItemWalkBackVData.m_flRepathTime">
             <summary><c>float32</c>.</summary>
         </member>
@@ -81422,6 +81440,9 @@
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Modifier_Nurse_Fear_Debuff_VData.m_DebuffParticle">
             <summary><c>CResourceNameTyped&lt;CWeakHandle&lt;InfoForResourceTypeIParticleSystemDefinition&gt;&gt;</c>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CCitadel_Modifier_Nurse_Fear_Debuff_VData.m_strFearAppliedNPCSound">
+            <summary><c>CSoundEventName</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CCitadel_Modifier_Nurse_Fear_Debuff_VData.m_strFearAppliedSound">
             <summary><c>CSoundEventName</c>.</summary>
@@ -98684,6 +98705,15 @@
         <member name="P:DeadworksManaged.Game.Schema.CNavGoalConstraints.m_vecConstrainingSpheres">
             <summary><c>CUtlVector&lt;TgSphere_t&gt;</c>.</summary>
         </member>
+        <member name="T:DeadworksManaged.Game.Schema.CNavIdolWalkbackPathCost">
+            <summary>Schema class <c>CNavIdolWalkbackPathCost</c>. <see href="https://deadworks.net/db/schema/server/CNavIdolWalkbackPathCost">Modding database</see>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CNavIdolWalkbackPathCost.m_flHeightPenaltyScale">
+            <summary><c>float32</c>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CNavIdolWalkbackPathCost.m_flReferenceZ">
+            <summary><c>float32</c>.</summary>
+        </member>
         <member name="T:DeadworksManaged.Game.Schema.CNavLinkAnimgraphVar">
             <summary>Schema class <c>CNavLinkAnimgraphVar</c>. <see href="https://deadworks.net/db/schema/server/CNavLinkAnimgraphVar">Modding database</see>.</summary>
         </member>
@@ -100951,7 +100981,7 @@
             <summary>Schema class <c>CNPC_Trooper</c>. <see href="https://deadworks.net/db/schema/server/CNPC_Trooper">Modding database</see>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CNPC_Trooper.m_bUsingBossWeapon">
-            <summary><c>bool</c>. Networked: a write is sent to clients.</summary>
+            <summary><c>bool</c>. Networked: a write is sent to clients. Wrapped by <c>CNPC_Trooper.UsingBossWeapon</c> in DeadworksManaged.Api.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CNPC_Trooper.m_hSpawnWaveController">
             <summary><c>CHandle&lt;CInfoTrooperBossSpawn&gt;</c>.</summary>
@@ -100963,7 +100993,10 @@
             <summary><c>CHandle&lt;CInfoTrooperSpawn&gt;</c>.</summary>
         </member>
         <member name="P:DeadworksManaged.Game.Schema.CNPC_Trooper.m_iLane">
-            <summary><c>int32</c>. Networked: a write is sent to clients.</summary>
+            <summary><c>int32</c>. Networked: a write is sent to clients. Wrapped by <c>CNPC_Trooper.Lane</c> in DeadworksManaged.Api.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Game.Schema.CNPC_Trooper.Entity">
+            <summary>The curated <see cref="T:DeadworksManaged.Api.CNPC_Trooper"/> for this entity, or null if it is gone.</summary>
         </member>
         <member name="T:DeadworksManaged.Game.Schema.CNPC_TrooperBoss">
             <summary>Schema class <c>CNPC_TrooperBoss</c>. <see href="https://deadworks.net/db/schema/server/CNPC_TrooperBoss">Modding database</see>.</summary>
@@ -116663,6 +116696,12 @@
         <member name="T:DeadworksManaged.Api.SchemaBridge">
             <summary>Adds <c>.Schema</c> to the curated wrappers: every schema field of the object, typed as its generated class.</summary>
         </member>
+        <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CAI_BaseNPC)">
+            <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$A9399A0B26BFDC331FA418B8CEFE62B3.Schema"/>
+        </member>
+        <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CAI_CitadelNPC)">
+            <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$C187CCAE93430B99E400648418143419.Schema"/>
+        </member>
         <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CBaseEntity)">
             <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$E4F42FC5AE5A54A959B551E1CB1023ED.Schema"/>
         </member>
@@ -116692,6 +116731,9 @@
         </member>
         <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CCitadelModifierVData)">
             <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$49450514A7849CB0252F9E8BA08BAB0F.Schema"/>
+        </member>
+        <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CCitadelPlayerBotNPCBrain)">
+            <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$A9AB0323B25DF332C7EE96BA5B981FF0.Schema"/>
         </member>
         <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CCitadelPlayerController)">
             <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$75113EE6731A0F413AFD3D350D01D49D.Schema"/>
@@ -116723,6 +116765,9 @@
         <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CModifierVData)">
             <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$109586D93054656DC9D3F175C57F61D7.Schema"/>
         </member>
+        <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CNPC_Trooper)">
+            <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$C573EDAC52BC795C62F3CB91A6BE8C26.Schema"/>
+        </member>
         <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CParticleSystem)">
             <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$CF326ECAD42A433C717962F49B315E59.Schema"/>
         </member>
@@ -116731,6 +116776,12 @@
         </member>
         <member name="M:DeadworksManaged.Api.SchemaBridge.get_Schema(DeadworksManaged.Api.CPointWorldText)">
             <inheritdoc cref="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$A11A49F5786B88C689D142BA9342DA4F.Schema"/>
+        </member>
+        <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$A9399A0B26BFDC331FA418B8CEFE62B3.Schema">
+            <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CAI_BaseNPC"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$C187CCAE93430B99E400648418143419.Schema">
+            <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CAI_CitadelNPC"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
         </member>
         <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$E4F42FC5AE5A54A959B551E1CB1023ED.Schema">
             <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CBaseEntity"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
@@ -116762,6 +116813,9 @@
         <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$49450514A7849CB0252F9E8BA08BAB0F.Schema">
             <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CCitadelModifierVData"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
         </member>
+        <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$A9AB0323B25DF332C7EE96BA5B981FF0.Schema">
+            <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CCitadelPlayerBotNPCBrain"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
+        </member>
         <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$75113EE6731A0F413AFD3D350D01D49D.Schema">
             <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CCitadelPlayerController"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
         </member>
@@ -116791,6 +116845,9 @@
         </member>
         <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$109586D93054656DC9D3F175C57F61D7.Schema">
             <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CModifierVData"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$C573EDAC52BC795C62F3CB91A6BE8C26.Schema">
+            <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CNPC_Trooper"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>
         </member>
         <member name="P:DeadworksManaged.Api.SchemaBridge.&lt;G&gt;$CF326ECAD42A433C717962F49B315E59.Schema">
             <summary>This object as <see cref="T:DeadworksManaged.Game.Schema.CParticleSystem"/>: every schema field the game declares for it, under the game's own names. Each use looks the object up again, so keep the view in a local when you read several fields.</summary>

@@ -233,6 +233,68 @@
         <member name="E:DeadworksManaged.Api.IPenaltyStore.Changed">
             <summary>Raise when penalties changed outside Deadworks, e.g. a ban added on another server. Deadworks reloads them.</summary>
         </member>
+        <member name="T:DeadworksManaged.Api.Bots">
+            <summary>Adds and controls bot heroes: fake clients with a hero and a <see cref="T:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain"/>.</summary>
+            <remarks>A fake client from <see cref="M:DeadworksManaged.Api.Server.CreateFakeClient(System.String)"/> also gets a brain, but no hero.</remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.Bots.Add(System.Nullable{DeadworksManaged.Api.Heroes},System.Int32,System.Numerics.Vector3,System.Nullable{DeadworksManaged.Api.BotDifficulty},System.Boolean)">
+            <summary>
+            Adds a bot hero, like <c>citadel_create_unit</c>. Returns its pawn, or null if bots can't play the hero, the
+            server is full or no map is loaded.
+            </summary>
+            <remarks>
+            The bot joins as a fake client named <c>BotN</c>. Its hero finishes loading shortly after. Wait before reading
+            its abilities. Remove it with <see cref="M:DeadworksManaged.Api.Server.Kick(System.Int32,ENetworkDisconnectionReason)"/>. It only plays while
+            <see cref="P:DeadworksManaged.Api.Bots.AiEnabled"/> is on.
+            </remarks>
+            <param name="hero">Hero. Null picks a random one.</param>
+            <param name="team">2 Amber, 3 Sapphire.</param>
+            <param name="position">Spawn position, on the navmesh.</param>
+            <param name="difficulty">Null uses <c>citadel_default_bot_difficulty</c>.</param>
+            <param name="assignLane">Let the game pick a lane.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.Bots.SetMoveInput(CCitadelUserCmdPB,DeadworksManaged.Api.CCitadelPlayerPawn,System.Numerics.Vector3,System.Nullable{System.Numerics.Vector3},System.Boolean)">
+            <summary>
+            Fills in a usercmd that moves a bot hero towards a point. Call from
+            <see cref="M:DeadworksManaged.Api.IDeadworksPlugin.OnProcessUsercmds(DeadworksManaged.Api.ProcessUsercmdsEvent)"/> while <see cref="P:DeadworksManaged.Api.Bots.AiEnabled"/> is off.
+            </summary>
+            <param name="usercmd">The bot's usercmd.</param>
+            <param name="pawn">The bot hero.</param>
+            <param name="moveTo">Point to move towards. Height is ignored.</param>
+            <param name="lookAt">Point to aim at while moving. Null faces the direction of travel.</param>
+            <param name="jump">Press jump.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.Bots.WriteMove(CCitadelUserCmdPB,System.Single,System.Single,System.Single,System.Single,System.UInt64)">
+            <summary>
+            Writes movement into a usercmd the way the game builds a bot's: analog move, view angles, and the
+            direction keys that go with the move. A bot's usercmd starts blank each tick, so everything held counts
+            as changed too.
+            </summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.Bots.AiEnabled">
+            <summary>
+            Whether bot heroes play on their own. Off by default on servers without a matchmaking lobby. Same as
+            <c>citadel_solo_bot_match</c>.
+            </summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.Bots.SetAiEnabled(System.Boolean)">
+            <summary>Turns the bot AI on or off for every bot. Returns false if no map is loaded.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.Bots.Brains">
+            <summary>Every bot brain on the map.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.BotDifficulty">
+            <summary>Bot skill level, from <c>scripts/bots/bot_difficulty.vdata</c>.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.BotDifficulty.Easy">
+            <summary>The <c>easy</c> entry.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.BotDifficulty.Medium">
+            <summary>The <c>medium</c> entry.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.BotDifficulty.Hard">
+            <summary>The <c>hard</c> entry.</summary>
+        </member>
         <member name="T:DeadworksManaged.Api.Chat">
             <summary>Helpers for sending chat messages to players.</summary>
         </member>
@@ -747,7 +809,7 @@
         <member name="M:DeadworksManaged.Api.DeadworksPluginBase.OnAbilityAttempt(DeadworksManaged.Api.AbilityAttemptEvent)">
             <inheritdoc/>
         </member>
-        <member name="M:DeadworksManaged.Api.DeadworksPluginBase.OnProcessUsercmds(DeadworksManaged.Api.ProcessUsercmdsEvent)">
+        <member name="M:DeadworksManaged.Api.DeadworksPluginBase.OnNpcSelectSchedule(DeadworksManaged.Api.NpcSelectScheduleEvent)">
             <inheritdoc/>
         </member>
         <member name="M:DeadworksManaged.Api.DeadworksPluginBase.OnAddModifier(DeadworksManaged.Api.AddModifierEvent)">
@@ -782,6 +844,99 @@
         </member>
         <member name="M:DeadworksManaged.Api.DeadworksPluginBase.OnAdminAction(DeadworksManaged.Api.AdminLogEntry)">
             <inheritdoc/>
+        </member>
+        <member name="T:DeadworksManaged.Api.CAI_BaseNPC">
+            <summary>
+            Base class of every NPC: troopers, neutral creeps, bosses, the Patron, hero summons and bot brains.
+            </summary>
+            <remarks>Hero pawns are not NPCs, even a bot's. A bot's AI is its <see cref="T:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain"/>.</remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_BaseNPC.Create(System.String,System.Numerics.Vector3,System.Int32,System.Nullable{System.Numerics.Vector3})">
+            <summary>
+            Spawns an NPC by VData subclass name, such as <c>neutral_trooper_strong</c> or <c>npc_boss_tier1</c>. Returns
+            null if the name is not an NPC subclass.
+            </summary>
+            <remarks>
+            Class names such as <c>npc_trooper_neutral</c> return null. For lane troopers use
+            <see cref="M:DeadworksManaged.Api.CNPC_Trooper.Create(System.Numerics.Vector3,System.Int32,DeadworksManaged.Api.TrooperType,System.Nullable{System.Numerics.Vector3},System.Boolean)"/>, which also assigns a lane.
+            </remarks>
+            <param name="designerName">Subclass name. <c>SubclassNames</c> in DeadworksManaged.Game lists them.</param>
+            <param name="position">Spawn position.</param>
+            <param name="team">Team. 0 keeps the NPC's default.</param>
+            <param name="angles">Pitch, yaw, roll. Null faces +X.</param>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_BaseNPC.State">
+            <summary>Current AI state.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_BaseNPC.IdealState">
+            <summary>AI state the NPC switches to on its next think.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_BaseNPC.IsDormant">
+            <summary>True for a hidden trooper the game keeps for reuse (<see cref="F:DeadworksManaged.Api.NpcState.Inert"/>). Skip these.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_BaseNPC.Schedule">
+            <summary>Running schedule, such as <c>SCHED_TROOPER_RUN_DOWN_LANE</c>. Null between schedules.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_BaseNPC.Enemy">
+            <summary>Entity the NPC is fighting, or null.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_BaseNPC.MoveTo(System.Numerics.Vector3,System.Boolean,System.Single)">
+            <summary>Sends the NPC to a point, like <c>npc_go</c>.</summary>
+            <remarks>
+            The NPC ignores enemies and damage until it arrives or the path fails, then resumes its own AI. Most orders
+            over 3000 units of path fail. Shorter ones can stop partway in <c>SCHED_FAIL</c>. Send long trips in legs along
+            <see cref="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,DeadworksManaged.Api.CBaseEntity,System.Boolean,System.Boolean)"/>, and order again after a failure. To
+            follow a moving target, call again every 0.5 s.
+            </remarks>
+            <param name="goal">Destination. Need not be on the navmesh.</param>
+            <param name="run">Run instead of walking.</param>
+            <param name="tolerance">Arrival distance. 0 uses the <c>npc_go</c> default.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_BaseNPC.Stop(System.Boolean)">
+            <summary>Drops the current move order, like <c>npc_stop_moving</c>.</summary>
+            <param name="instant">Stop on the spot instead of slowing down.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_BaseNPC.SetEnemy(DeadworksManaged.Api.CBaseEntity)">
+            <summary>Sets the NPC's enemy. Null clears it.</summary>
+            <remarks>The AI re-picks its enemy every think and may switch to a closer one. An enemy on the NPC's own team is dropped.</remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_BaseNPC.SetSchedule(System.String)">
+            <summary>Starts a schedule, such as <c>SCHED_IDLE_STAND</c>. Returns false if the NPC refuses it.</summary>
+            <remarks>
+            Runs until it finishes or is interrupted. A schedule the NPC's class lacks runs <c>SCHED_IDLE_STAND</c>
+            instead and logs "No CASE for Schedule Type". To replace the NPC's next pick, use
+            <see cref="M:DeadworksManaged.Api.IDeadworksPlugin.OnNpcSelectSchedule(DeadworksManaged.Api.NpcSelectScheduleEvent)"/>.
+            </remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_BaseNPC.SetState(DeadworksManaged.Api.NpcState)">
+            <summary>Sets the AI state. <see cref="F:DeadworksManaged.Api.NpcState.Idle"/> also clears the enemy.</summary>
+            <remarks>The game may turn <see cref="F:DeadworksManaged.Api.NpcState.Idle"/> into <see cref="F:DeadworksManaged.Api.NpcState.Alert"/>.</remarks>
+        </member>
+        <member name="T:DeadworksManaged.Api.CAI_CitadelNPC">
+            <summary>A Deadlock NPC. Every <see cref="T:DeadworksManaged.Api.CAI_BaseNPC"/> the game spawns is one.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_CitadelNPC.AbilityComponent">
+            <summary>The NPC's abilities.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_CitadelNPC.OwningAbility">
+            <summary>Ability that spawned this summon. Null for map NPCs.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_CitadelNPC.IsMinion">
+            <summary>True for a hero's minion. See <see cref="M:DeadworksManaged.Api.CAI_CitadelNPC.SetMinion(System.Boolean)"/>.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_CitadelNPC.SetMinion(System.Boolean)">
+            <summary>Makes the NPC a hero's minion, like Graves's skeletons, or a normal NPC again.</summary>
+            <remarks>A minion's damage and kills count for its living <see cref="P:DeadworksManaged.Api.CAI_CitadelNPC.Summoner"/>. Minions also attack neutral creeps.</remarks>
+        </member>
+        <member name="P:DeadworksManaged.Api.CAI_CitadelNPC.Summoner">
+            <summary>
+            Entity the NPC works for: the one set with <see cref="M:DeadworksManaged.Api.CAI_CitadelNPC.SetSummoner(DeadworksManaged.Api.CBaseEntity)"/>, else the owner of
+            <see cref="P:DeadworksManaged.Api.CAI_CitadelNPC.OwningAbility"/>. Null for map NPCs.
+            </summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.CAI_CitadelNPC.SetSummoner(DeadworksManaged.Api.CBaseEntity)">
+            <summary>Sets the entity the NPC works for, usually a hero pawn. Null clears it.</summary>
+            <remarks>Minions are removed with the summoner's pawn, for example on a hero swap. They survive the hero's death.</remarks>
         </member>
         <member name="T:DeadworksManaged.Api.CallbackHandle">
             <summary>A generic handle that invokes a cancellation callback when cancelled.</summary>
@@ -1268,6 +1423,33 @@
         <member name="T:DeadworksManaged.Api.CCitadelModifierVData">
             <summary>Wraps a native CCitadelModifierVData instance - Citadel-specific modifier VData with extended properties.</summary>
         </member>
+        <member name="T:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain">
+            <summary>
+            AI of a bot hero (<c>npc_player_bot_brain</c>), a hidden NPC. Get it from <see cref="P:DeadworksManaged.Api.CCitadelPlayerPawn.BotBrain"/>.
+            </summary>
+            <remarks>
+            With <see cref="P:DeadworksManaged.Api.Bots.AiEnabled"/> on, the brain moves the hero itself and may drop a
+            <see cref="M:DeadworksManaged.Api.CAI_BaseNPC.MoveTo(System.Numerics.Vector3,System.Boolean,System.Single)"/> order for its own plans, such as a zipline. With it off, call
+            <see cref="M:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain.ApplyMovement(CCitadelUserCmdPB,System.Nullable{System.Numerics.Vector3})"/> to walk the hero along the brain's path.
+            </remarks>
+        </member>
+        <member name="P:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain.Pawn">
+            <summary>Hero this brain drives.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.CCitadelPlayerBotNPCBrain.ApplyMovement(CCitadelUserCmdPB,System.Nullable{System.Numerics.Vector3})">
+            <summary>
+            Fills in a usercmd that walks the bot along its brain's path. Returns false, leaving the usercmd alone, if the
+            brain has nowhere to go.
+            </summary>
+            <remarks>
+            Call on each of the bot's usercmds in <see cref="M:DeadworksManaged.Api.IDeadworksPlugin.OnProcessUsercmds(DeadworksManaged.Api.ProcessUsercmdsEvent)"/>, with
+            <see cref="P:DeadworksManaged.Api.Bots.AiEnabled"/> off, after <see cref="M:DeadworksManaged.Api.CAI_BaseNPC.MoveTo(System.Numerics.Vector3,System.Boolean,System.Single)"/>. The first usercmd after
+            <c>MoveTo</c> also returns false: treat only several false results in a row as arrival. The bot stops about
+            50 units from the goal.
+            </remarks>
+            <param name="usercmd">Usercmd to fill in.</param>
+            <param name="lookAt">Point to aim at while moving. Null faces the direction of travel.</param>
+        </member>
         <member name="T:DeadworksManaged.Api.CCitadelPlayerController">
             <summary>Deadlock-specific player controller. Provides access to player data, hero selection, team changes, and console messaging.</summary>
         </member>
@@ -1357,6 +1539,21 @@
         </member>
         <member name="T:DeadworksManaged.Api.CCitadelPlayerPawn">
             <summary>Deadlock hero pawn. The in-game physical representation of a player. Provides currency, abilities, movement state, stamina, and eye angles.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CCitadelPlayerPawn.BotBrain">
+            <summary>The bot's brain, or null if this hero isn't a bot's.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CCitadelPlayerPawn.BotLane">
+            <summary>Lane the bot pushes, or <see cref="F:DeadworksManaged.Api.LaneColor.Invalid"/> for none.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.CCitadelPlayerPawn.SetBotLane(DeadworksManaged.Api.LaneColor)">
+            <summary>
+            Sets the lane the bot pushes while <see cref="P:DeadworksManaged.Api.Bots.AiEnabled"/> is on. Returns false if this hero isn't a bot's.
+            </summary>
+            <remarks><see cref="P:DeadworksManaged.Api.CCitadelPlayerController.AssignedLane"/> may not update. Read <see cref="P:DeadworksManaged.Api.CCitadelPlayerPawn.BotLane"/> instead.</remarks>
+        </member>
+        <member name="P:DeadworksManaged.Api.CCitadelPlayerPawn.BotDifficulty">
+            <summary>The bot's difficulty, or null if this hero isn't a bot's.</summary>
         </member>
         <member name="P:DeadworksManaged.Api.CCitadelPlayerPawn.EyeAngles">
             <summary>Networked eye angles (quantized to 11 bits, ~0.18 precision). Use ViewAngles for raw precision.</summary>
@@ -1736,6 +1933,31 @@
         </member>
         <member name="P:DeadworksManaged.Api.CModifierVData.Name">
             <summary>The subclass definition name (e.g. "modifier_citadel_knockdown").</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.CNPC_Trooper">
+            <summary>Lane trooper (<c>npc_trooper</c>). Guardians and walkers are separate classes.</summary>
+            <remarks>
+            The game pools troopers: hidden ones are <see cref="P:DeadworksManaged.Api.CAI_BaseNPC.IsDormant"/> and come back as new spawns, possibly
+            on another team or lane. A stored reference can become a different trooper.
+            </remarks>
+        </member>
+        <member name="P:DeadworksManaged.Api.CNPC_Trooper.Lane">
+            <summary>Lane the trooper walks, or 0 for none.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.CNPC_Trooper.UsingBossWeapon">
+            <summary>True while the trooper fires its anti-boss weapon at a guardian or walker.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.CNPC_Trooper.Create(System.Numerics.Vector3,System.Int32,DeadworksManaged.Api.TrooperType,System.Nullable{System.Numerics.Vector3},System.Boolean)">
+            <summary>Spawns a lane trooper, like <c>citadel_spawn_trooper</c>. Returns null on failure.</summary>
+            <remarks>
+            The trooper joins the lane nearest <paramref name="position"/>. A free pooled trooper of the same type is
+            reused.
+            </remarks>
+            <param name="position">Spawn position.</param>
+            <param name="team">2 Amber, 3 Sapphire.</param>
+            <param name="type">Trooper type.</param>
+            <param name="angles">Pitch, yaw, roll. Null faces +X.</param>
+            <param name="snapToGround">Drop it to the ground below <paramref name="position"/>.</param>
         </member>
         <member name="T:DeadworksManaged.Api.CParticleSystem">
             <summary>Represents a live <c>info_particle_system</c> entity. Obtain instances via <see cref="M:DeadworksManaged.Api.CParticleSystem.Builder.Spawn"/>.</summary>
@@ -2173,6 +2395,18 @@
         <member name="F:DeadworksManaged.Api.MoveType.Custom">
             <summary>Movement handled entirely by the entity's own code. Used internally by the game.</summary>
         </member>
+        <member name="T:DeadworksManaged.Api.NpcState">
+            <summary>An NPC's AI state (<c>NPC_STATE</c>). See <see cref="P:DeadworksManaged.Api.CAI_BaseNPC.State"/>.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NpcState.Init">
+            <summary>Just spawned. The AI doesn't pick enemies yet.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NpcState.Idle">
+            <summary>No enemy. Setting it clears the enemy.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NpcState.Inert">
+            <summary>Switched off. Pooled troopers wait in this state.</summary>
+        </member>
         <member name="T:DeadworksManaged.Api.ObserverMode_t">
             <summary>Observer camera mode. Stored on <see cref="T:DeadworksManaged.Api.CPlayer_ObserverServices"/> as <c>m_iObserverMode</c>.</summary>
         </member>
@@ -2227,6 +2461,18 @@
         </member>
         <member name="T:DeadworksManaged.Api.TakeDamageFlags">
             <summary>Flags that modify how damage is applied, processed, or reported (suppress effects, force death, crit immunity, etc.).</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.TrooperType">
+            <summary>A kind of lane trooper, for <see cref="M:DeadworksManaged.Api.CNPC_Trooper.Create(System.Numerics.Vector3,System.Int32,DeadworksManaged.Api.TrooperType,System.Nullable{System.Numerics.Vector3},System.Boolean)"/>.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.TrooperType.Normal">
+            <summary>Ranged trooper (<c>trooper_normal</c>).</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.TrooperType.Medic">
+            <summary>Heals other troopers (<c>trooper_medic</c>).</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.TrooperType.Melee">
+            <summary>Melee trooper (<c>trooper_melee</c>).</summary>
         </member>
         <member name="T:DeadworksManaged.Api.AbilityAttemptEvent">
             <summary>
@@ -2803,6 +3049,25 @@
         <member name="T:DeadworksManaged.Api.ModifyCurrencyEvent">
             <summary>Event data passed to <see cref="M:DeadworksManaged.Api.IDeadworksPlugin.OnModifyCurrency(DeadworksManaged.Api.ModifyCurrencyEvent)"/>. Contains the pawn, currency type, amount, and source of the change.</summary>
         </member>
+        <member name="T:DeadworksManaged.Api.NpcSelectScheduleEvent">
+            <summary>Passed to <see cref="M:DeadworksManaged.Api.IDeadworksPlugin.OnNpcSelectSchedule(DeadworksManaged.Api.NpcSelectScheduleEvent)"/> when an NPC picks its next schedule.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NpcSelectScheduleEvent.Npc">
+            <summary>The NPC. Use <see cref="M:DeadworksManaged.Api.CBaseEntity.As``1"/> for its class, such as <see cref="T:DeadworksManaged.Api.CNPC_Trooper"/>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NpcSelectScheduleEvent.Schedule">
+            <summary>
+            Schedule the game picked, such as <c>SCHED_TROOPER_RUN_DOWN_LANE</c>, or <c>SCHED_FAIL</c> after a failure.
+            NPC classes rename some schedules, so <see cref="P:DeadworksManaged.Api.CAI_BaseNPC.Schedule"/> can differ once it runs.
+            </summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NpcSelectScheduleEvent.Override">
+            <summary>
+            Schedule to run instead, such as <c>SCHED_IDLE_STAND</c>. Null keeps the game's pick. The last plugin to set it
+            wins.
+            </summary>
+            <remarks>A schedule the NPC's class lacks runs <c>SCHED_IDLE_STAND</c> and logs "No CASE for Schedule Type".</remarks>
+        </member>
         <member name="T:DeadworksManaged.Api.ProcessUsercmdsEvent">
             <summary>Event data passed to <see cref="M:DeadworksManaged.Api.IDeadworksPlugin.OnProcessUsercmds(DeadworksManaged.Api.ProcessUsercmdsEvent)"/>. Contains the player slot, parsed usercmd protobuf messages, and timing info.</summary>
         </member>
@@ -3102,6 +3367,9 @@
             Set <see cref="P:DeadworksManaged.Api.AbilityAttemptEvent.BlockedButtons"/> to prevent specific abilities/items from being cast.
             </summary>
         </member>
+        <member name="M:DeadworksManaged.Api.IDeadworksPlugin.OnNpcSelectSchedule(DeadworksManaged.Api.NpcSelectScheduleEvent)">
+            <summary>Called when an NPC picks its next schedule. Set <see cref="P:DeadworksManaged.Api.NpcSelectScheduleEvent.Override"/> to replace it.</summary>
+        </member>
         <member name="M:DeadworksManaged.Api.IDeadworksPlugin.OnProcessUsercmds(DeadworksManaged.Api.ProcessUsercmdsEvent)">
             <summary>Called when a player's usercmds are being processed.</summary>
         </member>
@@ -3262,6 +3530,221 @@
         </member>
         <member name="P:DeadworksManaged.Api.NativeInterop.SendNetMessage">
             <summary>Last parameter is NetChannelBufType_t: 0 = BUF_UNRELIABLE, 1 = BUF_RELIABLE.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavTraverse">
+            <summary>How a path reaches a waypoint.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavTraverse.Ground">
+            <summary>Walk.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavTraverse.Jump">
+            <summary>Jump a gap, or up or down a ledge.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavTraverse.Climb">
+            <summary>Climb up a ledge.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavTraverse.Link">
+            <summary>Hand-placed nav link, such as a jump pad or a drop.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavWaypoint">
+            <summary>One point of a <see cref="T:DeadworksManaged.Api.NavPath"/>.</summary>
+            <param name="Position">Point to reach.</param>
+            <param name="Traverse">How the path gets here from the previous waypoint.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.NavWaypoint.#ctor(System.Numerics.Vector3,DeadworksManaged.Api.NavTraverse)">
+            <summary>One point of a <see cref="T:DeadworksManaged.Api.NavPath"/>.</summary>
+            <param name="Position">Point to reach.</param>
+            <param name="Traverse">How the path gets here from the previous waypoint.</param>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavWaypoint.Position">
+            <summary>Point to reach.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavWaypoint.Traverse">
+            <summary>How the path gets here from the previous waypoint.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavPath">
+            <summary>Walkable route across the navmesh, from <see cref="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,System.Int32,System.Boolean,System.Boolean)"/>.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPath.Waypoints">
+            <summary>Points to pass through, in order. The first is the start.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPath.Length">
+            <summary>Walking distance, in units.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPath.End">
+            <summary>Last waypoint: the goal, or as close as a partial path got.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavPathFollower">
+            <summary>
+            Tracks progress along a <see cref="T:DeadworksManaged.Api.NavPath"/>. Call <see cref="M:DeadworksManaged.Api.NavPathFollower.Update(System.Numerics.Vector3)"/> each tick and steer towards the point it
+            returns with <see cref="M:DeadworksManaged.Api.Bots.SetMoveInput(CCitadelUserCmdPB,DeadworksManaged.Api.CCitadelPlayerPawn,System.Numerics.Vector3,System.Nullable{System.Numerics.Vector3},System.Boolean)"/>.
+            </summary>
+            <remarks>
+            A waypoint counts as reached within <see cref="P:DeadworksManaged.Api.NavPathFollower.ArriveRadius"/> on the ground plane, or once passed. The follower
+            doesn't re-path. Find a new path when <see cref="M:DeadworksManaged.Api.NavPathFollower.DistanceFromPath(System.Numerics.Vector3)"/> grows.
+            </remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.NavPathFollower.#ctor(DeadworksManaged.Api.NavPath,System.Single)">
+            <param name="path">Path to follow.</param>
+            <param name="arriveRadius">Distance that counts as reaching a waypoint.</param>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPathFollower.Path">
+            <summary>Path being followed.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPathFollower.ArriveRadius">
+            <summary>Distance that counts as reaching a waypoint.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPathFollower.Index">
+            <summary>Index in <see cref="P:DeadworksManaged.Api.NavPath.Waypoints"/> of the next waypoint.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPathFollower.IsFinished">
+            <summary>True once the last waypoint is reached.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavPathFollower.Target">
+            <summary>Next waypoint, or null once finished.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.NavPathFollower.Update(System.Numerics.Vector3)">
+            <summary>Skips reached waypoints and returns the next one's position, or null at the end.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.NavPathFollower.ShouldJump(System.Numerics.Vector3,System.Single)">
+            <summary>True when the next waypoint is close, more than a step up, and reached by a jump or climb.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.NavPathFollower.DistanceFromPath(System.Numerics.Vector3)">
+            <summary>Ground-plane distance from <paramref name="position"/> to the leg being walked.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavAreaAttributes">
+            <summary>Nav area attributes (<c>NavAttributeEnum</c>).</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavAreaAttributes.CrouchHeight">
+            <summary>Only crouch height of clearance.</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavAreaAttributes.CrawlHeight">
+            <summary>Only crawl height of clearance.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavAreaFlags">
+            <summary>Runtime nav area flags (<c>NavDynamicAttributeEnum</c>).</summary>
+        </member>
+        <member name="F:DeadworksManaged.Api.NavAreaFlags.SplitByObstacle">
+            <summary>Cut up by an obstacle, such as a nav blocker.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.NavArea">
+            <summary>Navmesh polygon, from <see cref="M:DeadworksManaged.Api.Nav.GetArea(System.Numerics.Vector3,System.Single,System.Int32)"/>.</summary>
+            <param name="Id">Area id. Changes when the navmesh is rebuilt or the area is split.</param>
+            <param name="Center">Area centre.</param>
+            <param name="NearestPoint">The queried position, moved onto the area.</param>
+            <param name="Attributes">Area attributes.</param>
+            <param name="Flags">Runtime flags.</param>
+            <param name="Hull">Hull the area belongs to.</param>
+            <param name="IsBlocked">True while the area is blocked for at least one team.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.NavArea.#ctor(System.Int32,System.Numerics.Vector3,System.Numerics.Vector3,DeadworksManaged.Api.NavAreaAttributes,DeadworksManaged.Api.NavAreaFlags,System.Int32,System.Boolean)">
+            <summary>Navmesh polygon, from <see cref="M:DeadworksManaged.Api.Nav.GetArea(System.Numerics.Vector3,System.Single,System.Int32)"/>.</summary>
+            <param name="Id">Area id. Changes when the navmesh is rebuilt or the area is split.</param>
+            <param name="Center">Area centre.</param>
+            <param name="NearestPoint">The queried position, moved onto the area.</param>
+            <param name="Attributes">Area attributes.</param>
+            <param name="Flags">Runtime flags.</param>
+            <param name="Hull">Hull the area belongs to.</param>
+            <param name="IsBlocked">True while the area is blocked for at least one team.</param>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.Id">
+            <summary>Area id. Changes when the navmesh is rebuilt or the area is split.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.Center">
+            <summary>Area centre.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.NearestPoint">
+            <summary>The queried position, moved onto the area.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.Attributes">
+            <summary>Area attributes.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.Flags">
+            <summary>Runtime flags.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.Hull">
+            <summary>Hull the area belongs to.</summary>
+        </member>
+        <member name="P:DeadworksManaged.Api.NavArea.IsBlocked">
+            <summary>True while the area is blocked for at least one team.</summary>
+        </member>
+        <member name="T:DeadworksManaged.Api.Nav">
+            <summary>Queries the navmesh, the walkable surface NPCs path over. No NPC is needed.</summary>
+            <remarks>
+            The navmesh is built per hull (body size), so an area one hull can cross may not exist for another. Heroes use
+            hull 0, lane troopers hull 1. Unknown hulls fall back to 0. On a map without a navmesh every query returns null.
+            </remarks>
+        </member>
+        <member name="F:DeadworksManaged.Api.Nav.MaxPathPoints">
+            <summary>The most waypoints a path can have.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.GetNearestPoint(System.Numerics.Vector3,System.Single,System.Int32)">
+            <summary>Returns the closest navmesh point to <paramref name="position"/>, or null if none is in range.</summary>
+            <param name="position">Point to snap.</param>
+            <param name="maxDistance">Search radius.</param>
+            <param name="hull">Navmesh hull.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.GetNearestPoint(System.Numerics.Vector3,DeadworksManaged.Api.CBaseEntity,System.Single)">
+            <summary><see cref="M:DeadworksManaged.Api.Nav.GetNearestPoint(System.Numerics.Vector3,System.Single,System.Int32)"/> on <paramref name="walker"/>'s hull.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.GetArea(System.Numerics.Vector3,System.Single,System.Int32)">
+            <summary>Returns the nav area nearest <paramref name="position"/>, or null if none is in range.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.GetGroundHeight(System.Numerics.Vector3,System.Single,System.Int32)">
+            <summary>Returns the navmesh height below <paramref name="position"/>, or null if no area is in range.</summary>
+            <remarks>Uses the nearest area in 3D: a point at bridge height gets the bridge, not the ground under it.</remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.Raycast(System.Numerics.Vector3,System.Numerics.Vector3,System.Numerics.Vector3@,System.Int32)">
+            <summary>
+            Traces a straight line across the navmesh. Returns true if it reaches <paramref name="end"/> without leaving the
+            walkable surface.
+            </summary>
+            <remarks>
+            Steps or drops over 20 units stop it. Nav blockers don't. Fails if <paramref name="start"/> is more than 200
+            units from the navmesh. Cheaper than <see cref="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,System.Int32,System.Boolean,System.Boolean)"/>.
+            </remarks>
+            <param name="start">Start point. Snapped onto the navmesh first.</param>
+            <param name="end">End point.</param>
+            <param name="stoppedAt"><paramref name="end"/> on the navmesh, or the edge the line ran into.</param>
+            <param name="hull">Navmesh hull.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.GetRandomPoint(System.Numerics.Vector3,System.Single,System.Single,System.Int32)">
+            <summary>
+            Returns a random point reachable from <paramref name="origin"/>, between <paramref name="minDistance"/> and
+            <paramref name="maxDistance"/> away, or null if there is none.
+            </summary>
+            <remarks><paramref name="maxDistance"/> is capped at 6000. Larger values cost more.</remarks>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,System.Int32,System.Boolean,System.Boolean)">
+            <summary>Finds a path with the game's pathfinder. Returns null if there is none.</summary>
+            <remarks>
+            Both ends must be on the navmesh. Snap them with <see cref="M:DeadworksManaged.Api.Nav.GetNearestPoint(System.Numerics.Vector3,System.Single,System.Int32)"/>. Takes
+            about 1 ms across half the map, 3 ms for a failed search. Uses the hull's default costs, so it ignores
+            per-NPC rules such as a trooper's lane.
+            </remarks>
+            <param name="start">Start point.</param>
+            <param name="goal">Goal point.</param>
+            <param name="hull">Navmesh hull.</param>
+            <param name="allowPartial">Accept a path that stops short of the goal. Compare <see cref="P:DeadworksManaged.Api.NavPath.End"/> with the goal.</param>
+            <param name="simplify">Keep only corners. False gives a waypoint per area crossed.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,DeadworksManaged.Api.CBaseEntity,System.Boolean,System.Boolean)">
+            <summary><see cref="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,System.Int32,System.Boolean,System.Boolean)"/> on <paramref name="walker"/>'s hull.</summary>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.CreateBlocker(System.Numerics.Vector3,System.Numerics.Vector3,System.Nullable{System.Numerics.Vector3},System.Int32)">
+            <summary>
+            Blocks a box of the navmesh with a <c>script_nav_blocker</c>. NPCs and
+            <see cref="M:DeadworksManaged.Api.Nav.FindPath(System.Numerics.Vector3,System.Numerics.Vector3,System.Int32,System.Boolean,System.Boolean)"/> route around it. Returns the blocker, or null on
+            failure. Remove the blocker to unblock.
+            </summary>
+            <remarks>Takes effect shortly after the call.</remarks>
+            <param name="center">Box centre.</param>
+            <param name="halfExtents">Half the box size on each axis, before <paramref name="angles"/>.</param>
+            <param name="angles">Pitch, yaw, roll. Null is axis-aligned.</param>
+            <param name="team">Team to block, or 0 for everyone.</param>
+        </member>
+        <member name="M:DeadworksManaged.Api.Nav.GetHull(DeadworksManaged.Api.CBaseEntity)">
+            <summary>Returns the hull an NPC or hero paths with, or 0 for other entities.</summary>
         </member>
         <member name="T:DeadworksManaged.Api.IncomingMessageContext`1">
             <summary>
