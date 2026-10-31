@@ -64,7 +64,7 @@ public static class EffectList
         new EffectInfo("undie", "幸免遇难", 60.0f, 4), // 🌟 新加的 undie
         new EffectInfo("UAV", "无人侦察机", 30.0f, 1), // 🌟 新加的 UAV
         new EffectInfo("infbullet", "无限子弹", 30.0f, 1), 
-
+        new EffectInfo("unstop", "霸体", 30.0f, 4), // 你可以自己调整时长和等级
 
 
 
