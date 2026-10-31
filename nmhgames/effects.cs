@@ -551,6 +551,64 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
         }
 
 
+
+		        // ================= 效果：yoshiban (大手的力量) =================
+        else if (effect.Id == "yoshiban")
+        {
+            // 1. 找对面队伍的人
+            var enemies = Players.GetAll()
+                .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+                .Select(c => c.GetHeroPawn())
+                .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum)
+                .ToList();
+
+            if (enemies.Count == 0) return;
+
+            // 2. 随机挑一个倒霉蛋
+            var target = enemies[Random.Shared.Next(enemies.Count)];
+            string targetName = target.Controller?.PlayerName ?? "未知敌人";
+            string casterName = controller.PlayerName ?? "未知玩家";
+
+            // 3. 给倒霉蛋挂上作弊者诅咒
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", effect.Duration);
+            target.AddModifier("modifier_citadel_cheater_curse", kv);
+
+            // 4. 播放音效
+            Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+            // 5. 第一次 HUD 播报
+            var msg1 = new CCitadelUserMsg_HudGameAnnouncement
+            {
+                TitleLocstring = "⚠️ 检测到有人作弊",
+                DescriptionLocstring = $"{targetName} 变成了青蛙！"
+            };
+            NetMessages.Send(msg1, RecipientFilter.All);
+
+            // 6. 计时结束后恢复并播报
+            timer.Once(((double)effect.Duration).Seconds(), () =>
+            {
+                if (target != null && target.IsValid)
+                {
+                    // 虽然 Modifier 理论上到时间会自动消失，但为了保险，我们手动再移除一下
+                    target.RemoveModifier("modifier_citadel_cheater_curse");
+                }
+
+                // 再次播放音效
+                Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+                // 第二次 HUD 播报
+                var msg2 = new CCitadelUserMsg_HudGameAnnouncement
+                {
+                    TitleLocstring = "✅ 原来是误封啊",
+                    DescriptionLocstring = $"{targetName} 已解封。"
+                };
+                NetMessages.Send(msg2, RecipientFilter.All);
+            });
+
+            // 发送抽卡提示
+            EffectList.SendDrawNotification(controller, effect);
+        }
 		
 //写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写写
 
