@@ -618,11 +618,12 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 
 
 		        // ================= 效果：双人诅咒 =================
+                // ================= 效果：双人诅咒 =================
         else if (effect.Id == "double_curse")
         {
-				EffectList.SendDrawNotification(controller, effect);
+            // 发送抽卡提示
+            EffectList.SendDrawNotification(controller, effect);
 
-			
             // 1. 找对面队伍的人
             var enemies = Players.GetAll()
                 .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
@@ -637,17 +638,32 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             var targets = shuffled.Take(2).ToList();
 
             // 3. 给选中的倒霉蛋挂上故障 Modifier
-            using var kv = new KeyValues3();
-            kv.SetFloat("duration", effect.Duration);
-            
             foreach (var target in targets)
             {
-                target.AddModifier("upgrade_glitch/modifier_glitch_debuff", kv);
-                Chat.PrintToChat(target.Controller, "⚠️ 你被双人诅咒命中了！");
+                if (target == null || !target.IsValid) continue;
+                var targetController = target.Controller;
+                if (targetController == null) continue;
+
+                // 为每个目标单独创建 KV，避免内存冲突
+                using var kv = new KeyValues3();
+                kv.SetFloat("duration", effect.Duration);
+
+                try
+                {
+                    // 🌟 使用你要求的格式
+                    target.AddModifier("upgrade_glitch/modifier_glitch_debuff", kv: kv,
+                        abilityValues: new() {
+                            ["SlowPercent"] = 0f,
+                            ["SkipFrames"] = 6f,
+                        });
+
+                    Chat.PrintToChat(targetController, "⚠️ 你被双人诅咒命中了！");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"[双人诅咒] 施加失败: {ex.Message}");
+                }
             }
-
-
-            
         }
 
 
@@ -667,7 +683,7 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             // 2. 给敌方所有人开启透视
             foreach (var enemy in enemies)
             {
-                enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToProvider, true);
+                enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemy, true);
             }
 			
 			Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
@@ -688,7 +704,7 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
                 foreach (var enemy in enemies)
                 {
                     if (enemy == null || !enemy.IsValid) continue;
-                    enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToProvider, false);
+                    enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemy, false);
                 }
             });
         }
