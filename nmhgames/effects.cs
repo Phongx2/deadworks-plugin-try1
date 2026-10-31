@@ -651,11 +651,10 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
                 try
                 {
                     // 🌟 使用你要求的格式
-                    target.AddModifier("upgrade_glitch/modifier_glitch_debuff", kv: kv,
-                        abilityValues: new() {
-                            ["SlowPercent"] = 0f,
-                            ["SkipFrames"] = 6f,
-                        });
+                    target.AddModifier("ability_immobilize_trap/modifier_glitch_debuff", new Dictionary<string, float> {
+	["SkipFrames"] = 6f,
+	["SlowPercent"] = 24f,
+});
 
                     Chat.PrintToChat(targetController, "⚠️ 你被双人诅咒命中了！");
                 }
