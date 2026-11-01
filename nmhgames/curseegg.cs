@@ -194,8 +194,13 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
         _eggLevelTimers.Remove(steamId);
         _eggHoldStartTime.Remove(steamId);
 
-        // 不满 60 秒：没孵出来
-        if (heldSeconds < 60f)
+
+
+
+
+
+                // 不满 60 秒：没孵出来（纯随机模式下跳过这个判定）
+        if (!EffectList.IsRandomMode && heldSeconds < 60f)
         {
             Chat.PrintToChat(controller, "🥚 你的蛋啥都没有孵出来哦~");
             CurrentEggLevels.Remove(steamId);
@@ -209,17 +214,14 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
         Console.WriteLine($"[GooseEggWatcher] {controller.PlayerName} 按下了蛋，持有 {heldSeconds:F0} 秒，等级 {finalLevel}，开始抽卡！");
 
         // 立刻抽卡
-      // 🌟 根据全局开关决定用哪种方式抽卡
-if (EffectList.IsRandomMode)
-{
-    // 随机模式（执行你原来的随机抽卡）
-    EffectList.Chouka(pawn, this.Timer);
-}
-else
-{
-    // 按时间等级模式（执行你刚才写的固定等级抽卡）
-    EffectList.ChoukaByLevel(pawn, finalLevel, this.Timer);
-}
+        if (EffectList.IsRandomMode)
+        {
+            EffectList.Chouka(pawn, this.Timer);
+        }
+        else
+        {
+            EffectList.ChoukaByLevel(pawn, finalLevel, this.Timer);
+        }
         return HookResult.Stop;
     }
 }
