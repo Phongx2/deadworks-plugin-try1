@@ -134,10 +134,20 @@ public static class EffectList
     // 核心抽卡逻辑
     // ==========================================
     public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
-    {
-        if (pawn == null) return;
-        string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
+{
+    if (pawn == null) return;
+    string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
 
+    EffectInfo effect;
+
+    if (IsRandomMode)
+    {
+        // 🌟 纯随机模式：无视等级，从整个 Pool 里抽
+        effect = Pool[_random.Next(Pool.Length)];
+        Console.WriteLine($"[抽卡] {playerName} 纯随机抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
+    }
+    else
+    {
         // 🌟 第一步：按概率抽取效果等级
         int rolledLevel = RollLevel();
         Console.WriteLine($"[抽卡] {playerName} 抽到了等级: {rolledLevel}");
@@ -149,29 +159,36 @@ public static class EffectList
         {
             // 如果这个等级没写效果，给个兜底提示并直接返回
             NetMessages.Send(new CCitadelUserMsg_ChatMsg
-                {
-                    PlayerSlot = pawn.Controller.Slot,
-                    Text = $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！",
-                    AllChat = false
-                }, RecipientFilter.All);
+            {
+                PlayerSlot = pawn.Controller.Slot,
+                Text = $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！",
+                AllChat = false
+            }, RecipientFilter.All);
 
-
-
-
-            
             Console.WriteLine($"[抽卡] 等级 {rolledLevel} 的效果池为空，取消执行。");
             return;
         }
 
         // 🌟 第三步：从筛选后的池子里随机抽一个
-        var effect = levelPool[_random.Next(levelPool.Length)];
-        
+        effect = levelPool[_random.Next(levelPool.Length)];
         Console.WriteLine($"[抽卡] {playerName} 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
-        
-        // 执行效果
-        Effects.Execute(effect, pawn, timer); 
     }
 
+    // 执行效果
+    Effects.Execute(effect, pawn, timer);
+}
+
+
+
+
+
+
+
+
+
+
+
+    
     // ==========================================
     // 等级概率计算
     // 75% -> 1级, 20% -> 2级, 4% -> 3级, 1% -> 4级
