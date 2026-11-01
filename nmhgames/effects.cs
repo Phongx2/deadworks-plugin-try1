@@ -67,21 +67,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     
 
 
-	[EntityOutputHook("npc_boss_tier2", "OnDeath")]
-public HookResult OnWalkerDeath(EntityOutputEvent e)
-{
-    var walker = e.Caller;
-    if (walker == null) return HookResult.Continue;
-
-    int walkerTeam = walker.TeamNum; // 数据库确认 CBaseEntity 有 TeamNum
-
-    if (walkerTeam == 2)
-        GameRules.WinningTeam = 3;
-    else if (walkerTeam == 3)
-        GameRules.WinningTeam = 2;
-
-    return HookResult.Continue;
-}
+	
 
 
 
