@@ -180,6 +180,16 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     private bool _stageLocked = false;
 private EGameState _lockedStage = EGameState.Invalid;
 
+public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
+{
+    if (_stageLocked && newState != _lockedStage)
+    {
+        Console.WriteLine($"[Stage] 锁定中，阻止 {currentState} -> {newState}。");
+        return false;
+    }
+    return true;
+}
+
 [Command("stage", Description = "切换到指定阶段并锁死：/stage MatchIntro")]
 public void CmdStage(Caller caller, EGameState target)
 {
