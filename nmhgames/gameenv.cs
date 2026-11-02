@@ -37,7 +37,7 @@ ConVar.Find("citadel_player_starting_gold")?.SetInt(1600);
             {
                 Server.ExecuteCommand("citadel_force_kill troopers");
                 Server.ExecuteCommand("citadel_force_kill guardians");
-                Server.ExecuteCommand("citadel_force_kill walkers");
+                //Server.ExecuteCommand("citadel_force_kill walkers");
                 Server.ExecuteCommand("citadel_force_kill base_guardians");
 
                 // 第 3 帧：击杀指令提交后，关闭作弊模式
