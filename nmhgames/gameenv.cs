@@ -90,13 +90,8 @@ public void CmdStart(Caller caller)
         return;
     }
 
-    // 解锁，之后 PreGameWait 不再锁
-    _rTriggered = true;
-    _stageLocked = false;
-    _lockedStage = EGameState.Invalid;
 
-    // 全服 HUD 公告
-    var hud = new CCitadelUserMsg_HudGameAnnouncement
+var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "本服务插件由 @不爱搞事情的匿名黑 制作",
         DescriptionLocstring = "点点关注谢谢喵"
@@ -104,9 +99,18 @@ public void CmdStart(Caller caller)
      Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
     NetMessages.Send(hud, RecipientFilter.All);
 
+    // 解锁，之后 PreGameWait 不再锁
+    
+
+    // 全服 HUD 公告
+    
     // 跳回等待玩家加入，让引擎自己往后走
     Timer.Once(4.Seconds(), () =>
     {
+
+    _rTriggered = true;
+    _stageLocked = false;
+    _lockedStage = EGameState.Invalid;
         if (!GameRules.IsValid) return;
         GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
         Console.WriteLine("[ServerDefaults] HUD 展示结束，跳到 WaitingForPlayersToJoin。");
