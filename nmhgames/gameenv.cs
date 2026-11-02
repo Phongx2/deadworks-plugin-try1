@@ -121,7 +121,7 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         if (_stageLocked && newState != _lockedStage)
         {
-            Console.WriteLine($"[Stage] 锁定中，阻止 {currentState} -> {newState}。");
+            //Console.WriteLine($"[Stage] 锁定中，阻止 {currentState} -> {newState}。");
             return false;
         }
         return true;
