@@ -1,6 +1,7 @@
 using DeadworksManaged.Api;
 using System;
 using System.Collections.Generic;
+using DeadworksManaged.Api.Sounds;
 
 public class ServerDefaultsPlugin : DeadworksPluginBase
 {
