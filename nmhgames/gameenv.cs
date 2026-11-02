@@ -180,28 +180,21 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     private bool _stageLocked = false;
 private EGameState _lockedStage = EGameState.Invalid;
 
-[Command("stage", Description = "切换到指定阶段并锁死：/stage 0-11")]
-public void CmdStage(Caller caller, int value)
+[Command("stage", Description = "切换到指定阶段并锁死：/stage MatchIntro")]
+public void CmdStage(Caller caller, EGameState target)
 {
-    if (value < 0 || value > 11)
-    {
-        caller.Reply("❌ 阶段编号必须是 0-11。");
-        return;
-    }
-
     if (!GameRules.IsValid)
     {
         caller.Reply("❌ 游戏规则尚未就绪。");
         return;
     }
 
-    var target = (EGameState)value;
     _lockedStage = target;
     _stageLocked = true;
 
     GameRules.ChangeGameState(target);
-    caller.Reply($"✅ 已切换到 {target} (0x{value:X})，并锁定，不会自动推进。");
-    Console.WriteLine($"[Stage] {caller.Name} 切换到 {target} (0x{value:X})，已锁定。");
+    caller.Reply($"✅ 已切换到 {target}，并锁定，不会自动推进。");
+    Console.WriteLine($"[Stage] {caller.Name} 切换到 {target}，已锁定。");
 }
 
 [Command("unstage", Description = "解除阶段锁定，允许引擎正常推进")]
