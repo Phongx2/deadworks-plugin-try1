@@ -53,7 +53,13 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     public override void OnUnload()
     {
         // 取消“永远等待”的覆盖，恢复引擎原生行为
-        GameRules.SetWaitingForPlayersRoster(0, 0);
+        _bebopWatcherTimer?.Cancel();
+    _bebopWatcherTimer = null;
+    _aliveWalkers.Clear();
+    _walkerTeams.Clear();
+
+    GameRules.SetWaitingForPlayersRoster(0, 0);
+        
     }
 
     [Command("r", Description = "立即开始比赛")]
