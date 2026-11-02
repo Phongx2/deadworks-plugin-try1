@@ -9,12 +9,17 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     // 1 = 开启开发者指令，0 = 关闭
     private int dev = 0;
 
+    private bool _stageLocked = false;
+    private EGameState _lockedStage = EGameState.Invalid;
+
     public override void OnStartupServer()
     {
-        // 主动推到 MatchIntro 并停在那里，等待 /r 触发
+        // 开局锁在 PreGameWait
         GameRules.SetWaitingForPlayersRoster(0, 0);
-        GameRules.ChangeGameState(EGameState.MatchIntro);
-        Console.WriteLine($"[ServerDefaults] 开局状态已设为: {GameRules.GameState}");
+        _lockedStage = EGameState.PreGameWait;
+        _stageLocked = true;
+        GameRules.ChangeGameState(EGameState.PreGameWait);
+        Console.WriteLine($"[ServerDefaults] 开局锁定在 {GameRules.GameState}");
 
         // 开启滑索开局所需配置
         GameRules.MatchStartOnAnyMap = true;
@@ -70,7 +75,7 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         GameRules.MatchStartOnAnyMap = false;
     }
 
-    [Command("r", Description = "立即开始比赛")]
+    [Command("r", Description = "解除锁定，从等待玩家开始自动推进")]
     public void CmdStart(Caller caller)
     {
         if (!GameRules.IsValid)
@@ -79,19 +84,34 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             return;
         }
 
-        // MatchIntro -> PreGameWait，等 15 秒
-        GameRules.ChangeGameState(EGameState.PreGameWait);
-        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 15f);
-        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发开始，进入 PreGameWait（15 秒）。");
+        // 先解锁，否则引擎后续推进会被 OnGameStateChanging 拦住
+        _stageLocked = false;
+        _lockedStage = EGameState.Invalid;
 
-        Timer.Once(15.Seconds(), () =>
+        // 跳到 WaitingForPlayersToJoin，让引擎自己往后走
+        GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
+        caller.Reply("✅ 已解锁，比赛将自动推进，PreGameWait 持续 10 秒。");
+        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发解锁，跳到 WaitingForPlayersToJoin。");
+    }
+
+    public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
+    {
+        if (_stageLocked && newState != _lockedStage)
         {
-            if (!GameRules.IsValid) return;
-            GameRules.ChangeGameState(EGameState.GameInProgress);
-            Console.WriteLine("[ServerDefaults] 进入 GameInProgress，滑索开局生效。");
-        });
+            Console.WriteLine($"[Stage] 锁定中，阻止 {currentState} -> {newState}。");
+            return false;
+        }
+        return true;
+    }
 
-        caller.Reply("✅ 比赛将在 15 秒后开始！");
+    public override void OnGameStateChanged(EGameState newState)
+    {
+        // 引擎走到 PreGameWait 时，把倒计时设成 10 秒
+        if (newState == EGameState.PreGameWait)
+        {
+            GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
+            Console.WriteLine("[ServerDefaults] 进入 PreGameWait，倒计时设为 10 秒。");
+        }
     }
 
     private IHandle? _bebopWatcherTimer;
@@ -172,46 +192,4 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             foreach (var idx in currentAlive) _aliveWalkers.Add(idx);
         });
     }
-
-
-
-
-
-    private bool _stageLocked = false;
-private EGameState _lockedStage = EGameState.Invalid;
-
-public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
-{
-    if (_stageLocked && newState != _lockedStage)
-    {
-        Console.WriteLine($"[Stage] 锁定中，阻止 {currentState} -> {newState}。");
-        return false;
-    }
-    return true;
-}
-
-[Command("stage", Description = "切换到指定阶段并锁死：/stage MatchIntro")]
-public void CmdStage(Caller caller, EGameState target)
-{
-    if (!GameRules.IsValid)
-    {
-        caller.Reply("❌ 游戏规则尚未就绪。");
-        return;
-    }
-
-    _lockedStage = target;
-    _stageLocked = true;
-
-    GameRules.ChangeGameState(target);
-    caller.Reply($"✅ 已切换到 {target}，并锁定，不会自动推进。");
-    Console.WriteLine($"[Stage] {caller.Name} 切换到 {target}，已锁定。");
-}
-
-[Command("unstage", Description = "解除阶段锁定，允许引擎正常推进")]
-public void CmdUnstage(Caller caller)
-{
-    _stageLocked = false;
-    _lockedStage = EGameState.Invalid;
-    caller.Reply("✅ 阶段锁定已解除，引擎可以正常推进。");
-}
 }
