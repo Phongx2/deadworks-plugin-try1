@@ -149,12 +149,12 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
                 }
                 Console.WriteLine("[ServerDefaults] PreGameWait 结束，已给所有玩家挂上运镜 Modifier，等待 7.25 秒。");
 
-                Timer.Once(7.25f.Seconds(), () =>
-                {
-                    if (!GameRules.IsValid) return;
-                    GameRules.ChangeGameState(EGameState.MatchIntro);
-                    Console.WriteLine("[ServerDefaults] 运镜结束，进入 MatchIntro。");
-                });
+                Timer.Once(7250.Milliseconds(), () =>
+{
+    if (!GameRules.IsValid) return;
+    GameRules.ChangeGameState(EGameState.MatchIntro);
+    Console.WriteLine("[ServerDefaults] 运镜结束，进入 MatchIntro。");
+});
             });
         }
     }
