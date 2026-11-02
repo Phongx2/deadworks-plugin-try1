@@ -93,10 +93,27 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         _stageLocked = false;
         _lockedStage = EGameState.Invalid;
 
-        // 跳回等待玩家加入，让引擎自己往后走
-        GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
-        caller.Reply("✅ 已解锁，比赛将自动推进。");
-        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发 /r，解锁并跳到 WaitingForPlayersToJoin。");
+        // 先进入 PreGameWait，显示 3 秒 HUD
+        GameRules.ChangeGameState(EGameState.PreGameWait);
+
+        var hud = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "本服务插件由 @不爱搞事情的匿名黑 制作",
+            DescriptionLocstring = "点点关注谢谢喵"
+        };
+        Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+        NetMessages.Send(hud, RecipientFilter.All);
+
+        caller.Reply("✅ 已解锁，3 秒后开始。");
+        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发 /r，显示 HUD，3 秒后进入 WaitingForPlayersToJoin。");
+
+        // 3 秒后跳回 WaitingForPlayersToJoin，让引擎自己往后走
+        Timer.Once(3.Seconds(), () =>
+        {
+            if (!GameRules.IsValid) return;
+            GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
+            Console.WriteLine("[ServerDefaults] HUD 展示结束，跳到 WaitingForPlayersToJoin。");
+        });
     }
 
     public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
@@ -114,8 +131,8 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         // 只在 PreGameWait 处理
         if (newState != EGameState.PreGameWait) return;
 
-        // 设置 10 秒倒计时
-        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
+        // 设置 3 秒倒计时
+        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 3f);
 
         // 还没 /r：锁在 PreGameWait，反复锁住
         if (!_rTriggered)
@@ -130,10 +147,10 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         if (_preGameFlowStarted) return;
         _preGameFlowStarted = true;
 
-        Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 10 秒，不锁定。");
+        Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 3 秒，不锁定。");
 
-        // 10 秒后给所有人挂运镜 Modifier，用 kv 设 7.25 秒
-        Timer.Once(10.Seconds(), () =>
+        // 3 秒后给所有人挂运镜 Modifier，用 kv 设 7.25 秒
+        Timer.Once(3.Seconds(), () =>
         {
             if (!GameRules.IsValid) return;
 
