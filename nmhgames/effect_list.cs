@@ -319,7 +319,7 @@ public void CmdWin(Caller caller)
         return;
     }
 
-    this.StartBebopWatcher();
+    this.StartWalkerWatcher();
     caller.Reply("✅ 已激活 Bebop 死亡判定监听器。");
 }
 
