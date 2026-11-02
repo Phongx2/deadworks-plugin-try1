@@ -11,8 +11,13 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnStartupServer()
     {
-        // 先卡住等待状态，让引擎停在 WaitingForPlayersToJoin
+        // 卡在 HeroSelection，等待 /r 触发
         GameRules.SetWaitingForPlayersRoster(0, 999);
+
+        // 开启滑索开局所需配置
+        GameRules.MatchStartOnAnyMap = true;
+        ConVar.Find("citadel_match_intro_force_enabled")?.SetInt(1);
+
         StartBebopWatcher();
 
         // 基础设置：随处购买（不受 dev 影响）
@@ -52,14 +57,15 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnUnload()
     {
-        // 取消“永远等待”的覆盖，恢复引擎原生行为
         _bebopWatcherTimer?.Cancel();
-    _bebopWatcherTimer = null;
-    _aliveWalkers.Clear();
-    _walkerTeams.Clear();
+        _bebopWatcherTimer = null;
+        _aliveWalkers.Clear();
+        _walkerTeams.Clear();
 
-    GameRules.SetWaitingForPlayersRoster(0, 0);
-        
+        // 取消“永远等待”的覆盖，恢复引擎原生行为
+        GameRules.SetWaitingForPlayersRoster(0, 0);
+        // 文档要求卸载时还原，否则跨地图保留
+        GameRules.MatchStartOnAnyMap = false;
     }
 
     [Command("r", Description = "立即开始比赛")]
@@ -71,103 +77,112 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             return;
         }
 
-        // 取消“永远等下去”的覆盖
+        // 先确保处于 HeroSelection
+        GameRules.ChangeGameState(EGameState.HeroSelection);
+
+        // 解除等待覆盖，推进到 PreGameWait
         GameRules.SetWaitingForPlayersRoster(0, 0);
+        GameRules.ChangeGameState(EGameState.PreGameWait);
 
-        // 推进到比赛进行中
-        GameRules.ChangeGameState(EGameState.GameInProgress);
+        // 设置 PreGameWait 的倒计时显示为 5 秒
+        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 5f);
 
-        caller.Reply("✅ 比赛已开始！");
-        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发了比赛开始。");
+        caller.Reply("✅ 比赛将在 5 秒后开始！");
+        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发了比赛开始，进入 PreGameWait（5 秒）。");
+
+        // 5 秒后依次推进 MatchIntro -> GameInProgress
+        Timer.Once(5.Seconds(), () =>
+        {
+            if (!GameRules.IsValid) return;
+
+            GameRules.ChangeGameState(EGameState.MatchIntro);
+            Console.WriteLine("[ServerDefaults] 进入 MatchIntro。");
+
+            Timer.Once(1.Seconds(), () =>
+            {
+                if (!GameRules.IsValid) return;
+                GameRules.ChangeGameState(EGameState.GameInProgress);
+                Console.WriteLine("[ServerDefaults] 比赛已进入 GameInProgress，滑索开局生效。");
+            });
+        });
     }
-
-
-
-
-
-
-
-
-
-
-
 
     private IHandle? _bebopWatcherTimer;
-private readonly HashSet<int> _aliveWalkers = new();
-private readonly Dictionary<int, int> _walkerTeams = new();
+    private readonly HashSet<int> _aliveWalkers = new();
+    private readonly Dictionary<int, int> _walkerTeams = new();
 
-public void StartBebopWatcher()
-{
-    _bebopWatcherTimer?.Cancel();
-    _aliveWalkers.Clear();
-    _walkerTeams.Clear();
-
-    foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
+    public void StartBebopWatcher()
     {
-        if (e == null || !e.IsValid) continue;
-        if (e.LifeState != LifeState.Alive) continue;
-        _aliveWalkers.Add(e.EntityIndex);
-        _walkerTeams[e.EntityIndex] = e.TeamNum;
-    }
+        _bebopWatcherTimer?.Cancel();
+        _aliveWalkers.Clear();
+        _walkerTeams.Clear();
 
-    Console.WriteLine($"[WalkerWatcher] 初始化完成，当前存活 Walker 数量: {_aliveWalkers.Count}");
-
-    // 如果还没刷出来，每秒重试，直到拿到存活 Walker 再进入正式监听
-    if (_aliveWalkers.Count == 0)
-    {
-        _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
-        {
-            foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
-            {
-                if (e == null || !e.IsValid) continue;
-                if (e.LifeState != LifeState.Alive) continue;
-                _aliveWalkers.Add(e.EntityIndex);
-                _walkerTeams[e.EntityIndex] = e.TeamNum;
-            }
-
-            if (_aliveWalkers.Count > 0)
-            {
-                Console.WriteLine($"[WalkerWatcher] Walker 已刷出，开始正式监听，数量: {_aliveWalkers.Count}");
-                _bebopWatcherTimer?.Cancel();
-                _bebopWatcherTimer = null;
-                StartBebopWatcher(); // 重新走一遍，这次能进入正式监听
-            }
-        });
-        return;
-    }
-
-    // 原有正式监听逻辑
-    _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
-    {
-        if (!GameRules.IsValid) return;
-
-        var currentAlive = new HashSet<int>();
         foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
         {
             if (e == null || !e.IsValid) continue;
             if (e.LifeState != LifeState.Alive) continue;
-            currentAlive.Add(e.EntityIndex);
+            _aliveWalkers.Add(e.EntityIndex);
             _walkerTeams[e.EntityIndex] = e.TeamNum;
         }
 
-        // 上一秒活着、这一秒不在存活集合里 = 刚死
-        foreach (var deadIndex in _aliveWalkers)
+        Console.WriteLine($"[WalkerWatcher] 初始化完成，当前存活 Walker 数量: {_aliveWalkers.Count}");
+
+        // 如果还没刷出来，每秒重试，直到拿到存活 Walker 再进入正式监听
+        if (_aliveWalkers.Count == 0)
         {
-            if (currentAlive.Contains(deadIndex)) continue;
-            if (!_walkerTeams.TryGetValue(deadIndex, out int deadTeam)) continue;
+            _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
+            {
+                foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
+                {
+                    if (e == null || !e.IsValid) continue;
+                    if (e.LifeState != LifeState.Alive) continue;
+                    _aliveWalkers.Add(e.EntityIndex);
+                    _walkerTeams[e.EntityIndex] = e.TeamNum;
+                }
 
-            int winner = deadTeam == 2 ? 1 : 2;
-            GameRules.WinningTeam = winner;
-
-            Console.WriteLine($"[WalkerWatcher] Walker (EntityIndex={deadIndex}, Team={deadTeam}) 死亡，判定 Team={winner} 获胜。");
-
-            _bebopWatcherTimer?.Cancel();
-            _bebopWatcherTimer = null;
+                if (_aliveWalkers.Count > 0)
+                {
+                    Console.WriteLine($"[WalkerWatcher] Walker 已刷出，开始正式监听，数量: {_aliveWalkers.Count}");
+                    _bebopWatcherTimer?.Cancel();
+                    _bebopWatcherTimer = null;
+                    StartBebopWatcher(); // 重新走一遍，这次能进入正式监听
+                }
+            });
             return;
         }
 
-        _aliveWalkers.Clear();
-        foreach (var idx in currentAlive) _aliveWalkers.Add(idx);
-    });
-}
+        // 原有正式监听逻辑
+        _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
+        {
+            if (!GameRules.IsValid) return;
+
+            var currentAlive = new HashSet<int>();
+            foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
+            {
+                if (e == null || !e.IsValid) continue;
+                if (e.LifeState != LifeState.Alive) continue;
+                currentAlive.Add(e.EntityIndex);
+                _walkerTeams[e.EntityIndex] = e.TeamNum;
+            }
+
+            // 上一秒活着、这一秒不在存活集合里 = 刚死
+            foreach (var deadIndex in _aliveWalkers)
+            {
+                if (currentAlive.Contains(deadIndex)) continue;
+                if (!_walkerTeams.TryGetValue(deadIndex, out int deadTeam)) continue;
+
+                int winner = deadTeam == 2 ? 1 : 2;
+                GameRules.WinningTeam = winner;
+
+                Console.WriteLine($"[WalkerWatcher] Walker (EntityIndex={deadIndex}, Team={deadTeam}) 死亡，判定 Team={winner} 获胜。");
+
+                _bebopWatcherTimer?.Cancel();
+                _bebopWatcherTimer = null;
+                return;
+            }
+
+            _aliveWalkers.Clear();
+            foreach (var idx in currentAlive) _aliveWalkers.Add(idx);
+        });
+    }
 }
