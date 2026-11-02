@@ -118,6 +118,20 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
     });
 }
 
+[Command("win", Description = "测试胜利：/win <队伍编号>，例如 /win 1 或 /win 2")]
+public void CmdWin(Caller caller, int team)
+{
+    if (!GameRules.IsValid)
+    {
+        caller.Reply("❌ 游戏规则尚未就绪。");
+        return;
+    }
+
+    GameRules.WinningTeam = team;
+    caller.Reply($"✅ 已设置 WinningTeam = {team}，请观察结算画面是哪边赢。");
+    Console.WriteLine($"[Test] {caller.Name} 设置 WinningTeam = {team}。");
+}
+
     public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
     {
         if (_stageLocked && newState != _lockedStage)
