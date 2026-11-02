@@ -11,13 +11,22 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     private bool _stageLocked = false;
     private EGameState _lockedStage = EGameState.Invalid;
+    // 本局是否已经执行过 /r
+    private bool _rTriggered = false;
 
     public override void OnStartupServer()
     {
-        // 不主动 ChangeGameState，也不立刻上锁
-        // 只确保等待条件满足，让引擎自己从 Init 走到 PreGameWait
+        // 每张图开始时重置 /r 标记，默认锁住
+        _rTriggered = false;
+
+        // 确保等待条件满足，让引擎能走到 PreGameWait
         GameRules.SetWaitingForPlayersRoster(0, 0);
-        Console.WriteLine($"[ServerDefaults] Startup，当前状态: {GameRules.GameState}，等待引擎进入 PreGameWait 后自动锁定");
+
+        // 主动把状态推到 PreGameWait 并锁住
+        _lockedStage = EGameState.PreGameWait;
+        _stageLocked = true;
+        GameRules.ChangeGameState(EGameState.PreGameWait);
+        Console.WriteLine($"[ServerDefaults] Startup，已锁定在 {GameRules.GameState}，等待 /r 解锁");
 
         // 开启滑索开局所需配置
         GameRules.MatchStartOnAnyMap = true;
@@ -74,9 +83,10 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
         _stageLocked = false;
         _lockedStage = EGameState.Invalid;
+        _rTriggered = false;
     }
 
-    [Command("r", Description = "解除锁定，从等待玩家开始自动推进")]
+    [Command("r", Description = "解锁并开始比赛")]
     public void CmdStart(Caller caller)
     {
         if (!GameRules.IsValid)
@@ -85,14 +95,15 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             return;
         }
 
-        // 先解锁，否则引擎后续推进会被 OnGameStateChanging 拦住
+        // 标记本局已执行 /r，并解锁
+        _rTriggered = true;
         _stageLocked = false;
         _lockedStage = EGameState.Invalid;
 
-        // 跳到 WaitingForPlayersToJoin，让引擎自己往后走
+        // 跳回 WaitingForPlayersToJoin，让引擎自己往后走
         GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
-        caller.Reply("✅ 已解锁，比赛将自动推进，PreGameWait 持续 10 秒。");
-        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发解锁，跳到 WaitingForPlayersToJoin。");
+        caller.Reply("✅ 已解锁，比赛将自动推进，PreGameWait 结束后播放运镜。");
+        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发 /r，解锁并跳到 WaitingForPlayersToJoin。");
     }
 
     public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
@@ -107,13 +118,44 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnGameStateChanged(EGameState newState)
     {
-        // 引擎自己走到 PreGameWait 时，上锁并设 10 秒倒计时
-        if (newState == EGameState.PreGameWait && !_stageLocked)
+        if (newState != EGameState.PreGameWait) return;
+
+        // 设置 10 秒倒计时
+        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
+
+        if (!_rTriggered)
         {
+            // 还没 /r，重新上锁，停在这里
             _lockedStage = EGameState.PreGameWait;
             _stageLocked = true;
-            GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
-            Console.WriteLine("[ServerDefaults] 引擎进入 PreGameWait，已锁定，倒计时设为 10 秒。");
+            Console.WriteLine("[ServerDefaults] 未执行 /r，锁定在 PreGameWait。");
+        }
+        else
+        {
+            // 已经 /r，只设倒计时，不上锁，允许引擎推进
+            Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 10 秒，不锁定。");
+
+            // PreGameWait 结束后，给所有人挂运镜 Modifier，卡 7.25 秒再推进
+            Timer.Once(10.Seconds(), () =>
+            {
+                if (!GameRules.IsValid) return;
+
+                // 给所有存活玩家挂上开场运镜 Modifier
+                foreach (var controller in Players.GetAll())
+                {
+                    var pawn = controller.GetHeroPawn();
+                    if (pawn == null || !pawn.IsValid) continue;
+                    pawn.AddModifier("modifier_cinematic_intro_player");
+                }
+                Console.WriteLine("[ServerDefaults] PreGameWait 结束，已给所有玩家挂上运镜 Modifier，等待 7.25 秒。");
+
+                Timer.Once(7.25f.Seconds(), () =>
+                {
+                    if (!GameRules.IsValid) return;
+                    GameRules.ChangeGameState(EGameState.MatchIntro);
+                    Console.WriteLine("[ServerDefaults] 运镜结束，进入 MatchIntro。");
+                });
+            });
         }
     }
 
