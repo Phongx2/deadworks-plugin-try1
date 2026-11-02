@@ -6,7 +6,7 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     public override string Name => "Server Defaults";
 
     // 1 = 开启开发者指令，0 = 关闭
-    private int dev = 0;
+    private int dev = 1;
 
     public override void OnStartupServer()
     {
