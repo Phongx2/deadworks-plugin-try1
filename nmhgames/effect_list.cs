@@ -310,26 +310,18 @@ public class EffectCommandPlugin : DeadworksPluginBase
     }
 
 
-    [Command("win", Description = "测试胜利：/win <队伍编号>，例如 /win 2 表示琥珀队获胜")]
-    public void CmdWin(Caller caller, int team)
-    {
-    if (team < 1 || team > 4)
-    {
-        caller.Reply("❌ 队伍编号必须是 1-4。");
-        return;
-    }
-
+    [Command("win", Description = "激活 Bebop 死亡判定监听器")]
+public void CmdWin(Caller caller)
+{
     if (!GameRules.IsValid)
     {
-        caller.Reply("❌ 当前没有有效的比赛规则实体，无法测试。");
+        caller.Reply("❌ 当前没有有效的比赛规则实体，无法激活监听。");
         return;
     }
 
-    GameRules.WinningTeam = team;
-
-    caller.Reply($"✅ 已将获胜队伍设置为 {team}，比赛结束流程已触发。");
-    Console.WriteLine($"[测试] 管理员 {caller.Name} 将获胜队伍设置为 {team}。");
-    }
+    GooseEggWatcherPlugin.Instance?.StartBebopWatcher();
+    caller.Reply("✅ 已激活 Bebop 死亡判定监听器。");
+}
 
 
 
