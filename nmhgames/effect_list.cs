@@ -319,14 +319,68 @@ public void CmdWin(Caller caller)
         return;
     }
 
-    GooseEggWatcherPlugin.Instance?.StartBebopWatcher();
+    this.StartBebopWatcher();
     caller.Reply("✅ 已激活 Bebop 死亡判定监听器。");
 }
 
 
 
 
+private IHandle? _bebopWatcherTimer;
+private readonly HashSet<int> _aliveBebopEntities = new();   // EntityIndex 集合
+private readonly Dictionary<int, int> _bebopEntityTeams = new(); // EntityIndex -> TeamNum
 
+public void StartBebopWatcher()
+{
+    _bebopWatcherTimer?.Cancel();
+    _aliveBebopEntities.Clear();
+    _bebopEntityTeams.Clear();
+
+    // 先扫一次，记录当前存活实体和队伍
+    foreach (var e in Entities.ByDesignerName("hero_bebop"))
+    {
+        if (e == null || !e.IsValid) continue;
+        _aliveBebopEntities.Add(e.EntityIndex);
+        _bebopEntityTeams[e.EntityIndex] = e.TeamNum;
+    }
+
+    Console.WriteLine($"[BebopWatcher] 初始化完成，当前存活 hero_bebop 数量: {_aliveBebopEntities.Count}");
+
+    _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
+    {
+        if (!GameRules.IsValid) return;
+
+        var currentAlive = new HashSet<int>();
+        foreach (var e in Entities.ByDesignerName("hero_bebop"))
+        {
+            if (e == null || !e.IsValid) continue;
+            currentAlive.Add(e.EntityIndex);
+            _bebopEntityTeams[e.EntityIndex] = e.TeamNum;
+        }
+
+        // 找出上一帧存活、这一帧不在的实体
+        foreach (var deadIndex in _aliveBebopEntities)
+        {
+            if (currentAlive.Contains(deadIndex)) continue;
+
+            if (!_bebopEntityTeams.TryGetValue(deadIndex, out int deadTeam)) continue;
+
+            // 这个 Bebop 死了，对面赢
+            int winner = deadTeam == 2 ? 1 : (deadTeam == 1 ? 2 : (deadTeam == 3 ? 4 : 3));
+            GameRules.WinningTeam = winner;
+
+            Console.WriteLine($"[BebopWatcher] hero_bebop (EntityIndex={deadIndex}, Team={deadTeam}) 死亡，判定 Team={winner} 获胜。");
+
+            // 只判一次，停掉监听
+            _bebopWatcherTimer?.Cancel();
+            _bebopWatcherTimer = null;
+            return;
+        }
+
+        _aliveBebopEntities.Clear();
+        foreach (var idx in currentAlive) _aliveBebopEntities.Add(idx);
+    });
+}
 
 
 
