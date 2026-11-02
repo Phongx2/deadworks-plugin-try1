@@ -227,7 +227,7 @@ public class EffectCommandPlugin : DeadworksPluginBase
     {
         Console.WriteLine("[EffectCommandPlugin] 命令插件已加载！");
 
-        StartBebopWatcher();
+        
     }
 
     [Command("l", Description = "列出所有效果，或使用 /l <序号> [持续时长] 执行对应效果")]
@@ -317,84 +317,7 @@ public class EffectCommandPlugin : DeadworksPluginBase
 
 
 
-private IHandle? _bebopWatcherTimer;
-private readonly HashSet<int> _aliveWalkers = new();
-private readonly Dictionary<int, int> _walkerTeams = new();
 
-public void StartBebopWatcher()
-{
-    _bebopWatcherTimer?.Cancel();
-    _aliveWalkers.Clear();
-    _walkerTeams.Clear();
-
-    foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
-    {
-        if (e == null || !e.IsValid) continue;
-        if (e.LifeState != LifeState.Alive) continue;
-        _aliveWalkers.Add(e.EntityIndex);
-        _walkerTeams[e.EntityIndex] = e.TeamNum;
-    }
-
-    Console.WriteLine($"[WalkerWatcher] 初始化完成，当前存活 Walker 数量: {_aliveWalkers.Count}");
-
-    // 如果还没刷出来，每秒重试，直到拿到存活 Walker 再进入正式监听
-    if (_aliveWalkers.Count == 0)
-    {
-        _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
-        {
-            foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
-            {
-                if (e == null || !e.IsValid) continue;
-                if (e.LifeState != LifeState.Alive) continue;
-                _aliveWalkers.Add(e.EntityIndex);
-                _walkerTeams[e.EntityIndex] = e.TeamNum;
-            }
-
-            if (_aliveWalkers.Count > 0)
-            {
-                Console.WriteLine($"[WalkerWatcher] Walker 已刷出，开始正式监听，数量: {_aliveWalkers.Count}");
-                _bebopWatcherTimer?.Cancel();
-                _bebopWatcherTimer = null;
-                StartBebopWatcher(); // 重新走一遍，这次能进入正式监听
-            }
-        });
-        return;
-    }
-
-    // 原有正式监听逻辑
-    _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
-    {
-        if (!GameRules.IsValid) return;
-
-        var currentAlive = new HashSet<int>();
-        foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
-        {
-            if (e == null || !e.IsValid) continue;
-            if (e.LifeState != LifeState.Alive) continue;
-            currentAlive.Add(e.EntityIndex);
-            _walkerTeams[e.EntityIndex] = e.TeamNum;
-        }
-
-        // 上一秒活着、这一秒不在存活集合里 = 刚死
-        foreach (var deadIndex in _aliveWalkers)
-        {
-            if (currentAlive.Contains(deadIndex)) continue;
-            if (!_walkerTeams.TryGetValue(deadIndex, out int deadTeam)) continue;
-
-            int winner = deadTeam == 2 ? 1 : 2;
-            GameRules.WinningTeam = winner;
-
-            Console.WriteLine($"[WalkerWatcher] Walker (EntityIndex={deadIndex}, Team={deadTeam}) 死亡，判定 Team={winner} 获胜。");
-
-            _bebopWatcherTimer?.Cancel();
-            _bebopWatcherTimer = null;
-            return;
-        }
-
-        _aliveWalkers.Clear();
-        foreach (var idx in currentAlive) _aliveWalkers.Add(idx);
-    });
-}
 
 
 
