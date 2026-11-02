@@ -11,9 +11,9 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnStartupServer()
     {
-        // 主动推到 HeroSelection 并停在那里，等待 /r 触发
+        // 主动推到 MatchIntro 并停在那里，等待 /r 触发
         GameRules.SetWaitingForPlayersRoster(0, 0);
-        GameRules.ChangeGameState(EGameState.HeroSelection);
+        GameRules.ChangeGameState(EGameState.MatchIntro);
         Console.WriteLine($"[ServerDefaults] 开局状态已设为: {GameRules.GameState}");
 
         // 开启滑索开局所需配置
@@ -79,27 +79,19 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             return;
         }
 
-        // HeroSelection -> MatchIntro
-        GameRules.ChangeGameState(EGameState.MatchIntro);
-        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发开始，进入 MatchIntro。");
+        // MatchIntro -> PreGameWait，等 15 秒
+        GameRules.ChangeGameState(EGameState.PreGameWait);
+        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 15f);
+        Console.WriteLine($"[ServerDefaults] {caller.Name} 触发开始，进入 PreGameWait（15 秒）。");
 
-        // MatchIntro 等 8 秒，再进 PreGameWait
-        Timer.Once(8.Seconds(), () =>
+        Timer.Once(15.Seconds(), () =>
         {
             if (!GameRules.IsValid) return;
-            GameRules.ChangeGameState(EGameState.PreGameWait);
-            GameRules.SetGameStateEndTime(GlobalVars.CurTime + 5f);
-            Console.WriteLine("[ServerDefaults] 进入 PreGameWait，5 秒后开始。");
-
-            Timer.Once(5.Seconds(), () =>
-            {
-                if (!GameRules.IsValid) return;
-                GameRules.ChangeGameState(EGameState.GameInProgress);
-                Console.WriteLine("[ServerDefaults] 进入 GameInProgress，滑索开局生效。");
-            });
+            GameRules.ChangeGameState(EGameState.GameInProgress);
+            Console.WriteLine("[ServerDefaults] 进入 GameInProgress，滑索开局生效。");
         });
 
-        caller.Reply("✅ 比赛即将开始！");
+        caller.Reply("✅ 比赛将在 15 秒后开始！");
     }
 
     private IHandle? _bebopWatcherTimer;
