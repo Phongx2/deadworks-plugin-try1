@@ -339,6 +339,9 @@ public void StartWalkerWatcher()
     foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
     {
         if (e == null || !e.IsValid) continue;
+        // 关键：只记录还活着的 Walker
+        if (e.LifeState != LifeState.Alive) continue;
+        
         _aliveWalkers.Add(e.EntityIndex);
         _walkerTeams[e.EntityIndex] = e.TeamNum;
     }
@@ -353,16 +356,19 @@ public void StartWalkerWatcher()
         foreach (var e in Entities.ByDesignerName("npc_boss_tier2"))
         {
             if (e == null || !e.IsValid) continue;
+            // 关键：只把活着的算作“当前存活”
+            if (e.LifeState != LifeState.Alive) continue;
+            
             currentAlive.Add(e.EntityIndex);
             _walkerTeams[e.EntityIndex] = e.TeamNum;
         }
 
+        // 上一秒活着，这一秒不在存活集合里 = 刚死
         foreach (var deadIndex in _aliveWalkers)
         {
             if (currentAlive.Contains(deadIndex)) continue;
             if (!_walkerTeams.TryGetValue(deadIndex, out int deadTeam)) continue;
 
-            // 按你测试的映射：Walker 属于 2 队死了判 1 队赢，反之亦然
             int winner = deadTeam == 2 ? 1 : 2;
             GameRules.WinningTeam = winner;
 
