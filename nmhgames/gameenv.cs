@@ -261,7 +261,7 @@ public void CmdWin(Caller caller, int team)
                 if (currentAlive.Contains(deadIndex)) continue;
                 if (!_walkerTeams.TryGetValue(deadIndex, out int deadTeam)) continue;
 
-                int winner = deadTeam == 2 ? 1 : 2;
+                int winner = deadTeam == 2 ? 3 : 2;
                 GameRules.WinningTeam = winner;
 
                 Console.WriteLine($"[WalkerWatcher] Walker (EntityIndex={deadIndex}, Team={deadTeam}) 死亡，判定 Team={winner} 获胜。");
