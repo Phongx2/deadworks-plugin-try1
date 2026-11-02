@@ -14,12 +14,10 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnStartupServer()
     {
-        // 开局锁在 PreGameWait
+        // 不主动 ChangeGameState，也不立刻上锁
+        // 只确保等待条件满足，让引擎自己从 Init 走到 PreGameWait
         GameRules.SetWaitingForPlayersRoster(0, 0);
-        _lockedStage = EGameState.PreGameWait;
-        _stageLocked = true;
-        GameRules.ChangeGameState(EGameState.PreGameWait);
-        Console.WriteLine($"[ServerDefaults] 开局锁定在 {GameRules.GameState}");
+        Console.WriteLine($"[ServerDefaults] Startup，当前状态: {GameRules.GameState}，等待引擎进入 PreGameWait 后自动锁定");
 
         // 开启滑索开局所需配置
         GameRules.MatchStartOnAnyMap = true;
@@ -73,6 +71,9 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         GameRules.SetWaitingForPlayersRoster(0, 0);
         // 文档要求卸载时还原，否则跨地图保留
         GameRules.MatchStartOnAnyMap = false;
+
+        _stageLocked = false;
+        _lockedStage = EGameState.Invalid;
     }
 
     [Command("r", Description = "解除锁定，从等待玩家开始自动推进")]
@@ -106,11 +107,13 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnGameStateChanged(EGameState newState)
     {
-        // 引擎走到 PreGameWait 时，把倒计时设成 10 秒
-        if (newState == EGameState.PreGameWait)
+        // 引擎自己走到 PreGameWait 时，上锁并设 10 秒倒计时
+        if (newState == EGameState.PreGameWait && !_stageLocked)
         {
+            _lockedStage = EGameState.PreGameWait;
+            _stageLocked = true;
             GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
-            Console.WriteLine("[ServerDefaults] 进入 PreGameWait，倒计时设为 10 秒。");
+            Console.WriteLine("[ServerDefaults] 引擎进入 PreGameWait，已锁定，倒计时设为 10 秒。");
         }
     }
 
