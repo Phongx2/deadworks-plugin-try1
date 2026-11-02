@@ -11,27 +11,27 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     private bool _stageLocked = false;
     private EGameState _lockedStage = EGameState.Invalid;
-    // 本局是否已经执行过 /r
+    // 是否已经 /r 解锁（解锁后不再锁 PreGameWait）
     private bool _rTriggered = false;
+    // PreGameWait 的后续流程是否已经启动过（防止重复触发）
+    private bool _preGameFlowStarted = false;
 
     public override void OnStartupServer()
     {
-        // 每张图开始时重置 /r 标记和锁定状态
+        // 重置标志
         _rTriggered = false;
         _stageLocked = false;
         _lockedStage = EGameState.Invalid;
+        _preGameFlowStarted = false;
 
-        // 确保等待条件满足，让引擎能自己从 Init 走到 PreGameWait
+        // 基础 ConVar
         GameRules.SetWaitingForPlayersRoster(0, 0);
-        Console.WriteLine($"[ServerDefaults] Startup，当前状态: {GameRules.GameState}，等待引擎进入 PreGameWait 后自动锁定");
-
-        // 开启滑索开局所需配置
         GameRules.MatchStartOnAnyMap = true;
         ConVar.Find("citadel_match_intro_force_enabled")?.SetInt(1);
+        ConVar.Find("citadel_active_lane")?.SetInt(4);
+        ConVar.Find("citadel_player_spawn_time_max_respawn_time")?.SetInt(15);
+        ConVar.Find("citadel_player_starting_gold")?.SetInt(1600);
 
-        StartBebopWatcher();
-
-        // 基础设置：随处购买（不受 dev 影响）
         if (dev == 1)
         {
             ConVar.Find("citadel_allow_purchasing_anywhere")?.SetInt(1);
@@ -39,14 +39,11 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             ConVar.Find("citadel_start_players_on_zipline")?.SetInt(1);
         }
 
-        ConVar.Find("citadel_active_lane")?.SetInt(4);
-        ConVar.Find("citadel_player_spawn_time_max_respawn_time")?.SetInt(15);
-        ConVar.Find("citadel_player_starting_gold")?.SetInt(1600);
+        StartBebopWatcher();
 
         if (dev == 1)
         {
             Console.WriteLine("[ServerDefaults] dev=1，开启 sv_cheats 并清理地图实体...");
-
             Server.ExecuteCommand("sv_cheats 1");
 
             Timer.NextTick(() =>
@@ -73,14 +70,13 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         _aliveWalkers.Clear();
         _walkerTeams.Clear();
 
-        // 取消“永远等待”的覆盖，恢复引擎原生行为
         GameRules.SetWaitingForPlayersRoster(0, 0);
-        // 文档要求卸载时还原，否则跨地图保留
         GameRules.MatchStartOnAnyMap = false;
 
         _stageLocked = false;
         _lockedStage = EGameState.Invalid;
         _rTriggered = false;
+        _preGameFlowStarted = false;
     }
 
     [Command("r", Description = "解锁并开始比赛")]
@@ -92,14 +88,14 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
             return;
         }
 
-        // 标记本局已执行 /r，并解锁
+        // 解锁，之后 PreGameWait 不再锁
         _rTriggered = true;
         _stageLocked = false;
         _lockedStage = EGameState.Invalid;
 
-        // 跳回 WaitingForPlayersToJoin，让引擎自己往后走
+        // 跳回等待玩家加入，让引擎自己往后走
         GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
-        caller.Reply("✅ 已解锁，比赛将自动推进，PreGameWait 结束后播放运镜。");
+        caller.Reply("✅ 已解锁，比赛将自动推进。");
         Console.WriteLine($"[ServerDefaults] {caller.Name} 触发 /r，解锁并跳到 WaitingForPlayersToJoin。");
     }
 
@@ -115,45 +111,60 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnGameStateChanged(EGameState newState)
     {
+        // 只在 PreGameWait 处理
         if (newState != EGameState.PreGameWait) return;
 
         // 设置 10 秒倒计时
         GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
 
+        // 还没 /r：锁在 PreGameWait，反复锁住
         if (!_rTriggered)
         {
-            // 还没 /r，上锁，停在这里
             _lockedStage = EGameState.PreGameWait;
             _stageLocked = true;
             Console.WriteLine("[ServerDefaults] 未执行 /r，锁定在 PreGameWait。");
+            return;
         }
-        else
-        {
-            // 已经 /r，只设倒计时，不上锁，允许引擎推进
-            Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 10 秒，不锁定。");
 
-            // PreGameWait 结束后，给所有人挂运镜 Modifier，卡 7.25 秒再推进
-            Timer.Once(10.Seconds(), () =>
+        // 已经 /r：只启动一次后续流程
+        if (_preGameFlowStarted) return;
+        _preGameFlowStarted = true;
+
+        Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 10 秒，不锁定。");
+
+        // 10 秒后给所有人挂运镜 Modifier，用 kv 设 7.25 秒
+        Timer.Once(10.Seconds(), () =>
+        {
+            if (!GameRules.IsValid) return;
+
+            using var kv = new KeyValues3();
+            kv.SetFloat("duration", 7.25f);
+
+            foreach (var controller in Players.GetAll())
+            {
+                var pawn = controller.GetHeroPawn();
+                if (pawn == null || !pawn.IsValid) continue;
+                pawn.AddModifier("modifier_cinematic_intro_player", kv);
+            }
+            Console.WriteLine("[ServerDefaults] PreGameWait 结束，已挂运镜 Modifier（7.25 秒）。");
+
+            // 7.25 秒后 Modifier 自然结束，同时进入 GameInProgress
+            Timer.Once(7250.Milliseconds(), () =>
             {
                 if (!GameRules.IsValid) return;
 
-                // 给所有存活玩家挂上开场运镜 Modifier
+                // 保险起见再移除一次（Modifier 到期一般会自动消失）
                 foreach (var controller in Players.GetAll())
                 {
                     var pawn = controller.GetHeroPawn();
                     if (pawn == null || !pawn.IsValid) continue;
-                    pawn.AddModifier("modifier_cinematic_intro_player");
+                    pawn.RemoveModifier("modifier_cinematic_intro_player");
                 }
-                Console.WriteLine("[ServerDefaults] PreGameWait 结束，已给所有玩家挂上运镜 Modifier，等待 7.25 秒。");
 
-                Timer.Once(7250.Milliseconds(), () =>
-                {
-                    if (!GameRules.IsValid) return;
-                    GameRules.ChangeGameState(EGameState.MatchIntro);
-                    Console.WriteLine("[ServerDefaults] 运镜结束，进入 MatchIntro。");
-                });
+                GameRules.ChangeGameState(EGameState.GameInProgress);
+                Console.WriteLine("[ServerDefaults] 运镜结束，进入 GameInProgress。");
             });
-        }
+        });
     }
 
     private IHandle? _bebopWatcherTimer;
@@ -176,7 +187,6 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
         Console.WriteLine($"[WalkerWatcher] 初始化完成，当前存活 Walker 数量: {_aliveWalkers.Count}");
 
-        // 如果还没刷出来，每秒重试，直到拿到存活 Walker 再进入正式监听
         if (_aliveWalkers.Count == 0)
         {
             _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
@@ -194,13 +204,12 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
                     Console.WriteLine($"[WalkerWatcher] Walker 已刷出，开始正式监听，数量: {_aliveWalkers.Count}");
                     _bebopWatcherTimer?.Cancel();
                     _bebopWatcherTimer = null;
-                    StartBebopWatcher(); // 重新走一遍，这次能进入正式监听
+                    StartBebopWatcher();
                 }
             });
             return;
         }
 
-        // 原有正式监听逻辑
         _bebopWatcherTimer = Timer.Every(1.Seconds(), () =>
         {
             if (!GameRules.IsValid) return;
@@ -214,7 +223,6 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
                 _walkerTeams[e.EntityIndex] = e.TeamNum;
             }
 
-            // 上一秒活着、这一秒不在存活集合里 = 刚死
             foreach (var deadIndex in _aliveWalkers)
             {
                 if (currentAlive.Contains(deadIndex)) continue;
