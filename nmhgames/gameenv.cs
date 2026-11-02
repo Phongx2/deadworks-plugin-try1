@@ -133,7 +133,7 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
         if (newState != EGameState.PreGameWait) return;
 
         // 设置 10 秒倒计时
-        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
+        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 5f);
 
         // 还没 /r：锁在 PreGameWait，反复锁住
         if (!_rTriggered)
@@ -162,7 +162,7 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
             {
                 var pawn = controller.GetHeroPawn();
                 if (pawn == null || !pawn.IsValid) continue;
-                pawn.AddModifier("modifier_cinematic_intro_player", kv);
+                pawn.AddModifier("modifier_cinematic_intro_player");
             }
             Console.WriteLine("[ServerDefaults] PreGameWait 结束，已挂运镜 Modifier（7.25 秒）。");
 
@@ -170,7 +170,7 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
             Timer.Once(7250.Milliseconds(), () =>
             {
                 if (!GameRules.IsValid) return;
-
+                
                 // 保险起见再移除一次（Modifier 到期一般会自动消失）
                 foreach (var controller in Players.GetAll())
                 {
