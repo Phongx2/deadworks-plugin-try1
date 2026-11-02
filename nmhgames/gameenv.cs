@@ -16,17 +16,14 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
     public override void OnStartupServer()
     {
-        // 每张图开始时重置 /r 标记，默认锁住
+        // 每张图开始时重置 /r 标记和锁定状态
         _rTriggered = false;
+        _stageLocked = false;
+        _lockedStage = EGameState.Invalid;
 
-        // 确保等待条件满足，让引擎能走到 PreGameWait
+        // 确保等待条件满足，让引擎能自己从 Init 走到 PreGameWait
         GameRules.SetWaitingForPlayersRoster(0, 0);
-
-        // 主动把状态推到 PreGameWait 并锁住
-        _lockedStage = EGameState.PreGameWait;
-        _stageLocked = true;
-        GameRules.ChangeGameState(EGameState.PreGameWait);
-        Console.WriteLine($"[ServerDefaults] Startup，已锁定在 {GameRules.GameState}，等待 /r 解锁");
+        Console.WriteLine($"[ServerDefaults] Startup，当前状态: {GameRules.GameState}，等待引擎进入 PreGameWait 后自动锁定");
 
         // 开启滑索开局所需配置
         GameRules.MatchStartOnAnyMap = true;
@@ -125,7 +122,7 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
 
         if (!_rTriggered)
         {
-            // 还没 /r，重新上锁，停在这里
+            // 还没 /r，上锁，停在这里
             _lockedStage = EGameState.PreGameWait;
             _stageLocked = true;
             Console.WriteLine("[ServerDefaults] 未执行 /r，锁定在 PreGameWait。");
@@ -150,11 +147,11 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
                 Console.WriteLine("[ServerDefaults] PreGameWait 结束，已给所有玩家挂上运镜 Modifier，等待 7.25 秒。");
 
                 Timer.Once(7250.Milliseconds(), () =>
-{
-    if (!GameRules.IsValid) return;
-    GameRules.ChangeGameState(EGameState.MatchIntro);
-    Console.WriteLine("[ServerDefaults] 运镜结束，进入 MatchIntro。");
-});
+                {
+                    if (!GameRules.IsValid) return;
+                    GameRules.ChangeGameState(EGameState.MatchIntro);
+                    Console.WriteLine("[ServerDefaults] 运镜结束，进入 MatchIntro。");
+                });
             });
         }
     }
