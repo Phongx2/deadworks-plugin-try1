@@ -1,6 +1,8 @@
 using DeadworksManaged.Api;
 using System;
 using System.Collections.Generic;
+using DeadworksManaged.Api.Sounds;
+
 
 public class ServerDefaultsPlugin : DeadworksPluginBase
 {
@@ -93,24 +95,22 @@ public void CmdStart(Caller caller)
     _stageLocked = false;
     _lockedStage = EGameState.Invalid;
 
-    // 全服 HUD 公告，持续 3 秒
+    // 全服 HUD 公告
     var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "本服务插件由 @不爱搞事情的匿名黑 制作",
         DescriptionLocstring = "点点关注谢谢喵"
     };
+     Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
     NetMessages.Send(hud, RecipientFilter.All);
 
-    // 3 秒后再跳 WaitingForPlayersToJoin
-    Timer.Once(3.Seconds(), () =>
+    // 跳回等待玩家加入，让引擎自己往后走
+    Timer.Once(4.Seconds(), () =>
     {
         if (!GameRules.IsValid) return;
         GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
         Console.WriteLine("[ServerDefaults] HUD 展示结束，跳到 WaitingForPlayersToJoin。");
     });
-
-    caller.Reply("✅ 已解锁，比赛将自动推进。");
-    Console.WriteLine($"[ServerDefaults] {caller.Name} 触发 /r，显示 HUD，3 秒后跳到 WaitingForPlayersToJoin。");
 }
 
     public override bool OnGameStateChanging(EGameState currentState, EGameState newState)
@@ -128,8 +128,8 @@ public void CmdStart(Caller caller)
         // 只在 PreGameWait 处理
         if (newState != EGameState.PreGameWait) return;
 
-        // 设置 3 秒倒计时
-        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 3f);
+        // 设置 10 秒倒计时
+        GameRules.SetGameStateEndTime(GlobalVars.CurTime + 10f);
 
         // 还没 /r：锁在 PreGameWait，反复锁住
         if (!_rTriggered)
@@ -144,10 +144,10 @@ public void CmdStart(Caller caller)
         if (_preGameFlowStarted) return;
         _preGameFlowStarted = true;
 
-        Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 3 秒，不锁定。");
+        Console.WriteLine("[ServerDefaults] 已执行 /r，PreGameWait 倒计时 10 秒，不锁定。");
 
-        // 3 秒后给所有人挂运镜 Modifier，用 kv 设 7.25 秒
-        Timer.Once(8.Seconds(), () =>
+        // 10 秒后给所有人挂运镜 Modifier，用 kv 设 7.25 秒
+        Timer.Once(5.Seconds(), () =>
         {
             if (!GameRules.IsValid) return;
 
