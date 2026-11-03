@@ -1,4 +1,4 @@
-	using DeadworksManaged.Api;
+using DeadworksManaged.Api;
 using DeadworksManaged.Api.Sounds;
 using System;
 using System.Collections.Generic;
@@ -67,7 +67,10 @@ public class EffectRuntimePlugin : DeadworksPluginBase
     
 
 
-	
+	public override void OnPrecacheResources()
+{
+    Precache.AddResource("models/heroes_wip/werewolf/werewolf.vmdl");
+}
 
 
 
@@ -290,7 +293,12 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 // ==========================================
 public static class Effects
 {
-   
+    // ===== wolfdance 用到的字段和常量 =====
+    private const string WerewolfModel = "models/heroes_wip/werewolf/werewolf.vmdl";
+    private const string WerewolfWeapon = "citadel_weapon_werewolf_claws";
+    private const ushort WeaponSlot = 21; // ESlot_Weapon_Primary
+    private static readonly Dictionary<CCitadelPlayerPawn, string> _savedModels = new();
+    private static readonly Dictionary<CCitadelPlayerPawn, string> _savedWeapons = new();
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
     {
@@ -611,6 +619,75 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             // 发送抽卡提示
             EffectList.SendDrawNotification(controller, effect);
         }
+        // ================= 效果：狼人派对 =================
+       else if (effect.Id == "wolfdance")
+{
+    EffectList.SendDrawNotification(controller, effect);
+
+    var hud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🐺 狼人派对",
+        DescriptionLocstring = $"所有人变成狼人，持续 {effect.Duration} 秒！"
+    };
+    NetMessages.Send(hud, RecipientFilter.All);
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+    var allPawns = Players.GetAll()
+        .Select(c => c.GetHeroPawn())
+        .Where(p => p != null && p.IsValid)
+        .ToList();
+
+    _savedModels.Clear();
+    _savedWeapons.Clear();
+
+    foreach (var p in allPawns)
+    {
+        _savedModels[p] = p.ModelName;
+
+        foreach (var ability in p.AbilityComponent.Abilities)
+        {
+            if ((ushort)ability.AbilitySlot == WeaponSlot)
+            {
+                _savedWeapons[p] = ability.AbilityName;
+                break;
+            }
+        }
+
+        p.SetModel(WerewolfModel);
+
+        if (_savedWeapons.TryGetValue(p, out var oldWeapon))
+        {
+            p.RemoveAbility(oldWeapon);
+        }
+        p.AddAbility(WerewolfWeapon, WeaponSlot);
+    }
+
+    Console.WriteLine($"[WolfDance] {allPawns.Count} 名玩家已变成狼人，{effect.Duration} 秒后恢复。");
+
+    timer.Once(((double)effect.Duration).Seconds(), () =>
+    {
+        foreach (var p in allPawns)
+        {
+            if (p == null || !p.IsValid) continue;
+
+            p.RemoveAbility(WerewolfWeapon);
+            if (_savedWeapons.TryGetValue(p, out var oldWeapon))
+            {
+                p.AddAbility(oldWeapon, WeaponSlot);
+            }
+
+            if (_savedModels.TryGetValue(p, out var oldModel))
+            {
+                p.SetModel(oldModel);
+            }
+        }
+
+        _savedModels.Clear();
+        _savedWeapons.Clear();
+        Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
+    });
+}
 
 
 
