@@ -50,7 +50,7 @@ public static class EffectList
     public static readonly EffectInfo[] Pool = new EffectInfo[]
     {
         new EffectInfo("speed_boost", "加速", 60.0f,1),
-        
+        new EffectInfo("wolfdance", "狼人派对", 30.0f, 1),
 
         //new EffectInfo("UAV", "无人侦察机", 30.0f, 2), // 🌟 新加的 UAV
         new EffectInfo("yoshiban", "大手的力量", 10.0f, 1), 
@@ -163,8 +163,8 @@ public static class EffectList
         else level = 4;
 
         Console.WriteLine($"[抽卡测试] 随机数 Roll: {roll}, 判定等级: {level}");
-
-        return level;
+ return 1;
+       // return level;
     }
 
     // 打印列表
