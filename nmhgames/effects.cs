@@ -1,4 +1,3 @@
-
 using DeadworksManaged.Api;
 using DeadworksManaged.Api.Sounds;
 using System;
@@ -70,8 +69,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 	public override void OnPrecacheResources()
 {
-    // Effects 类里
-Precache.AddResource("models/heroes_wip/werewolf/transform/werewolf_transform.vmdl");
+    Precache.AddResource(Effects.WerewolfModel);
 }
 
 
@@ -296,11 +294,20 @@ Precache.AddResource("models/heroes_wip/werewolf/transform/werewolf_transform.vm
 public static class Effects
 {
     // ===== wolfdance 用到的字段和常量 =====
-    private const string WerewolfModel = "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl";
+    public const string WerewolfModel = "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl";
     private const string WerewolfWeapon = "citadel_weapon_werewolf_claws";
     private const ushort WeaponSlot = 21; // ESlot_Weapon_Primary
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedModels = new();
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedWeapons = new();
+    private static bool _wolfdanceSaved = false;
+
+    // 换图/重载时清空缓存，让下一次 wolfdance 重新采集
+    public static void ResetWolfdanceCache()
+    {
+        _savedModels.Clear();
+        _savedWeapons.Clear();
+        _wolfdanceSaved = false;
+    }
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
     {
@@ -640,21 +647,34 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
         .Where(p => p != null && p.IsValid)
         .ToList();
 
-    _savedModels.Clear();
-    _savedWeapons.Clear();
-
-    foreach (var p in allPawns)
+    // 只在第一次触发时保存当时在场所有人的原模型和原武器
+    if (!_wolfdanceSaved)
     {
-        _savedModels[p] = p.ModelName;
+        _savedModels.Clear();
+        _savedWeapons.Clear();
 
-        foreach (var ability in p.AbilityComponent.Abilities)
+        foreach (var p in allPawns)
         {
-            if ((ushort)ability.AbilitySlot == WeaponSlot)
+            _savedModels[p] = p.ModelName;
+
+            foreach (var ability in p.AbilityComponent.Abilities)
             {
-                _savedWeapons[p] = ability.AbilityName;
-                break;
+                if ((ushort)ability.AbilitySlot == WeaponSlot)
+                {
+                    _savedWeapons[p] = ability.AbilityName;
+                    break;
+                }
             }
         }
+
+        _wolfdanceSaved = true;
+        Console.WriteLine($"[WolfDance] 首次触发，已保存 {allPawns.Count} 名玩家的原模型和原武器，之后不再重新采集。");
+    }
+
+    // 只对“第一次保存过的人”换模型和武器，后来加入的人不动
+    foreach (var p in allPawns)
+    {
+        if (!_savedModels.ContainsKey(p)) continue;
 
         p.SetModel(WerewolfModel);
 
@@ -665,12 +685,13 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
         p.AddAbility(WerewolfWeapon, WeaponSlot);
     }
 
-    Console.WriteLine($"[WolfDance] {allPawns.Count} 名玩家已变成狼人，{effect.Duration} 秒后恢复。");
+    Console.WriteLine($"[WolfDance] 已对首次保存的玩家变成狼人，{effect.Duration} 秒后恢复。");
 
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
-        foreach (var p in allPawns)
+        foreach (var kvp in _savedModels)
         {
+            var p = kvp.Key;
             if (p == null || !p.IsValid) continue;
 
             p.RemoveAbility(WerewolfWeapon);
@@ -679,14 +700,9 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
                 p.AddAbility(oldWeapon, WeaponSlot);
             }
 
-            if (_savedModels.TryGetValue(p, out var oldModel))
-            {
-                p.SetModel(oldModel);
-            }
+            p.SetModel(kvp.Value);
         }
 
-        _savedModels.Clear();
-        _savedWeapons.Clear();
         Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
     });
 }
