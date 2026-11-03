@@ -69,7 +69,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 	public override void OnPrecacheResources()
 {
-    Precache.AddResource("models/heroes_wip/werewolf/werewolf.vmdl");
+    // Effects 类里
+public const string WerewolfModel = "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl";
 }
 
 
@@ -294,7 +295,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 public static class Effects
 {
     // ===== wolfdance 用到的字段和常量 =====
-    private const string WerewolfModel = "models/heroes_wip/werewolf/werewolf.vmdl";
+    private const string WerewolfModel = "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl";
     private const string WerewolfWeapon = "citadel_weapon_werewolf_claws";
     private const ushort WeaponSlot = 21; // ESlot_Weapon_Primary
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedModels = new();
