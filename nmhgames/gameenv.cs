@@ -145,6 +145,7 @@ public void CmdWin(Caller caller, int team)
     public override void OnGameStateChanged(EGameState newState)
     {
         // 只在 PreGameWait 处理
+        if (dev == 1) return;
         if (newState != EGameState.PreGameWait) return;
 
         // 设置 10 秒倒计时
