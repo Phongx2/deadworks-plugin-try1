@@ -683,6 +683,9 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
             p.RemoveAbility(oldWeapon);
         }
         p.AddAbility(WerewolfWeapon, WeaponSlot);
+		using var kv = new KeyValues3();
+    kv.SetFloat("duration", effect.Duration);
+    p.AddModifier("upgrade_infinitemagazine/modifier_infinite_magazine_active", kv: kv);
     }
 
     Console.WriteLine($"[WolfDance] 已对首次保存的玩家变成狼人，{effect.Duration} 秒后恢复。");
