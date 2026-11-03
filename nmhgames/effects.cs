@@ -1,3 +1,4 @@
+
 using DeadworksManaged.Api;
 using DeadworksManaged.Api.Sounds;
 using System;
@@ -70,7 +71,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 	public override void OnPrecacheResources()
 {
     // Effects 类里
-public const string WerewolfModel = "models/heroes_wip/werewolf/transform/werewolf_transform.vmdl";
+Precache.AddResource("models/heroes_wip/werewolf/transform/werewolf_transform.vmdl");
 }
 
 
