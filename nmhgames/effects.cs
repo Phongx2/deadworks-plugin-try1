@@ -774,7 +774,7 @@ else if (effect.Id == "pianodrop")
     for (int i = 0; i < 3; i++)
     {
         int round = i;
-        timer.Once(i.Seconds(), () =>
+        timer.Once(((double)(3 + i * 3.0f)).Seconds(), () =>
         {
             var enemies = Players.GetAll()
                 .Where(c => c != null && c.IsValid)
@@ -789,11 +789,10 @@ else if (effect.Id == "pianodrop")
             foreach (var enemy in enemies)
             {
                 // 先播预警音
-                enemy.EmitSound("Mystical.Piano.AOE.Warning");
+               // enemy.EmitSound("Mystical.Piano.AOE.Warning");
 
                 // 1.7 秒后钢琴真正砸下
-                timer.Once(1700.Milliseconds(), () =>
-                {
+
                     if (enemy == null || !enemy.IsValid) return;
 
                     // 用砸下那一刻的位置
@@ -807,14 +806,14 @@ else if (effect.Id == "pianodrop")
                     enemy.EmitSound("Mystical.Piano.AOE.Explode");
 
                     using var kv = new KeyValues3();
-                    kv.SetFloat("duration", 3.0f);
+                    kv.SetFloat("duration", 0.5f);
                     enemy.AddModifier("modifier_citadel_knockdown", kv);
 
                     if (particle != null)
                     {
                         timer.Once(5.Seconds(), () => particle.Destroy());
                     }
-                });
+                
             }
 
             Console.WriteLine($"[PianoDrop] 第 {round + 1} 轮，砸向 {enemies.Count} 名敌人。");
