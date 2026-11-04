@@ -798,7 +798,7 @@ else if (effect.Id == "pianodrop")
             Console.WriteLine($"[PianoDrop] 第 {round + 1} 轮，砸中 {enemies.Count} 名敌人。");
         });
     }
-
+}
 
 
 
