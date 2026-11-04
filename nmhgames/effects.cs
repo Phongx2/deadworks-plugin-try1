@@ -695,9 +695,9 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 
     // 狼人期间挂 shrink_ray_cast 粒子，跟随玩家
     var particle = CParticleSystem.Create("particles/upgrades/shrink_ray_cast_smoke.vpcf")
-        .AttachedTo(p)
-        .Spawn();
-    _wolfParticles[p] = particle;
+    .AtPosition(p.Position)
+    .Spawn();
+_wolfParticles[p] = particle;
 
     // 狼人期间无限子弹，每人一份 KV3，duration 跟随 wolfdance
     using var kv = new KeyValues3();
