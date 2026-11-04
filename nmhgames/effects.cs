@@ -703,7 +703,7 @@ _wolfParticles[p] = particle;
     using var kv = new KeyValues3();
     kv.SetFloat("duration", effect.Duration);
     p.AddModifier("upgrade_infinitemagazine/modifier_infinite_magazine_active", kv: kv);
-		timer.Once(5.Seconds(), () =>{_wolfParticles.Clear();}
+		
 }
 
     Console.WriteLine($"[WolfDance] 已对首次保存的玩家变成狼人，{effect.Duration} 秒后恢复。");
@@ -741,7 +741,7 @@ _wolfParticles[p] = particle;
 	
 
     Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
-	timer.Once(5.Seconds(), () =>{_wolfParticles.Clear();}
+	timer.Once(5.Seconds(), () =>{_wolfParticles.Clear();});
 });}
 
 
