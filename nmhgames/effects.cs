@@ -699,6 +699,13 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
     .Spawn();
 _wolfParticles[p] = particle;
 
+		  if (particle != null)
+    {
+        var captured = particle;
+        timer.Once(5.Seconds(), () => captured.Destroy());
+    }
+
+
     // 狼人期间无限子弹，每人一份 KV3，duration 跟随 wolfdance
     using var kv = new KeyValues3();
     kv.SetFloat("duration", effect.Duration);
@@ -716,9 +723,9 @@ _wolfParticles[p] = particle;
         if (p == null || !p.IsValid) continue;
 
         // 销毁狼人期间的粒子
-        if (_wolfParticles.TryGetValue(p, out var particle) && particle != null)
+        if (_wolfParticles.TryGetValue(p, out var wolfParticle) && wolfParticle != null)
         {
-            particle.Destroy();
+            wolfParticle.Destroy();
         }
 
         // 兜底移除无限子弹
@@ -731,17 +738,20 @@ _wolfParticles[p] = particle;
         }
 
         p.SetModel(kvp.Value);
+
+        // 恢复时也在当前位置播一次粒子
+        var restoreParticle = CParticleSystem.Create("particles/upgrades/shrink_ray_cast_smoke.vpcf")
+            .AtPosition(p.Position)
+            .Spawn();
+        if (restoreParticle != null)
+        {
+            var captured = restoreParticle;
+            timer.Once(5.Seconds(), () => captured.Destroy());
+        }
     }
 
-    var particle = CParticleSystem.Create("particles/upgrades/shrink_ray_cast_smoke.vpcf")
-    .AtPosition(p.Position)
-    .Spawn();
-_wolfParticles[p] = particle;
-	
-	
-
+    _wolfParticles.Clear();
     Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
-	timer.Once(5.Seconds(), () =>{_wolfParticles.Clear();});
 });}
 
 
@@ -761,13 +771,11 @@ else if (effect.Id == "pianodrop")
 
     int casterTeam = pawn.TeamNum;
 
-    // 重复 3 次，每次间隔 1 秒
     for (int i = 0; i < 3; i++)
     {
-        int round = i; // 捕获循环变量
-        timer.Once(((double)(i * 3.0f)).Seconds(), () =>
+        int round = i;
+        timer.Once(i.Seconds(), () =>
         {
-            // 每次砸之前都重新获取一遍当前敌方玩家
             var enemies = Players.GetAll()
                 .Where(c => c != null && c.IsValid)
                 .Select(c => c.GetHeroPawn())
@@ -780,31 +788,39 @@ else if (effect.Id == "pianodrop")
 
             foreach (var enemy in enemies)
             {
-                // 每次都用敌人的当前位置
-                var pos = enemy.Position + Vector3.UnitZ * 100;
-
+                // 先播预警音
                 enemy.EmitSound("Mystical.Piano.AOE.Warning");
-				timer.Once(1700.Milliseconds(), () => {
-                var particle = CParticleSystem.Create("particles/upgrades/mystical_piano_hit.vpcf")
-                    .AtPosition(pos)
-                    .StartActive(true)
-                    .Spawn();}
 
-                enemy.EmitSound("Mystical.Piano.AOE.Explode");
-
-                using var kv = new KeyValues3();
-                kv.SetFloat("duration", 1.0f);
-                enemy.AddModifier("modifier_citadel_knockdown", kv);}
-
-                if (particle != null)
+                // 1.7 秒后钢琴真正砸下
+                timer.Once(1700.Milliseconds(), () =>
                 {
-                    timer.Once(5.Seconds(), () => particle.Destroy());
-                }
+                    if (enemy == null || !enemy.IsValid) return;
+
+                    // 用砸下那一刻的位置
+                    var pos = enemy.Position + Vector3.UnitZ * 100;
+
+                    var particle = CParticleSystem.Create("particles/upgrades/mystical_piano_hit.vpcf")
+                        .AtPosition(pos)
+                        .StartActive(true)
+                        .Spawn();
+
+                    enemy.EmitSound("Mystical.Piano.AOE.Explode");
+
+                    using var kv = new KeyValues3();
+                    kv.SetFloat("duration", 3.0f);
+                    enemy.AddModifier("modifier_citadel_knockdown", kv);
+
+                    if (particle != null)
+                    {
+                        timer.Once(5.Seconds(), () => particle.Destroy());
+                    }
+                });
             }
 
-            Console.WriteLine($"[PianoDrop] 第 {round + 1} 轮，砸中 {enemies.Count} 名敌人。");
+            Console.WriteLine($"[PianoDrop] 第 {round + 1} 轮，砸向 {enemies.Count} 名敌人。");
         });
     }
+
 }
 
 
