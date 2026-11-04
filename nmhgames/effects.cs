@@ -791,7 +791,7 @@ else if (effect.Id == "pianodrop")
 
                 if (particle != null)
                 {
-                    Timer.Once(5.Seconds(), () => particle.Destroy());
+                    timer.Once(5.Seconds(), () => particle.Destroy());
                 }
             }
 
