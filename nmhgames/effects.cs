@@ -1,4 +1,4 @@
-using DeadworksManaged.Api;
+ using DeadworksManaged.Api;
 using DeadworksManaged.Api.Sounds;
 using System;
 using System.Collections.Generic;
@@ -71,7 +71,7 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 {
     Precache.AddResource(Effects.WerewolfModel);
 	Precache.AddResource("particles/upgrades/mystical_piano_hit.vpcf");
-	Precache.AddResource("particles/upgrades/shrink_ray_cast.vpcf");
+	Precache.AddResource("particles/upgrades/shrink_ray_cast_smoke.vpcf");
 
 
 
@@ -694,7 +694,7 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
     p.AddAbility(WerewolfWeapon, WeaponSlot);
 
     // 狼人期间挂 shrink_ray_cast 粒子，跟随玩家
-    var particle = CParticleSystem.Create("particles/upgrades/shrink_ray_cast.vpcf")
+    var particle = CParticleSystem.Create("particles/upgrades/shrink_ray_cast_smoke.vpcf")
         .AttachedTo(p)
         .Spawn();
     _wolfParticles[p] = particle;
@@ -745,7 +745,7 @@ else if (effect.Id == "pianodrop")
 
     var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
-        TitleLocstring = "🎹 钢琴大礼包",
+        TitleLocstring = "🎹 钢琴快递",
         DescriptionLocstring = "敌方所有人即将被钢琴砸中 3 次！"
     };
     NetMessages.Send(hud, RecipientFilter.All);
@@ -758,7 +758,7 @@ else if (effect.Id == "pianodrop")
     for (int i = 0; i < 3; i++)
     {
         int round = i; // 捕获循环变量
-        timer.Once(((double)(i * 1.0f)).Seconds(), () =>
+        timer.Once(((double)(i * 3.0f)).Seconds(), () =>
         {
             // 每次砸之前都重新获取一遍当前敌方玩家
             var enemies = Players.GetAll()
@@ -786,7 +786,7 @@ else if (effect.Id == "pianodrop")
                 enemy.EmitSound("Mystical.Piano.AOE.Explode");
 
                 using var kv = new KeyValues3();
-                kv.SetFloat("duration", 3.0f);
+                kv.SetFloat("duration", 1.0f);
                 enemy.AddModifier("modifier_citadel_knockdown", kv);
 
                 if (particle != null)
