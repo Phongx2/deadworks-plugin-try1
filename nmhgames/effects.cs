@@ -784,17 +784,17 @@ else if (effect.Id == "pianodrop")
                 var pos = enemy.Position + Vector3.UnitZ * 100;
 
                 enemy.EmitSound("Mystical.Piano.AOE.Warning");
-
+				timer.Once(1700.Milliseconds(), () => {
                 var particle = CParticleSystem.Create("particles/upgrades/mystical_piano_hit.vpcf")
                     .AtPosition(pos)
                     .StartActive(true)
-                    .Spawn();
+                    .Spawn();}
 
                 enemy.EmitSound("Mystical.Piano.AOE.Explode");
 
                 using var kv = new KeyValues3();
                 kv.SetFloat("duration", 1.0f);
-                enemy.AddModifier("modifier_citadel_knockdown", kv);
+                enemy.AddModifier("modifier_citadel_knockdown", kv);}
 
                 if (particle != null)
                 {
