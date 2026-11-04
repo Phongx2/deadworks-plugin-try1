@@ -758,7 +758,7 @@ else if (effect.Id == "pianodrop")
     for (int i = 0; i < 3; i++)
     {
         int round = i; // 捕获循环变量
-        timer.Once((i * 1.0f).Seconds(), () =>
+        timer.Once(((double)(i * 1.0f)).Seconds(), () =>
         {
             // 每次砸之前都重新获取一遍当前敌方玩家
             var enemies = Players.GetAll()
