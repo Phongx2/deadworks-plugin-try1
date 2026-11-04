@@ -735,7 +735,7 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
     _wolfParticles.Clear();
 
     Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
-});
+});}
 
 
 
