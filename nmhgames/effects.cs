@@ -66,10 +66,17 @@ public class EffectRuntimePlugin : DeadworksPluginBase
    
     
 
-
+// ===== 预加载列表 =====
 	public override void OnPrecacheResources()
 {
     Precache.AddResource(Effects.WerewolfModel);
+	Precache.AddResource("particles/upgrades/mystical_piano_hit.vpcf");
+	Precache.AddResource("particles/upgrades/shrink_ray_cast.vpcf");
+
+
+
+
+	
 }
 
 
@@ -300,6 +307,7 @@ public static class Effects
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedModels = new();
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedWeapons = new();
     private static bool _wolfdanceSaved = false;
+	private static readonly Dictionary<CCitadelPlayerPawn, CParticleSystem?> _wolfParticles = new();
 
     // 换图/重载时清空缓存，让下一次 wolfdance 重新采集
     public static void ResetWolfdanceCache()
@@ -307,6 +315,7 @@ public static class Effects
         _savedModels.Clear();
         _savedWeapons.Clear();
         _wolfdanceSaved = false;
+		_wolfdanceSaved = false;
     }
 
     public static void Execute(EffectInfo effect, CCitadelPlayerPawn pawn, ITimer timer)
@@ -673,46 +682,123 @@ NetMessages.Send(new CCitadelUserMsg_ChatMsg
 
     // 只对“第一次保存过的人”换模型和武器，后来加入的人不动
     foreach (var p in allPawns)
+{
+    if (!_savedModels.ContainsKey(p)) continue;
+
+    p.SetModel(WerewolfModel);
+
+    if (_savedWeapons.TryGetValue(p, out var oldWeapon))
     {
-        if (!_savedModels.ContainsKey(p)) continue;
+        p.RemoveAbility(oldWeapon);
+    }
+    p.AddAbility(WerewolfWeapon, WeaponSlot);
 
-        p.SetModel(WerewolfModel);
+    // 狼人期间挂 shrink_ray_cast 粒子，跟随玩家
+    var particle = CParticleSystem.Create("particles/upgrades/shrink_ray_cast.vpcf")
+        .AttachedTo(p)
+        .Spawn();
+    _wolfParticles[p] = particle;
 
-        if (_savedWeapons.TryGetValue(p, out var oldWeapon))
-        {
-            p.RemoveAbility(oldWeapon);
-        }
-        p.AddAbility(WerewolfWeapon, WeaponSlot);
-		using var kv = new KeyValues3();
+    // 狼人期间无限子弹，每人一份 KV3，duration 跟随 wolfdance
+    using var kv = new KeyValues3();
     kv.SetFloat("duration", effect.Duration);
     p.AddModifier("upgrade_infinitemagazine/modifier_infinite_magazine_active", kv: kv);
-    }
+}
 
     Console.WriteLine($"[WolfDance] 已对首次保存的玩家变成狼人，{effect.Duration} 秒后恢复。");
 
     timer.Once(((double)effect.Duration).Seconds(), () =>
+{
+    foreach (var kvp in _savedModels)
     {
-        foreach (var kvp in _savedModels)
+        var p = kvp.Key;
+        if (p == null || !p.IsValid) continue;
+
+        // 销毁狼人期间的粒子
+        if (_wolfParticles.TryGetValue(p, out var particle) && particle != null)
         {
-            var p = kvp.Key;
-            if (p == null || !p.IsValid) continue;
-
-            p.RemoveAbility(WerewolfWeapon);
-            if (_savedWeapons.TryGetValue(p, out var oldWeapon))
-            {
-                p.AddAbility(oldWeapon, WeaponSlot);
-            }
-
-            p.SetModel(kvp.Value);
+            particle.Destroy();
         }
 
-        Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
-    });
+        // 兜底移除无限子弹
+        p.RemoveModifier("upgrade_infinitemagazine/modifier_infinite_magazine_active");
+
+        p.RemoveAbility(WerewolfWeapon);
+        if (_savedWeapons.TryGetValue(p, out var oldWeapon))
+        {
+            p.AddAbility(oldWeapon, WeaponSlot);
+        }
+
+        p.SetModel(kvp.Value);
+    }
+
+    _wolfParticles.Clear();
+
+    Chat.PrintToChatAll("🐺 狼人派对结束，已恢复原模型和武器。");
+});
+
+
+
+else if (effect.Id == "pianodrop")
+{
+    EffectList.SendDrawNotification(controller, effect);
+
+    var hud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🎹 钢琴大礼包",
+        DescriptionLocstring = "敌方所有人即将被钢琴砸中 3 次！"
+    };
+    NetMessages.Send(hud, RecipientFilter.All);
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+    int casterTeam = pawn.TeamNum;
+
+    // 重复 3 次，每次间隔 1 秒
+    for (int i = 0; i < 3; i++)
+    {
+        int round = i; // 捕获循环变量
+        timer.Once((i * 1.0f).Seconds(), () =>
+        {
+            // 每次砸之前都重新获取一遍当前敌方玩家
+            var enemies = Players.GetAll()
+                .Where(c => c != null && c.IsValid)
+                .Select(c => c.GetHeroPawn())
+                .Where(p => p != null && p.IsValid
+                            && p.TeamNum != casterTeam
+                            && p.LifeState == LifeState.Alive)
+                .ToList();
+
+            if (enemies.Count == 0) return;
+
+            foreach (var enemy in enemies)
+            {
+                // 每次都用敌人的当前位置
+                var pos = enemy.Position + Vector3.UnitZ * 100;
+
+                enemy.EmitSound("Mystical.Piano.AOE.Warning");
+
+                var particle = CParticleSystem.Create("particles/upgrades/mystical_piano_hit.vpcf")
+                    .AtPosition(pos)
+                    .StartActive(true)
+                    .Spawn();
+
+                enemy.EmitSound("Mystical.Piano.AOE.Explode");
+
+                using var kv = new KeyValues3();
+                kv.SetFloat("duration", 3.0f);
+                enemy.AddModifier("modifier_citadel_knockdown", kv);
+
+                if (particle != null)
+                {
+                    Timer.Once(5.Seconds(), () => particle.Destroy());
+                }
+            }
+
+            Console.WriteLine($"[PianoDrop] 第 {round + 1} 轮，砸中 {enemies.Count} 名敌人。");
+        });
+    }
 }
-
-
-
-
 
 
 
