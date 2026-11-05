@@ -859,7 +859,7 @@ else if (effect.Id == "pianodrop")
 
                     using var kv = new KeyValues3();
                     kv.SetFloat("duration", 0.5f);
-                    enemy.AddModifier("modifier_citadel_modifier_knockdown", kv);
+                    enemy.AddModifier("modifier_citadel_knockdown", kv);
 
                     if (particle != null)
                     {
