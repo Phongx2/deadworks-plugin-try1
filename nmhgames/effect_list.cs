@@ -64,7 +64,7 @@ public static class EffectList
         new EffectInfo("unstop", "霸体", 30.0f, 1), // 你可以自己调整时长和等级
         new EffectInfo("undie", "幸免遇难", 30.0f, 1), // 🌟 新加的 undie
         new EffectInfo("pianodrop", "钢琴快递", 1.0f, 4),
-       
+        new EffectInfo("deadnote", "死亡笔记", 1.0f, 4),
 
         
 
