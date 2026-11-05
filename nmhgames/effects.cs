@@ -900,6 +900,23 @@ else if (effect.Id == "deadnote")
     // 记录触发者，等待他的下一条聊天
     DeadNoteCasterSlot = controller.Slot;
     Chat.PrintToChat(controller, "📓 死亡笔记已激活，请输入目标玩家名字。");
+
+    // 在控制台列出所有可选目标
+    controller.PrintToConsole("========== 死亡笔记·可选目标 ==========");
+    int index = 1;
+    foreach (var c in Players.GetAll())
+    {
+        if (c == null || !c.IsValid) continue;
+        if (c.Slot == controller.Slot) continue; // 不列自己
+
+        var pawn = c.GetHeroPawn();
+        if (pawn == null || !pawn.IsValid) continue;
+        if (pawn.LifeState != LifeState.Alive) continue; // 只列活着的
+
+        controller.PrintToConsole($"[{index}] {c.PlayerName}");
+        index++;
+    }
+    controller.PrintToConsole("========================================");
 }
 
 
