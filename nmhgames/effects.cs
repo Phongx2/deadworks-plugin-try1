@@ -88,20 +88,21 @@ public override HookResult OnChatMessage(ChatMessage message)
     string input = message.ChatText.Trim();
     if (string.IsNullOrWhiteSpace(input)) return HookResult.Continue;
 
-    // 先解除监听，保证这次处理完无论成败都不再拦后续聊天
-    Effects.DeadNoteCasterSlot = -1;
-
     var targetController = Players.GetAll()
         .FirstOrDefault(c => c != null && c.IsValid
             && c.Slot != message.Controller.Slot
             && c.PlayerName != null
             && c.PlayerName.Contains(input, StringComparison.OrdinalIgnoreCase));
 
+    // 匹配失败：提示，但不解除监听，允许重新输入
     if (targetController == null)
     {
-        Chat.PrintToChat(message.Controller, $"📓 找不到名为「{input}」的玩家，死亡笔记已取消。");
+        Chat.PrintToChat(message.Controller, $"📓 找不到名为「{input}」的玩家，请重新输入。");
         return HookResult.Stop;
     }
+
+    // 匹配成功：解除监听，再击杀
+    Effects.DeadNoteCasterSlot = -1;
 
     var targetPawn = targetController.GetHeroPawn();
     var attackerPawn = message.Controller.GetHeroPawn();
@@ -112,8 +113,8 @@ public override HookResult OnChatMessage(ChatMessage message)
         targetPawn.TakeDamage(info);
     }
 
-    Chat.PrintToChat(message.Controller, $"📓 死亡笔记生效，{targetController.PlayerName} 已死亡。");
-    Chat.PrintToChatAll($"📓 {message.Controller.PlayerName} 使用了死亡笔记，{targetController.PlayerName} 被写入了死亡名单。");
+   // Chat.PrintToChat(message.Controller, $"📓 死亡笔记生效，{targetController.PlayerName} 已死亡。");
+   // Chat.PrintToChatAll($"📓 {message.Controller.PlayerName} 使用了死亡笔记，{targetController.PlayerName} 被写入了死亡名单。");
 
     return HookResult.Stop;
 }
