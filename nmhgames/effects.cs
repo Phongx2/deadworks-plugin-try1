@@ -890,7 +890,7 @@ else if (effect.Id == "deadnote")
     Chat.PrintToChat(controller, "📓 死亡笔记已激活，请输入目标玩家名字。");
 
     // 在控制台列出所有可选目标
-    controller.PrintToConsole("========== 死亡笔记·可选目标 ==========");
+  /*  controller.PrintToConsole("========== 死亡笔记·可选目标 ==========");
     int index = 1;
     foreach (var c in Players.GetAll())
 {
@@ -904,7 +904,7 @@ else if (effect.Id == "deadnote")
     controller.PrintToConsole($"[{index}] {c.PlayerName}");
     index++;
 }
-    controller.PrintToConsole("========================================");
+    controller.PrintToConsole("========================================");*/
 }
 
 
