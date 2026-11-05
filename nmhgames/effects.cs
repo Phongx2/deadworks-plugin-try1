@@ -83,6 +83,8 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 public override HookResult OnChatMessage(ChatMessage message)
 {
+    Console.WriteLine($"[DeadNote] OnChatMessage 触发: Slot={message.Controller?.Slot}, Text={message.ChatText}");
+
     // 没有激活的死亡笔记，或者不是触发者在说话，不处理
     if (Effects.DeadNoteCasterSlot < 0) return HookResult.Continue;
     if (message.Controller == null) return HookResult.Continue;
@@ -90,6 +92,8 @@ public override HookResult OnChatMessage(ChatMessage message)
 
     string input = message.ChatText.Trim();
     if (string.IsNullOrWhiteSpace(input)) return HookResult.Continue;
+
+    Console.WriteLine($"[DeadNote] 触发者输入目标: 「{input}」");
 
     // 按名字找目标（片段匹配，不区分大小写）
     var targetController = Players.GetAll()
@@ -100,23 +104,46 @@ public override HookResult OnChatMessage(ChatMessage message)
 
     if (targetController == null)
     {
+        // 顺便把所有玩家的名字打出来，方便对比输入是否匹配
+        var allNames = string.Join(", ", Players.GetAll()
+            .Where(c => c != null && c.IsValid)
+            .Select(c => c.PlayerName));
+        Console.WriteLine($"[DeadNote] 找不到目标。当前玩家: {allNames}");
+
         Chat.PrintToChat(message.Controller, $"📓 找不到名为「{input}」的玩家，请重新输入。");
-        return HookResult.Stop; // 吞掉这条消息，不广播
+        return HookResult.Stop;
     }
+
+    Console.WriteLine($"[DeadNote] 匹配到目标: {targetController.PlayerName}, Slot={targetController.Slot}, IsBot={targetController.IsBot}");
 
     // 立刻击杀目标，击杀者记为触发者
     var targetPawn = targetController.GetHeroPawn();
+    var attackerPawn = message.Controller.GetHeroPawn();
+
+    Console.WriteLine($"[DeadNote] targetPawn={(targetPawn == null ? "null" : "非null")}, " +
+                      $"IsValid={(targetPawn?.IsValid.ToString() ?? "n/a")}, " +
+                      $"LifeState={(targetPawn?.LifeState.ToString() ?? "n/a")}, " +
+                      $"Health={(targetPawn?.Health.ToString() ?? "n/a")}, " +
+                      $"attackerPawn={(attackerPawn == null ? "null" : "非null")}");
+
     if (targetPawn != null && targetPawn.IsValid)
     {
         using var info = new CTakeDamageInfo(
             damage: 99999f,
-            attacker: message.Controller.GetHeroPawn(),
+            attacker: attackerPawn,
             inflictor: null,
             ability: null,
             damageType: 0);
 
         info.DamageFlags = TakeDamageFlags.ForceDeath | TakeDamageFlags.AllowSuicide;
         targetPawn.TakeDamage(info);
+
+        Console.WriteLine($"[DeadNote] TakeDamage 调用后: " +
+                          $"LifeState={targetPawn.LifeState}, Health={targetPawn.Health}");
+    }
+    else
+    {
+        Console.WriteLine($"[DeadNote] targetPawn 无效，跳过击杀");
     }
 
     Chat.PrintToChat(message.Controller, $"📓 死亡笔记生效，{targetController.PlayerName} 已死亡。");
@@ -125,9 +152,8 @@ public override HookResult OnChatMessage(ChatMessage message)
     // 结束监听
     Effects.DeadNoteCasterSlot = -1;
 
-    return HookResult.Stop; // 吞掉这条消息，不让它广播出去
+    return HookResult.Stop;
 }
-
 
 
 
