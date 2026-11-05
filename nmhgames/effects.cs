@@ -79,6 +79,19 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 }
 
 
+[NetMessageHandler]
+public HookResult OnChatMsgIncoming(IncomingMessageContext<CCitadelUserMsg_ChatMsg> ctx)
+{
+    Console.WriteLine($"[ChatHook] 入站聊天: SenderSlot={ctx.SenderSlot}, Text={ctx.Message.Text}");
+    return HookResult.Continue;
+}
+
+[NetMessageHandler]
+public HookResult OnChatMsgOutgoing(OutgoingMessageContext<CCitadelUserMsg_ChatMsg> ctx)
+{
+    Console.WriteLine($"[ChatHook] 出站聊天: Text={ctx.Message.Text}, AllChat={ctx.Message.AllChat}");
+    return HookResult.Continue;
+}
 
 
 public override HookResult OnChatMessage(ChatMessage message)
