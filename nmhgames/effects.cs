@@ -905,17 +905,17 @@ else if (effect.Id == "deadnote")
     controller.PrintToConsole("========== 死亡笔记·可选目标 ==========");
     int index = 1;
     foreach (var c in Players.GetAll())
-    {
-        if (c == null || !c.IsValid) continue;
-        if (c.Slot == controller.Slot) continue; // 不列自己
+{
+    if (c == null || !c.IsValid) continue;
+    if (c.Slot == controller.Slot) continue;
 
-        var pawn = c.GetHeroPawn();
-        if (pawn == null || !pawn.IsValid) continue;
-        if (pawn.LifeState != LifeState.Alive) continue; // 只列活着的
+    var targetPawn = c.GetHeroPawn();   // ← 改名
+    if (targetPawn == null || !targetPawn.IsValid) continue;
+    if (targetPawn.LifeState != LifeState.Alive) continue;
 
-        controller.PrintToConsole($"[{index}] {c.PlayerName}");
-        index++;
-    }
+    controller.PrintToConsole($"[{index}] {c.PlayerName}");
+    index++;
+}
     controller.PrintToConsole("========================================");
 }
 
