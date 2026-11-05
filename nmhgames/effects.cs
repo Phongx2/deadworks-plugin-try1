@@ -64,7 +64,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 	    // ===== 1v1 区域与流血 =====
    
-    
 
 // ===== 预加载列表 =====
 	public override void OnPrecacheResources()
@@ -78,6 +77,68 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 	
 }
+
+
+
+
+public override HookResult OnChatMessage(ChatMessage message)
+{
+    // 没有激活的死亡笔记，或者不是触发者在说话，不处理
+    if (Effects.DeadNoteCasterSlot < 0) return HookResult.Continue;
+    if (message.Controller == null) return HookResult.Continue;
+    if (message.Controller.Slot != Effects.DeadNoteCasterSlot) return HookResult.Continue;
+
+    string input = message.ChatText.Trim();
+    if (string.IsNullOrWhiteSpace(input)) return HookResult.Continue;
+
+    // 按名字找目标（片段匹配，不区分大小写）
+    var targetController = Players.GetAll()
+        .FirstOrDefault(c => c != null && c.IsValid
+            && c.Slot != message.Controller.Slot
+            && c.PlayerName != null
+            && c.PlayerName.Contains(input, StringComparison.OrdinalIgnoreCase));
+
+    if (targetController == null)
+    {
+        Chat.PrintToChat(message.Controller, $"📓 找不到名为「{input}」的玩家，请重新输入。");
+        return HookResult.Stop; // 吞掉这条消息，不广播
+    }
+
+    // 立刻击杀目标，击杀者记为触发者
+    var targetPawn = targetController.GetHeroPawn();
+    if (targetPawn != null && targetPawn.IsValid)
+    {
+        using var info = new CTakeDamageInfo(
+            damage: 99999f,
+            attacker: message.Controller.GetHeroPawn(),
+            inflictor: null,
+            ability: null,
+            damageType: 0);
+
+        info.DamageFlags = TakeDamageFlags.ForceDeath | TakeDamageFlags.AllowSuicide;
+        targetPawn.TakeDamage(info);
+    }
+
+    Chat.PrintToChat(message.Controller, $"📓 死亡笔记生效，{targetController.PlayerName} 已死亡。");
+    Chat.PrintToChatAll($"📓 {message.Controller.PlayerName} 使用了死亡笔记，{targetController.PlayerName} 被写入了死亡名单。");
+
+    // 结束监听
+    Effects.DeadNoteCasterSlot = -1;
+
+    return HookResult.Stop; // 吞掉这条消息，不让它广播出去
+}
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
@@ -308,6 +369,8 @@ public static class Effects
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedWeapons = new();
     private static bool _wolfdanceSaved = false;
 	private static readonly Dictionary<CCitadelPlayerPawn, CParticleSystem?> _wolfParticles = new();
+	// deadnote 状态：记录哪个玩家正在等待输入 ID
+public static int DeadNoteCasterSlot = -1;
 
     // 换图/重载时清空缓存，让下一次 wolfdance 重新采集
     public static void ResetWolfdanceCache()
@@ -823,6 +886,37 @@ else if (effect.Id == "pianodrop")
 }
 
 
+else if (effect.Id == "deadnote")
+{
+    EffectList.SendDrawNotification(controller, effect);
+
+    // 给抽到的人发 HUD
+    var hud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "📓 死亡笔记",
+        DescriptionLocstring = "在聊天框输入一个玩家名字，他将立刻死亡。"
+    };
+    NetMessages.Send(hud, RecipientFilter.Single(controller.Slot));
+
+    // 记录触发者，等待他的下一条聊天
+    _deadNoteCasterSlot = controller.Slot;
+    Chat.PrintToChat(controller, "📓 死亡笔记已激活，请输入目标玩家名字。");
+}
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+		
 
 
 		
