@@ -890,7 +890,6 @@ else if (effect.Id == "deadnote")
 {
     EffectList.SendDrawNotification(controller, effect);
 
-    // 给抽到的人发 HUD
     var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "📓 死亡笔记",
@@ -899,7 +898,7 @@ else if (effect.Id == "deadnote")
     NetMessages.Send(hud, RecipientFilter.Single(controller.Slot));
 
     // 记录触发者，等待他的下一条聊天
-    _deadNoteCasterSlot = controller.Slot;
+    DeadNoteCasterSlot = controller.Slot;
     Chat.PrintToChat(controller, "📓 死亡笔记已激活，请输入目标玩家名字。");
 }
 
