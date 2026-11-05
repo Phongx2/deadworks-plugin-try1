@@ -1,4 +1,4 @@
- using DeadworksManaged.Api;
+using DeadworksManaged.Api;
 using DeadworksManaged.Api.Sounds;
 using System;
 using System.Collections.Generic;
@@ -76,96 +76,6 @@ public class EffectRuntimePlugin : DeadworksPluginBase
 
 
 	
-}
-
-
-[NetMessageHandler]
-public HookResult OnChatMsgIncoming(IncomingMessageContext<CCitadelUserMsg_ChatMsg> ctx)
-{
-    Console.WriteLine($"[ChatHook] 入站聊天: SenderSlot={ctx.SenderSlot}, Text={ctx.Message.Text}");
-    return HookResult.Continue;
-}
-
-[NetMessageHandler]
-public HookResult OnChatMsgOutgoing(OutgoingMessageContext<CCitadelUserMsg_ChatMsg> ctx)
-{
-    Console.WriteLine($"[ChatHook] 出站聊天: Text={ctx.Message.Text}, AllChat={ctx.Message.AllChat}");
-    return HookResult.Continue;
-}
-
-
-public override HookResult OnChatMessage(ChatMessage message)
-{
-    Console.WriteLine($"[DeadNote] OnChatMessage 触发: Slot={message.Controller?.Slot}, Text={message.ChatText}");
-
-    // 没有激活的死亡笔记，或者不是触发者在说话，不处理
-    if (Effects.DeadNoteCasterSlot < 0) return HookResult.Continue;
-    if (message.Controller == null) return HookResult.Continue;
-    if (message.Controller.Slot != Effects.DeadNoteCasterSlot) return HookResult.Continue;
-
-    string input = message.ChatText.Trim();
-    if (string.IsNullOrWhiteSpace(input)) return HookResult.Continue;
-
-    Console.WriteLine($"[DeadNote] 触发者输入目标: 「{input}」");
-
-    // 按名字找目标（片段匹配，不区分大小写）
-    var targetController = Players.GetAll()
-        .FirstOrDefault(c => c != null && c.IsValid
-            && c.Slot != message.Controller.Slot
-            && c.PlayerName != null
-            && c.PlayerName.Contains(input, StringComparison.OrdinalIgnoreCase));
-
-    if (targetController == null)
-    {
-        // 顺便把所有玩家的名字打出来，方便对比输入是否匹配
-        var allNames = string.Join(", ", Players.GetAll()
-            .Where(c => c != null && c.IsValid)
-            .Select(c => c.PlayerName));
-        Console.WriteLine($"[DeadNote] 找不到目标。当前玩家: {allNames}");
-
-        Chat.PrintToChat(message.Controller, $"📓 找不到名为「{input}」的玩家，请重新输入。");
-        return HookResult.Stop;
-    }
-
-    Console.WriteLine($"[DeadNote] 匹配到目标: {targetController.PlayerName}, Slot={targetController.Slot}, IsBot={targetController.IsBot}");
-
-    // 立刻击杀目标，击杀者记为触发者
-    var targetPawn = targetController.GetHeroPawn();
-    var attackerPawn = message.Controller.GetHeroPawn();
-
-    Console.WriteLine($"[DeadNote] targetPawn={(targetPawn == null ? "null" : "非null")}, " +
-                      $"IsValid={(targetPawn?.IsValid.ToString() ?? "n/a")}, " +
-                      $"LifeState={(targetPawn?.LifeState.ToString() ?? "n/a")}, " +
-                      $"Health={(targetPawn?.Health.ToString() ?? "n/a")}, " +
-                      $"attackerPawn={(attackerPawn == null ? "null" : "非null")}");
-
-    if (targetPawn != null && targetPawn.IsValid)
-    {
-        using var info = new CTakeDamageInfo(
-            damage: 99999f,
-            attacker: attackerPawn,
-            inflictor: null,
-            ability: null,
-            damageType: 0);
-
-        info.DamageFlags = TakeDamageFlags.ForceDeath | TakeDamageFlags.AllowSuicide;
-        targetPawn.TakeDamage(info);
-
-        Console.WriteLine($"[DeadNote] TakeDamage 调用后: " +
-                          $"LifeState={targetPawn.LifeState}, Health={targetPawn.Health}");
-    }
-    else
-    {
-        Console.WriteLine($"[DeadNote] targetPawn 无效，跳过击杀");
-    }
-
-    Chat.PrintToChat(message.Controller, $"📓 死亡笔记生效，{targetController.PlayerName} 已死亡。");
-    Chat.PrintToChatAll($"📓 {message.Controller.PlayerName} 使用了死亡笔记，{targetController.PlayerName} 被写入了死亡名单。");
-
-    // 结束监听
-    Effects.DeadNoteCasterSlot = -1;
-
-    return HookResult.Stop;
 }
 
 
@@ -408,8 +318,6 @@ public static class Effects
     private static readonly Dictionary<CCitadelPlayerPawn, string> _savedWeapons = new();
     private static bool _wolfdanceSaved = false;
 	private static readonly Dictionary<CCitadelPlayerPawn, CParticleSystem?> _wolfParticles = new();
-	// deadnote 状态：记录哪个玩家正在等待输入 ID
-public static int DeadNoteCasterSlot = -1;
 
     // 换图/重载时清空缓存，让下一次 wolfdance 重新采集
     public static void ResetWolfdanceCache()
@@ -909,7 +817,7 @@ else if (effect.Id == "pianodrop")
 
                     using var kv = new KeyValues3();
                     kv.SetFloat("duration", 0.5f);
-                    enemy.AddModifier("modifier_citadel_knockdown", kv);
+                    enemy.AddModifier("modifier_citadel_modifier_knockdown", kv);
 
                     if (particle != null)
                     {
@@ -922,40 +830,6 @@ else if (effect.Id == "pianodrop")
         });
     }
 
-}
-
-
-else if (effect.Id == "deadnote")
-{
-    EffectList.SendDrawNotification(controller, effect);
-
-    var hud = new CCitadelUserMsg_HudGameAnnouncement
-    {
-        TitleLocstring = "📓 死亡笔记",
-        DescriptionLocstring = "在聊天框输入一个玩家名字，他将立刻死亡。"
-    };
-    NetMessages.Send(hud, RecipientFilter.Single(controller.Slot));
-
-    // 记录触发者，等待他的下一条聊天
-    DeadNoteCasterSlot = controller.Slot;
-    Chat.PrintToChat(controller, "📓 死亡笔记已激活，请输入目标玩家名字。");
-
-    // 在控制台列出所有可选目标
-    controller.PrintToConsole("========== 死亡笔记·可选目标 ==========");
-    int index = 1;
-    foreach (var c in Players.GetAll())
-{
-    if (c == null || !c.IsValid) continue;
-    if (c.Slot == controller.Slot) continue;
-
-    var targetPawn = c.GetHeroPawn();   // ← 改名
-    if (targetPawn == null || !targetPawn.IsValid) continue;
-    if (targetPawn.LifeState != LifeState.Alive) continue;
-
-    controller.PrintToConsole($"[{index}] {c.PlayerName}");
-    index++;
-}
-    controller.PrintToConsole("========================================");
 }
 
 
