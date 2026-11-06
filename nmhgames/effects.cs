@@ -911,7 +911,39 @@ else if (effect.Id == "deadnote")
 
 
 
+else if (effect.Id == "gurden")
+{
+    EffectList.SendDrawNotification(controller, effect);
 
+    var hud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🏰 移动堡垒",
+        DescriptionLocstring = $"召唤一个跟随你的 1 塔守卫，持续 {effect.Duration} 秒！"
+    };
+    NetMessages.Send(hud, RecipientFilter.All);
+
+    // 生成 1 塔守卫，队伍设为触发者的队伍
+    var guard = CAI_BaseNPC.Create("npc_boss_tier1", pawn.Position + Vector3.UnitZ * 100, pawn.TeamNum);
+    if (guard == null)
+    {
+        Chat.PrintToChat(controller, "❌ 无法生成守卫。");
+        return;
+    }
+
+    // 附着到玩家身上
+    guard.SetParent(pawn);
+
+    Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 1 塔守卫，附着 {effect.Duration} 秒。");
+
+    // 持续 effect.Duration 秒后移除
+    timer.Once(((double)effect.Duration).Seconds(), () =>
+    {
+        if (guard != null && guard.IsValid)
+        {
+            guard.Remove();
+        }
+    });
+}
 
 
 
