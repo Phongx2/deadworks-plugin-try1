@@ -65,7 +65,7 @@ public static class EffectList
         new EffectInfo("undie", "幸免遇难", 30.0f, 1), // 🌟 新加的 undie
         new EffectInfo("pianodrop", "钢琴快递", 1.0f, 4),
         new EffectInfo("deadnote", "死亡笔记", 1.0f, 4),
-
+        new EffectInfo("gurden", "移动堡垒", 30.0f, 4),
         
 
 
