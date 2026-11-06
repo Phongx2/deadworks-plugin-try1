@@ -910,7 +910,7 @@ else if (effect.Id == "deadnote")
 
 
 
-
+/*
 else if (effect.Id == "gurden")
 {
     EffectList.SendDrawNotification(controller, effect);
@@ -943,7 +943,7 @@ else if (effect.Id == "gurden")
             guard.Remove();
         }
     });
-}
+}*/
 
 
 
