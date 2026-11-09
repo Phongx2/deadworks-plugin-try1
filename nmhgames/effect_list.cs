@@ -23,7 +23,7 @@ public struct EffectInfo
 
 public static class EffectList
 {
-    public static bool IsRandomMode = false;
+    public static bool IsRandomMode = true;   // 🌟 默认纯随机模式（等同 /rand 1）
 
     public static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
@@ -163,8 +163,7 @@ public static class EffectList
         else level = 4;
 
         Console.WriteLine($"[抽卡测试] 随机数 Roll: {roll}, 判定等级: {level}");
- return 1;
-       // return level;
+        return level;   // 🌟 恢复为正常概率返回（原来临时改的 return 1 已移除）
     }
 
     // 打印列表
@@ -298,11 +297,14 @@ public class EffectCommandPlugin : DeadworksPluginBase
         if (mode == 1)
         {
             EffectList.IsRandomMode = true;
+            // 🌟 给所有在线玩家发提示（买蛋后会用这个模式的文字）
+            Chat.PrintToAll("🥚 随机孵蛋模式已开启：买蛋后需要孵 1 分钟才可使用，效果为纯随机！");
             caller.Reply("✅ 已切换为：纯随机抽卡模式 (先随机等级，再在该等级里抽)。");
         }
         else if (mode == 0)
         {
             EffectList.IsRandomMode = false;
+            Chat.PrintToAll("🥚 已恢复普通模式：买蛋后拿着别用，孵化 1-4 分钟对应 1-4 级。");
             caller.Reply("✅ 已切换为：按蛋孵化的时间等级抽卡。");
         }
         else
@@ -310,28 +312,4 @@ public class EffectCommandPlugin : DeadworksPluginBase
             caller.Reply("❌ 参数错误，请使用 /rand 1 或 /rand 0");
         }
     }
-
-
-    
-
-
-
-
-
-
-
-
-    
 }
-
-
-
-
-
-
-
-
-
-
-
-
