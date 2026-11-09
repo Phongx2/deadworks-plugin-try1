@@ -570,31 +570,37 @@ public static int DeadNoteCasterSlot = -1;
     EffectList.SendDrawNotification(controller, effect);
 
     int casterTeam = pawn.TeamNum;
+
+    // 收集敌方 pawn（排除自己、无效、同队）
     var enemies = Players.GetAll()
         .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
         .Select(c => c.GetHeroPawn())
         .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
         .ToList();
 
-    // 给所有敌方发 HUD
-    var enemyFilter = new RecipientFilter();
+    if (enemies.Count == 0)
+        return; // 没有敌人，直接结束
+
+    // ---------- 给所有敌方发 HUD（逐个发送，避免 RecipientFilter.Add 失效） ----------
+    var enemyHud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        // 注意：Locstring 字段需要游戏内置的本地化键，直接写中文句子可能不显示。
+        // 先确认游戏里有对应键再替换；下面用官方示例中可用的键做占位。
+        TitleLocstring = "ROUND 2",
+        DescriptionLocstring = "Fight!"
+    };
     foreach (var enemy in enemies)
     {
-        if (enemy.Controller != null)
-            enemyFilter.Add(enemy.Controller.Slot);
-    }
-    if (enemyFilter.Mask != 0)
-    {
-        var enemyHud = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "⚠️ 敌方无人侦察机升空",
-            DescriptionLocstring = "你的位置被暴露在雷达上"
-        };
-        NetMessages.Send(enemyHud, enemyFilter);
+        if (enemy.Controller == null) continue;
+        NetMessages.Send(enemyHud, RecipientFilter.Single(enemy.Controller.Slot));
     }
 
-    // 给所有友方发 HUD
-    var allyFilter = new RecipientFilter();
+    // ---------- 给所有友方发 HUD ----------
+    var allyHud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "ROUND 2",
+        DescriptionLocstring = "Fight!"
+    };
     foreach (var c in Players.GetAll())
     {
         if (c == null || !c.IsValid) continue;
@@ -602,22 +608,15 @@ public static int DeadNoteCasterSlot = -1;
         var p = c.GetHeroPawn();
         if (p == null || !p.IsValid) continue;
         if (p.TeamNum != casterTeam) continue;
-        allyFilter.Add(c.Slot);
-    }
-    if (allyFilter.Mask != 0)
-    {
-        var allyHud = new CCitadelUserMsg_HudGameAnnouncement
-        {
-            TitleLocstring = "✅ 我方无人侦察机升空",
-            DescriptionLocstring = "在雷达上找到敌人的位置"
-        };
-        NetMessages.Send(allyHud, allyFilter);
+
+        NetMessages.Send(allyHud, RecipientFilter.Single(c.Slot));
     }
 
+    // ---------- 施加 VisibleToEnemy 状态 ----------
     foreach (var enemy in enemies)
         enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
 
-    // 🌟 把 30.Seconds() 改成读取 effect.Duration
+    // 30 秒后解除（改成读取 effect.Duration）
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
         foreach (var enemy in enemies)
@@ -949,11 +948,12 @@ else if (effect.Id == "gurden")
     var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "🏰 移动堡垒",
-        DescriptionLocstring = $"召唤一个跟随你的 1 塔守卫，持续 {effect.Duration} 秒！"
+        DescriptionLocstring = $"召唤一个跟随你的 2 塔守卫，持续 {effect.Duration} 秒！"
     };
     NetMessages.Send(hud, RecipientFilter.All);
 
-    var guard = CAI_BaseNPC.Create("npc_boss_tier1", pawn.Position, pawn.TeamNum);
+    // 改为生成 2 塔（npc_boss_tier2）
+    var guard = CAI_BaseNPC.Create("npc_boss_tier2", pawn.Position, pawn.TeamNum);
     if (guard == null)
     {
         Chat.PrintToChat(controller, "❌ 无法生成守卫。");
@@ -963,33 +963,33 @@ else if (effect.Id == "gurden")
     guard.SetScale(0.5f);
     // 不再 SetMoveType(MoveType.None)，让 AI 能转身和攻击
 
-    Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 1 塔守卫，跟随 {effect.Duration} 秒。");
+    Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 2 塔守卫，跟随 {effect.Duration} 秒。");
 
     var followTimer = timer.Every(1.Ticks(), () =>
-{
-    if (pawn == null || !pawn.IsValid) return;
-    if (guard == null || !guard.IsValid) return;
-
-    // 位置逻辑不变
-    float yaw = pawn.CameraAngles.Y * MathF.PI / 180f;
-    float offsetYaw = yaw + MathF.PI / 4f;
-    var offsetDir = new Vector3(MathF.Cos(offsetYaw), MathF.Sin(offsetYaw), 0f);
-    var pos = pawn.Position + offsetDir * 100f;
-    guard.Teleport(position: pos, angles: null, velocity: null);
-
-    // 让塔锁定最近的敌人
-    var nearestEnemy = Players.GetAll()
-        .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
-        .Select(c => c.GetHeroPawn())
-        .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum && p.LifeState == LifeState.Alive)
-        .OrderBy(p => Vector3.Distance(p.Position, guard.Position))
-        .FirstOrDefault();
-
-    if (nearestEnemy != null)
     {
-        guard.SetEnemy(nearestEnemy);
-    }
-});
+        if (pawn == null || !pawn.IsValid) return;
+        if (guard == null || !guard.IsValid) return;
+
+        // 位置逻辑不变
+        float yaw = pawn.CameraAngles.Y * MathF.PI / 180f;
+        float offsetYaw = yaw + MathF.PI / 4f;
+        var offsetDir = new Vector3(MathF.Cos(offsetYaw), MathF.Sin(offsetYaw), 0f);
+        var pos = pawn.Position + offsetDir * 100f;
+        guard.Teleport(position: pos, angles: null, velocity: null);
+
+        // 让塔锁定最近的敌人
+        var nearestEnemy = Players.GetAll()
+            .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+            .Select(c => c.GetHeroPawn())
+            .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum && p.LifeState == LifeState.Alive)
+            .OrderBy(p => Vector3.Distance(p.Position, guard.Position))
+            .FirstOrDefault();
+
+        if (nearestEnemy != null)
+        {
+            guard.SetEnemy(nearestEnemy);
+        }
+    });
 
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
