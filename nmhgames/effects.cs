@@ -571,6 +571,7 @@ public static int DeadNoteCasterSlot = -1;
 			
 		else if (effect.Id == "UAV")
 {
+    // 变量名 UAV：抽到的人对敌方所有人施加 30s VisibleToEnemy
     EffectList.SendDrawNotification(controller, effect);
 
     int casterTeam = pawn.TeamNum;
@@ -579,8 +580,8 @@ public static int DeadNoteCasterSlot = -1;
         .Select(c => c.GetHeroPawn())
         .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
         .ToList();
-
-    // 给所有敌方发 HUD —— 按官方示例：new + Add，直接 Send，不判断 Mask
+ Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+    // ---------- 给所有敌方发 HUD（不含自己） ----------
     var enemyFilter = new RecipientFilter();
     foreach (var enemy in enemies)
     {
@@ -594,12 +595,12 @@ public static int DeadNoteCasterSlot = -1;
     };
     NetMessages.Send(enemyHud, enemyFilter);
 
-    // 给所有友方发 HUD —— 同样直接 Send
+    // ---------- 给所有友方发 HUD（包含自己） ----------
     var allyFilter = new RecipientFilter();
     foreach (var c in Players.GetAll())
     {
         if (c == null || !c.IsValid) continue;
-        if (c.Slot == controller.Slot) continue;
+        // 删掉了 if (c.Slot == controller.Slot) continue; —— 自己也能收到
         var p = c.GetHeroPawn();
         if (p == null || !p.IsValid) continue;
         if (p.TeamNum != casterTeam) continue;
@@ -612,7 +613,7 @@ public static int DeadNoteCasterSlot = -1;
     };
     NetMessages.Send(allyHud, allyFilter);
 
-    // 施加状态
+    // ---------- 施加 VisibleToEnemy 状态 ----------
     foreach (var enemy in enemies)
         enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
 
