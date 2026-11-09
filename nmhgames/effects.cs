@@ -563,44 +563,39 @@ public static int DeadNoteCasterSlot = -1;
             EffectList.SendDrawNotification(controller, effect);
         }
 
+
+
+
+		
+
 			
 		else if (effect.Id == "UAV")
 {
-    // 变量名 UAV：抽到的人对敌方所有人施加 30s VisibleToEnemy
     EffectList.SendDrawNotification(controller, effect);
 
     int casterTeam = pawn.TeamNum;
-
-    // 收集敌方 pawn（排除自己、无效、同队）
     var enemies = Players.GetAll()
         .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
         .Select(c => c.GetHeroPawn())
         .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
         .ToList();
 
-    if (enemies.Count == 0)
-        return; // 没有敌人，直接结束
-
-    // ---------- 给所有敌方发 HUD（逐个发送，避免 RecipientFilter.Add 失效） ----------
-    var enemyHud = new CCitadelUserMsg_HudGameAnnouncement
-    {
-        // 注意：Locstring 字段需要游戏内置的本地化键，直接写中文句子可能不显示。
-        // 先确认游戏里有对应键再替换；下面用官方示例中可用的键做占位。
-        TitleLocstring = "ROUND 2",
-        DescriptionLocstring = "Fight!"
-    };
+    // 给所有敌方发 HUD —— 按官方示例：new + Add，直接 Send，不判断 Mask
+    var enemyFilter = new RecipientFilter();
     foreach (var enemy in enemies)
     {
-        if (enemy.Controller == null) continue;
-        NetMessages.Send(enemyHud, RecipientFilter.Single(enemy.Controller.Slot));
+        if (enemy.Controller != null)
+            enemyFilter.Add(enemy.Controller.Slot);
     }
-
-    // ---------- 给所有友方发 HUD ----------
-    var allyHud = new CCitadelUserMsg_HudGameAnnouncement
+    var enemyHud = new CCitadelUserMsg_HudGameAnnouncement
     {
-        TitleLocstring = "ROUND 2",
-        DescriptionLocstring = "Fight!"
+        TitleLocstring = "⚠️ 敌方无人侦察机升空",
+        DescriptionLocstring = "你的位置被暴露在雷达上"
     };
+    NetMessages.Send(enemyHud, enemyFilter);
+
+    // 给所有友方发 HUD —— 同样直接 Send
+    var allyFilter = new RecipientFilter();
     foreach (var c in Players.GetAll())
     {
         if (c == null || !c.IsValid) continue;
@@ -608,15 +603,19 @@ public static int DeadNoteCasterSlot = -1;
         var p = c.GetHeroPawn();
         if (p == null || !p.IsValid) continue;
         if (p.TeamNum != casterTeam) continue;
-
-        NetMessages.Send(allyHud, RecipientFilter.Single(c.Slot));
+        allyFilter.Add(c.Slot);
     }
+    var allyHud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "✅ 我方无人侦察机升空",
+        DescriptionLocstring = "在雷达上找到敌人的位置"
+    };
+    NetMessages.Send(allyHud, allyFilter);
 
-    // ---------- 施加 VisibleToEnemy 状态 ----------
+    // 施加状态
     foreach (var enemy in enemies)
         enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
 
-    // 30 秒后解除（改成读取 effect.Duration）
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
         foreach (var enemy in enemies)
@@ -627,6 +626,9 @@ public static int DeadNoteCasterSlot = -1;
     });
 }
 
+
+
+		
 
 	        // ================= 效果：无限子弹 =================
          else if (effect.Id == "infbullet")
@@ -960,7 +962,7 @@ else if (effect.Id == "gurden")
         return;
     }
 
-    guard.SetScale(0.5f);
+    guard.SetScale(0.2f);
     // 不再 SetMoveType(MoveType.None)，让 AI 能转身和攻击
 
     Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 2 塔守卫，跟随 {effect.Duration} 秒。");
