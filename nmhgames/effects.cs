@@ -951,56 +951,45 @@ else if (effect.Id == "gurden")
     var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "🏰 移动堡垒",
-        DescriptionLocstring = $"召唤一个跟随你的 2 塔守卫，持续 {effect.Duration} 秒！"
+        DescriptionLocstring = $"将一名随机队友移动到身边，持续 {effect.Duration} 秒！"
     };
     NetMessages.Send(hud, RecipientFilter.All);
 
-    // 改为生成 2 塔（npc_boss_tier2）
-    var guard = CAI_BaseNPC.Create("npc_boss_tier2", pawn.Position, pawn.TeamNum);
-    if (guard == null)
+    // 收集所有存活队友（同队、非自己）
+    var allies = Players.GetAll()
+        .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+        .Select(c => c.GetHeroPawn())
+        .Where(p => p != null && p.IsValid && p.TeamNum == pawn.TeamNum && p.LifeState == LifeState.Alive)
+        .ToList();
+
+    if (allies.Count == 0)
     {
-        Chat.PrintToChat(controller, "❌ 无法生成守卫。");
+        Chat.PrintToChat(controller, "❌ 没有可移动的队友。");
         return;
     }
 
-    guard.SetScale(0.2f);
-    // 不再 SetMoveType(MoveType.None)，让 AI 能转身和攻击
+    // 随机抽一名队友
+    var targetAlly = allies[Random.Shared.Next(allies.Count)];
 
-    Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 2 塔守卫，跟随 {effect.Duration} 秒。");
+    Console.WriteLine($"[Gurden] 将随机队友 {targetAlly.Controller?.PlayerName} 移动到 {controller.PlayerName} 身边，持续 {effect.Duration} 秒。");
 
+    // 每 tick 把该队友拉到召唤者身边
     var followTimer = timer.Every(1.Ticks(), () =>
     {
         if (pawn == null || !pawn.IsValid) return;
-        if (guard == null || !guard.IsValid) return;
+        if (targetAlly == null || !targetAlly.IsValid) return;
+        if (targetAlly.LifeState != LifeState.Alive) return;
 
-        // 位置逻辑不变
         float yaw = pawn.CameraAngles.Y * MathF.PI / 180f;
         float offsetYaw = yaw + MathF.PI / 4f;
         var offsetDir = new Vector3(MathF.Cos(offsetYaw), MathF.Sin(offsetYaw), 0f);
         var pos = pawn.Position + offsetDir * 100f;
-        guard.Teleport(position: pos, angles: null, velocity: null);
-
-        // 让塔锁定最近的敌人
-        var nearestEnemy = Players.GetAll()
-            .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
-            .Select(c => c.GetHeroPawn())
-            .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum && p.LifeState == LifeState.Alive)
-            .OrderBy(p => Vector3.Distance(p.Position, guard.Position))
-            .FirstOrDefault();
-
-        if (nearestEnemy != null)
-        {
-            guard.SetEnemy(nearestEnemy);
-        }
+        targetAlly.Teleport(position: pos, angles: null, velocity: null);
     });
 
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
         followTimer.Cancel();
-        if (guard != null && guard.IsValid)
-        {
-            guard.Remove();
-        }
     });
 }
 
