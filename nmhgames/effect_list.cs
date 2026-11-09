@@ -291,20 +291,34 @@ public class EffectCommandPlugin : DeadworksPluginBase
         }
     }
 
-    [Command("rand", Description = "设置抽卡模式：1=纯随机，0=按蛋孵化时间等级")]
+        [Command("rand", Description = "设置抽卡模式：1=纯随机，0=按蛋孵化时间等级")]
     public void CmdRandMode(Caller caller, int mode)
     {
         if (mode == 1)
         {
             EffectList.IsRandomMode = true;
-            // 🌟 给所有在线玩家发提示（买蛋后会用这个模式的文字）
-            Chat.PrintToAll("🥚 随机孵蛋模式已开启：买蛋后需要孵 1 分钟才可使用，效果为纯随机！");
+
+            // 🌟 广播给所有玩家（用 NetMessages.Send，代替不存在的 Chat.PrintToAll）
+            NetMessages.Send(new CCitadelUserMsg_ChatMsg
+            {
+                PlayerSlot = 0, // 0 = 服务器/系统消息，不归属某个玩家
+                Text = "🥚 随机孵蛋模式已开启：买蛋后需要孵 1 分钟才可使用，效果为纯随机！",
+                AllChat = false
+            }, RecipientFilter.All);
+
             caller.Reply("✅ 已切换为：纯随机抽卡模式 (先随机等级，再在该等级里抽)。");
         }
         else if (mode == 0)
         {
             EffectList.IsRandomMode = false;
-            Chat.PrintToAll("🥚 已恢复普通模式：买蛋后拿着别用，孵化 1-4 分钟对应 1-4 级。");
+
+            NetMessages.Send(new CCitadelUserMsg_ChatMsg
+            {
+                PlayerSlot = 0,
+                Text = "🥚 已恢复普通模式：买蛋后拿着别用，孵化 1-4 分钟对应 1-4 级。",
+                AllChat = false
+            }, RecipientFilter.All);
+
             caller.Reply("✅ 已切换为：按蛋孵化的时间等级抽卡。");
         }
         else
