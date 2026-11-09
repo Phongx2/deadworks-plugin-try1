@@ -966,23 +966,30 @@ else if (effect.Id == "gurden")
     Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 1 塔守卫，跟随 {effect.Duration} 秒。");
 
     var followTimer = timer.Every(1.Ticks(), () =>
+{
+    if (pawn == null || !pawn.IsValid) return;
+    if (guard == null || !guard.IsValid) return;
+
+    // 位置逻辑不变
+    float yaw = pawn.CameraAngles.Y * MathF.PI / 180f;
+    float offsetYaw = yaw + MathF.PI / 4f;
+    var offsetDir = new Vector3(MathF.Cos(offsetYaw), MathF.Sin(offsetYaw), 0f);
+    var pos = pawn.Position + offsetDir * 100f;
+    guard.Teleport(position: pos, angles: null, velocity: null);
+
+    // 让塔锁定最近的敌人
+    var nearestEnemy = Players.GetAll()
+        .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+        .Select(c => c.GetHeroPawn())
+        .Where(p => p != null && p.IsValid && p.TeamNum != pawn.TeamNum && p.LifeState == LifeState.Alive)
+        .OrderBy(p => Vector3.Distance(p.Position, guard.Position))
+        .FirstOrDefault();
+
+    if (nearestEnemy != null)
     {
-        if (pawn == null || !pawn.IsValid) return;
-        if (guard == null || !guard.IsValid) return;
-
-        // 只取水平 yaw，忽略 pitch/roll
-        float yaw = pawn.CameraAngles.Y * MathF.PI / 180f;
-        // 左前方 45 度
-        float offsetYaw = yaw + MathF.PI / 4f;
-
-        var offsetDir = new Vector3(
-            MathF.Cos(offsetYaw),
-            MathF.Sin(offsetYaw),
-            0f);
-
-        var pos = pawn.Position + offsetDir * 100f;
-        guard.Teleport(position: pos, angles: null, velocity: null);
-    });
+        guard.SetEnemy(nearestEnemy);
+    }
+});
 
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
