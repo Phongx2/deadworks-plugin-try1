@@ -961,30 +961,29 @@ else if (effect.Id == "gurden")
     }
 
     guard.SetScale(0.5f);
-    guard.SetMoveType(MoveType.None);
+    // 不再 SetMoveType(MoveType.None)，让 AI 能转身和攻击
 
     Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 1 塔守卫，跟随 {effect.Duration} 秒。");
 
-    // 每 tick 把守卫放到玩家相机朝向的后方 100 单位
     var followTimer = timer.Every(1.Ticks(), () =>
     {
         if (pawn == null || !pawn.IsValid) return;
         if (guard == null || !guard.IsValid) return;
 
-        // 用相机朝向算“后方”
-        var angles = pawn.CameraAngles;
-        float pitch = angles.X * MathF.PI / 180f;
-        float yaw = angles.Y * MathF.PI / 180f;
-        var forward = new Vector3(
-            MathF.Cos(pitch) * MathF.Cos(yaw),
-            MathF.Cos(pitch) * MathF.Sin(yaw),
-            -MathF.Sin(pitch));
+        // 只取水平 yaw，忽略 pitch/roll
+        float yaw = pawn.CameraAngles.Y * MathF.PI / 180f;
+        // 左前方 45 度
+        float offsetYaw = yaw + MathF.PI / 4f;
 
-        var pos = pawn.Position - forward * 100f;
+        var offsetDir = new Vector3(
+            MathF.Cos(offsetYaw),
+            MathF.Sin(offsetYaw),
+            0f);
+
+        var pos = pawn.Position + offsetDir * 100f;
         guard.Teleport(position: pos, angles: null, velocity: null);
     });
 
-    // 持续 effect.Duration 秒后清理
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
         followTimer.Cancel();
@@ -994,7 +993,6 @@ else if (effect.Id == "gurden")
         }
     });
 }
-
 
 
 
