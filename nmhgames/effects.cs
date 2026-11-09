@@ -567,35 +567,66 @@ public static int DeadNoteCasterSlot = -1;
 		else if (effect.Id == "UAV")
 {
     // 变量名 UAV：抽到的人对敌方所有人施加 30s VisibleToEnemy
-	EffectList.SendDrawNotification(controller, effect);
+    EffectList.SendDrawNotification(controller, effect);
 
-NetMessages.Send(new CCitadelUserMsg_ChatMsg
-{
-    PlayerSlot = controller.Slot,
-    Text = "我方无人侦察机已升空",
-    AllChat = true
-}, RecipientFilter.All);
-		
-   int casterTeam = pawn.TeamNum;
-            var enemies = Players.GetAll()
-                .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
-                .Select(c => c.GetHeroPawn())
-                .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
-                .ToList();
+    int casterTeam = pawn.TeamNum;
+    var enemies = Players.GetAll()
+        .Where(c => c != null && c.IsValid && c.Slot != controller.Slot)
+        .Select(c => c.GetHeroPawn())
+        .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
+        .ToList();
 
-            foreach (var enemy in enemies)
-                enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
+    // 给所有敌方发 HUD
+    var enemyFilter = new RecipientFilter();
+    foreach (var enemy in enemies)
+    {
+        if (enemy.Controller != null)
+            enemyFilter.Add(enemy.Controller.Slot);
+    }
+    if (enemyFilter.Mask != 0)
+    {
+        var enemyHud = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "⚠️ 敌方无人侦察机升空",
+            DescriptionLocstring = "你的位置被暴露在雷达上"
+        };
+        NetMessages.Send(enemyHud, enemyFilter);
+    }
 
-            // 🌟 把 30.Seconds() 改成读取 effect.Duration
-            timer.Once(((double)effect.Duration).Seconds(), () =>
-            {
-                foreach (var enemy in enemies)
-                {
-                    if (enemy == null || !enemy.IsValid) continue;
-                    enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, false);
-                }
-            });
+    // 给所有友方发 HUD
+    var allyFilter = new RecipientFilter();
+    foreach (var c in Players.GetAll())
+    {
+        if (c == null || !c.IsValid) continue;
+        if (c.Slot == controller.Slot) continue;
+        var p = c.GetHeroPawn();
+        if (p == null || !p.IsValid) continue;
+        if (p.TeamNum != casterTeam) continue;
+        allyFilter.Add(c.Slot);
+    }
+    if (allyFilter.Mask != 0)
+    {
+        var allyHud = new CCitadelUserMsg_HudGameAnnouncement
+        {
+            TitleLocstring = "✅ 我方无人侦察机升空",
+            DescriptionLocstring = "在雷达上找到敌人的位置"
+        };
+        NetMessages.Send(allyHud, allyFilter);
+    }
+
+    foreach (var enemy in enemies)
+        enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
+
+    // 🌟 把 30.Seconds() 改成读取 effect.Duration
+    timer.Once(((double)effect.Duration).Seconds(), () =>
+    {
+        foreach (var enemy in enemies)
+        {
+            if (enemy == null || !enemy.IsValid) continue;
+            enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, false);
         }
+    });
+}
 
 
 	        // ================= 效果：无限子弹 =================
