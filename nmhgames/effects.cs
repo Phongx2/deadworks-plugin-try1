@@ -953,7 +953,11 @@ else if (effect.Id == "gurden")
         TitleLocstring = "🏰 移动堡垒",
         DescriptionLocstring = $"将一名随机队友移动到身边，持续 {effect.Duration} 秒！"
     };
-    NetMessages.Send(hud, RecipientFilter.All);
+    // 只发给触发者
+    NetMessages.Send(hud, RecipientFilter.Single(controller.Slot));
+
+    // 音效也只给触发者
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.Single(controller.Slot), volume: 0.4f);
 
     // 收集所有存活队友（同队、非自己）
     var allies = Players.GetAll()
@@ -992,7 +996,6 @@ else if (effect.Id == "gurden")
         followTimer.Cancel();
     });
 }
-
 
 
 
