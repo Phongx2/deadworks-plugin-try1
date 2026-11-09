@@ -953,22 +953,41 @@ else if (effect.Id == "gurden")
     };
     NetMessages.Send(hud, RecipientFilter.All);
 
-    // 生成 1 塔守卫，队伍设为触发者的队伍
-    var guard = CAI_BaseNPC.Create("npc_boss_tier1", pawn.Position + Vector3.UnitZ * 100, pawn.TeamNum);
+    var guard = CAI_BaseNPC.Create("npc_boss_tier1", pawn.Position, pawn.TeamNum);
     if (guard == null)
     {
         Chat.PrintToChat(controller, "❌ 无法生成守卫。");
         return;
     }
 
-    // 附着到玩家身上
-    guard.SetParent(pawn);
+    guard.SetScale(0.5f);
+    guard.SetMoveType(MoveType.None);
 
-    Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 1 塔守卫，附着 {effect.Duration} 秒。");
+    Console.WriteLine($"[Gurden] 已为 {controller.PlayerName} 生成 1 塔守卫，跟随 {effect.Duration} 秒。");
 
-    // 持续 effect.Duration 秒后移除
+    // 每 tick 把守卫放到玩家相机朝向的后方 100 单位
+    var followTimer = timer.Every(1.Ticks(), () =>
+    {
+        if (pawn == null || !pawn.IsValid) return;
+        if (guard == null || !guard.IsValid) return;
+
+        // 用相机朝向算“后方”
+        var angles = pawn.CameraAngles;
+        float pitch = angles.X * MathF.PI / 180f;
+        float yaw = angles.Y * MathF.PI / 180f;
+        var forward = new Vector3(
+            MathF.Cos(pitch) * MathF.Cos(yaw),
+            MathF.Cos(pitch) * MathF.Sin(yaw),
+            -MathF.Sin(pitch));
+
+        var pos = pawn.Position - forward * 100f;
+        guard.Teleport(position: pos, angles: null, velocity: null);
+    });
+
+    // 持续 effect.Duration 秒后清理
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
+        followTimer.Cancel();
         if (guard != null && guard.IsValid)
         {
             guard.Remove();
