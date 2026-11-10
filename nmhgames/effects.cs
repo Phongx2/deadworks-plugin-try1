@@ -1000,7 +1000,38 @@ else if (effect.Id == "gurden")
 
 
 
+else if (effect.Id == "antman")
+{
+    EffectList.SendDrawNotification(controller, effect);
 
+    var hud = new CCitadelUserMsg_HudGameAnnouncement
+    {
+        TitleLocstring = "🐜 蚁人去哪了",
+        DescriptionLocstring = $"你缩小了！持续 {effect.Duration} 秒！"
+    };
+    NetMessages.Send(hud, RecipientFilter.Single(controller.Slot));
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.Single(controller.Slot), volume: 0.4f);
+
+    // 模型缩小到 0.1
+    pawn.SetScale(0.1f);
+
+    // 开启缩小相关状态
+    pawn.ModifierProp.SetModifierState(EModifierState.ShrunkCharacter, true);
+    pawn.ModifierProp.SetModifierState(EModifierState.UseShrunkenCameraOffsets, true);
+    pawn.ModifierProp.SetModifierState(EModifierState.PitchUpVoice, true);
+
+    // 持续时间结束后恢复
+    timer.Once(((double)effect.Duration).Seconds(), () =>
+    {
+        if (pawn == null || !pawn.IsValid) return;
+
+        pawn.SetScale(1.0f);
+        pawn.ModifierProp.SetModifierState(EModifierState.ShrunkCharacter, false);
+        pawn.ModifierProp.SetModifierState(EModifierState.UseShrunkenCameraOffsets, false);
+        pawn.ModifierProp.SetModifierState(EModifierState.PitchUpVoice, false);
+    });
+}
 
 
 		
