@@ -1014,7 +1014,7 @@ else if (effect.Id == "antman")
     Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
     // 模型缩小到 0.1
-    pawn.SetScale(0.1f);
+    
 
     // 开启缩小相关状态
     pawn.ModifierProp.SetModifierState(EModifierState.ShrunkCharacter, true);
@@ -1026,10 +1026,10 @@ else if (effect.Id == "antman")
     kv.SetFloat("duration", effect.Duration);
     pawn.AddModifier("upgrade_shrink_ray/modifier_shrink_ray", kv: kv,
         abilityValues: new() {
-            ["BonusMoveSpeed"] = 500f,
-            ["BonusFireRate"] = 200f,
+            ["BonusMoveSpeed"] = -50f,
+            ["BonusFireRate"] = -50f,
         });
-
+	pawn.SetScale(0.1f);
     // 持续时间结束后恢复模型与状态开关
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
