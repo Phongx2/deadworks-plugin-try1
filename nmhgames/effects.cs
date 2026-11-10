@@ -1007,11 +1007,11 @@ else if (effect.Id == "antman")
     var hud = new CCitadelUserMsg_HudGameAnnouncement
     {
         TitleLocstring = "🐜 蚁人去哪了",
-        DescriptionLocstring = $"你缩小了！持续 {effect.Duration} 秒！"
+        DescriptionLocstring = $"有人缩小了！(贼小的那种)持续 {effect.Duration} 秒！"
     };
-    NetMessages.Send(hud, RecipientFilter.Single(controller.Slot));
+    NetMessages.Send(hud, RecipientFilter.All);
 
-    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.Single(controller.Slot), volume: 0.4f);
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
 
     // 模型缩小到 0.1
     pawn.SetScale(0.1f);
@@ -1021,7 +1021,16 @@ else if (effect.Id == "antman")
     pawn.ModifierProp.SetModifierState(EModifierState.UseShrunkenCameraOffsets, true);
     pawn.ModifierProp.SetModifierState(EModifierState.PitchUpVoice, true);
 
-    // 持续时间结束后恢复
+    // 添加 shrink_ray modifier，自定义移动速度和射速，kv 里的 duration 到时会自动移除
+    using var kv = new KeyValues3();
+    kv.SetFloat("duration", effect.Duration);
+    pawn.AddModifier("upgrade_shrink_ray/modifier_shrink_ray", kv: kv,
+        abilityValues: new() {
+            ["BonusMoveSpeed"] = 500f,
+            ["BonusFireRate"] = 200f,
+        });
+
+    // 持续时间结束后恢复模型与状态开关
     timer.Once(((double)effect.Duration).Seconds(), () =>
     {
         if (pawn == null || !pawn.IsValid) return;
