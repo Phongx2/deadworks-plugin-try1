@@ -58,7 +58,7 @@ public static class EffectList
         
         
         new EffectInfo("infbullet", "无限子弹", 60.0f, 1), 
-
+        new EffectInfo("antman", "蚁人去哪了", 60.0f, 3),
         
         
         new EffectInfo("unstop", "霸体", 30.0f, 1), // 你可以自己调整时长和等级
