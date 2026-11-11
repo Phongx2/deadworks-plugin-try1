@@ -580,7 +580,9 @@ public static int DeadNoteCasterSlot = -1;
         .Select(c => c.GetHeroPawn())
         .Where(p => p != null && p.IsValid && p.TeamNum != casterTeam)
         .ToList();
- Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
+    Sounds.Play("Stinger.Koth.Announce", RecipientFilter.All, volume: 0.4f);
+
     // ---------- 给所有敌方发 HUD（不含自己） ----------
     var enemyFilter = new RecipientFilter();
     foreach (var enemy in enemies)
@@ -600,7 +602,6 @@ public static int DeadNoteCasterSlot = -1;
     foreach (var c in Players.GetAll())
     {
         if (c == null || !c.IsValid) continue;
-        // 删掉了 if (c.Slot == controller.Slot) continue; —— 自己也能收到
         var p = c.GetHeroPawn();
         if (p == null || !p.IsValid) continue;
         if (p.TeamNum != casterTeam) continue;
@@ -613,16 +614,30 @@ public static int DeadNoteCasterSlot = -1;
     };
     NetMessages.Send(allyHud, allyFilter);
 
-    // ---------- 施加 VisibleToEnemy 状态 ----------
-    foreach (var enemy in enemies)
-        enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
-
-    timer.Once(((double)effect.Duration).Seconds(), () =>
+    // ---------- 持续时间内每 1 秒循环刷新状态 ----------
+    var uavTimer = timer.Every(1.Seconds(), () =>
     {
         foreach (var enemy in enemies)
         {
             if (enemy == null || !enemy.IsValid) continue;
+            enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, true);
+            enemy.ModifierProp.SetModifierState(EModifierState.GlowInLosToEnemy, true);
+            enemy.ModifierProp.SetModifierState(EModifierState.GlowInLos, true);
+            enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemyWithinRange, true);
+        }
+    });
+
+    // 到期停止循环并关闭所有状态
+    timer.Once(((double)effect.Duration).Seconds(), () =>
+    {
+        uavTimer.Cancel();
+        foreach (var enemy in enemies)
+        {
+            if (enemy == null || !enemy.IsValid) continue;
             enemy.ModifierProp.SetModifierState(EModifierState.VisibleToEnemy, false);
+            enemy.ModifierProp.SetModifierState(EModifierState.GlowInLosToEnemy, false);
+            enemy.ModifierProp.SetModifierState(EModifierState.GlowInLos, false);
+            enemy.ModifierProp.SetModifierState(EModifierState.GlowThroughWallsToEnemyWithinRange, false);
         }
     });
 }
