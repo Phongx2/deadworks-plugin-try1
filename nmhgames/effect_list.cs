@@ -50,22 +50,23 @@ public static class EffectList
     public static readonly EffectInfo[] Pool = new EffectInfo[]
     {
         new EffectInfo("speed_boost", "加速", 60.0f,1),
-        new EffectInfo("wolfdance", "狼人派对", 30.0f, 1),
+        new EffectInfo("yoshiban", "大手的力量", 5.0f, 2), 
+        new EffectInfo("infbullet", "无限子弹", 30.0f, 1), 
 
         new EffectInfo("UAV", "无人侦察机", 30.0f, 2), // 🌟 新加的 UAV
-        new EffectInfo("yoshiban", "大手的力量", 10.0f, 1), 
-        new EffectInfo("1v1", "斗殴", 3.0f,1), 
+        new EffectInfo("1v1", "斗殴", 3.0f,2), 
+        new EffectInfo("wolfdance", "狼人派对", 60.0f, 2),
         
         
-        new EffectInfo("infbullet", "无限子弹", 60.0f, 1), 
-        new EffectInfo("antman", "蚁人去哪了", 60.0f, 3),
         
+        new EffectInfo("antman", "蚁人去哪了", 20.0f, 3),
+        new EffectInfo("unstop", "霸体", 20.0f, 3), // 你可以自己调整时长和等级
+        new EffectInfo("undie", "幸免遇难", 20.0f, 3), // 🌟 新加的 undie     
         
-        new EffectInfo("unstop", "霸体", 30.0f, 1), // 你可以自己调整时长和等级
-        new EffectInfo("undie", "幸免遇难", 30.0f, 1), // 🌟 新加的 undie
+
         new EffectInfo("pianodrop", "钢琴快递", 1.0f, 4),
         new EffectInfo("deadnote", "死亡笔记", 1.0f, 4),
-        new EffectInfo("gurden", "移动堡垒", 30.0f, 4),
+        new EffectInfo("gurden", "移动堡垒", 60.0f, 4),
         
 
 
