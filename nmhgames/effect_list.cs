@@ -54,8 +54,8 @@ public static class EffectList
         new EffectInfo("infbullet", "无限子弹", 30.0f, 1), 
 
         new EffectInfo("UAV", "无人侦察机", 30.0f, 2), // 🌟 新加的 UAV
-        new EffectInfo("1v1", "斗殴", 3.0f,2), 
-        new EffectInfo("wolfdance", "狼人派对", 60.0f, 2),
+        new EffectInfo("1v1", "单挑", 3.0f,2), 
+        new EffectInfo("wolfdance", "狼人派对", 30.0f, 2),
         
         
         
