@@ -153,74 +153,69 @@ public class GooseEggWatcherPlugin : DeadworksPluginBase
     // 🌟 使用蛋：立刻判定并抽卡
     // ==========================================
     [GameEventHandler("player_used_ability")]
-    public HookResult OnPlayerUsedAbility(PlayerUsedAbilityEvent args)
+public HookResult OnPlayerUsedAbility(PlayerUsedAbilityEvent args)
+{
+    if (!string.Equals(args.Abilityname, TargetItem, StringComparison.OrdinalIgnoreCase))
+        return HookResult.Continue;
+
+    var pawn = args.Player?.As<CCitadelPlayerPawn>();
+    if (pawn == null) return HookResult.Continue;
+
+    var controller = pawn.Controller;
+    if (controller == null) return HookResult.Continue;
+
+    // 如果开关被关闭，拦截并提示
+    if (!IsEggEnabled)
     {
-        if (!string.Equals(args.Abilityname, TargetItem, StringComparison.OrdinalIgnoreCase))
-            return HookResult.Continue;
-
-        var pawn = args.Player?.As<CCitadelPlayerPawn>();
-        if (pawn == null) return HookResult.Continue;
-
-        var controller = pawn.Controller;
-        if (controller == null) return HookResult.Continue;
-
-        // 如果开关被关闭，拦截并提示
-        if (!IsEggEnabled)
-        {
-            Chat.PrintToChat(controller, "⚠️ 当前处于特殊状态，无法使用鹅蛋！");
-            return HookResult.Stop;
-        }
-
-        ulong steamId = Permissions.GetSteamId64(controller.Slot);
-        if (steamId == 0) return HookResult.Continue;
-
-        // 计算持有时间
-        float heldSeconds = 0;
-        if (_eggHoldStartTime.TryGetValue(steamId, out float startTime))
-            heldSeconds = GlobalVars.CurTime - startTime;
-
-        // 🌟 随机模式：必须孵满 1 分钟才能使用（否则拦截，不消耗蛋）
-        if (EffectList.IsRandomMode && heldSeconds < 60f)
-        {
-            int remain = (int)Math.Ceiling(60f - heldSeconds);
-            Chat.PrintToChat(controller, $"🥚 随机孵蛋需要孵满 1 分钟，还需等待 {remain} 秒！");
-            return HookResult.Stop;
-        }
-
-        // 强制消耗防取消
-        Timer.NextTick(() =>
-        {
-            if (pawn.IsValid) pawn.RemoveItem(TargetItem);
-        });
-
-        // 清理计时器
-        if (_eggLevelTimers.TryGetValue(steamId, out var timer)) timer.Cancel();
-        _eggLevelTimers.Remove(steamId);
-        _eggHoldStartTime.Remove(steamId);
-
-        // 不满 60 秒：没孵出来（纯随机模式下跳过这个判定）
-        if (!EffectList.IsRandomMode && heldSeconds < 60f)
-        {
-            Chat.PrintToChat(controller, "🥚 你的蛋啥都没有孵出来哦~");
-            CurrentEggLevels.Remove(steamId);
-            return HookResult.Stop;
-        }
-
-        // 锁定等级
-        int finalLevel = CurrentEggLevels.TryGetValue(steamId, out int lvl) ? lvl : 1;
-        CurrentEggLevels.Remove(steamId);
-
-        Console.WriteLine($"[GooseEggWatcher] {controller.PlayerName} 按下了蛋，持有 {heldSeconds:F0} 秒，等级 {finalLevel}，开始抽卡！");
-
-        // 立刻抽卡
-        if (EffectList.IsRandomMode)
-        {
-            EffectList.Chouka(pawn, this.Timer);
-        }
-        else
-        {
-            EffectList.ChoukaByLevel(pawn, finalLevel, this.Timer);
-        }
+        Chat.PrintToChat(controller, "⚠️ 当前处于特殊状态，无法使用鹅蛋！");
         return HookResult.Stop;
     }
+
+    ulong steamId = Permissions.GetSteamId64(controller.Slot);
+    if (steamId == 0) return HookResult.Continue;
+
+    // 计算持有时间
+    float heldSeconds = 0;
+    if (_eggHoldStartTime.TryGetValue(steamId, out float startTime))
+        heldSeconds = GlobalVars.CurTime - startTime;
+
+    // 🌟 不满 1 分钟：两种模式都不移除蛋，只提示并拦截
+    if (heldSeconds < 60f)
+    {
+        int remain = (int)Math.Ceiling(60f - heldSeconds);
+        if (EffectList.IsRandomMode)
+            Chat.PrintToChat(controller, $"🥚 随机孵蛋需要孵满 1 分钟，还需等待 {remain} 秒！");
+        else
+            Chat.PrintToChat(controller, $"🥚 你的蛋还没准备好哦~ 距离一分钟还需等待 {remain} 秒！");
+        return HookResult.Stop;
+    }
+
+    // 满 1 分钟：强制消耗防取消
+    Timer.NextTick(() =>
+    {
+        if (pawn.IsValid) pawn.RemoveItem(TargetItem);
+    });
+
+    // 清理计时器
+    if (_eggLevelTimers.TryGetValue(steamId, out var timer)) timer.Cancel();
+    _eggLevelTimers.Remove(steamId);
+    _eggHoldStartTime.Remove(steamId);
+
+    // 锁定等级
+    int finalLevel = CurrentEggLevels.TryGetValue(steamId, out int lvl) ? lvl : 1;
+    CurrentEggLevels.Remove(steamId);
+
+    Console.WriteLine($"[GooseEggWatcher] {controller.PlayerName} 按下了蛋，持有 {heldSeconds:F0} 秒，等级 {finalLevel}，开始抽卡！");
+
+    // 立刻抽卡
+    if (EffectList.IsRandomMode)
+    {
+        EffectList.Chouka(pawn, this.Timer);
+    }
+    else
+    {
+        EffectList.ChoukaByLevel(pawn, finalLevel, this.Timer);
+    }
+    return HookResult.Stop;
+}
 }
