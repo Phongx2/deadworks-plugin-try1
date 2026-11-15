@@ -85,6 +85,13 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
    [Command("r", Description = "解锁并开始比赛")]
 public void CmdStart(Caller caller)
 {
+foreach (var c in Players.GetAll())
+    {
+        if (c == null || !c.IsValid) continue;
+        var p = c.GetHeroPawn();
+        if (p == null || !p.IsValid) continue;
+        p.SetCurrency(ECurrencyType.EGold, 1600);
+    }
     if (!GameRules.IsValid)
     {
         caller.Reply("❌ 游戏规则尚未就绪。");
@@ -102,13 +109,7 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
 
     // 解锁，之后 PreGameWait 不再锁
     
-foreach (var c in Players.GetAll())
-    {
-        if (c == null || !c.IsValid) continue;
-        var p = c.GetHeroPawn();
-        if (p == null || !p.IsValid) continue;
-        p.SetCurrency(ECurrencyType.EGold, 0);
-    }
+
     // 全服 HUD 公告
     
     // 跳回等待玩家加入，让引擎自己往后走
