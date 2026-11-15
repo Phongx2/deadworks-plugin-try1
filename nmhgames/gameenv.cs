@@ -102,7 +102,13 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
 
     // 解锁，之后 PreGameWait 不再锁
     
-
+foreach (var c in Players.GetAll())
+    {
+        if (c == null || !c.IsValid) continue;
+        var p = c.GetHeroPawn();
+        if (p == null || !p.IsValid) continue;
+        p.SetCurrency(ECurrencyType.EGold, 0);
+    }
     // 全服 HUD 公告
     
     // 跳回等待玩家加入，让引擎自己往后走
