@@ -217,6 +217,53 @@ public static class EffectList
         Effects.Execute(effect, pawn, timer);
         return true;
     }
+
+
+
+
+
+    // ==========================================
+// 🌟 模拟抽卡：只计算 roll/level/效果，不执行
+// pawn 可以为 null，此时不依赖英雄
+// ==========================================
+public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
+{
+    string playerName = pawn?.Controller?.PlayerName
+                        ?? caller.Player?.PlayerName
+                        ?? "未知玩家";
+
+    // 复制 RollLevel 的逻辑，但要把 roll 原始值也拿到
+    int roll = Random.Shared.Next(100);
+    int level;
+    if (roll < 50) level = 1;
+    else if (roll < 80) level = 2;
+    else if (roll < 95) level = 3;
+    else level = 4;
+
+    var levelPool = Pool.Where(e => e.Level == level).ToArray();
+
+    if (levelPool.Length == 0)
+    {
+        string emptyMsg = $"❌ 模拟抽卡：等级 {level} 的效果池为空，无法抽取。";
+        Console.WriteLine(emptyMsg);
+        caller.Reply(emptyMsg);
+        return;
+    }
+
+    int index = Random.Shared.Next(levelPool.Length);
+    var effect = levelPool[index];
+
+    string result =
+        $"========== 模拟抽卡（/rand 1）==========\n" +
+        $"玩家: {playerName}\n" +
+        $"Roll: {roll}\n" +
+        $"Level: {level}\n" +
+        $"抽中效果: {effect.DisplayName} ({effect.Id})，持续 {effect.Duration} 秒\n" +
+        $"======================================";
+
+    Console.WriteLine(result);
+    caller.Reply(result);
+}
 }
 
 public class EffectCommandPlugin : DeadworksPluginBase
@@ -291,6 +338,14 @@ public class EffectCommandPlugin : DeadworksPluginBase
             Console.WriteLine(resultMsg);
         }
     }
+    
+[Command("ck", Description = "模拟一次 /rand 1 抽卡，只显示 roll/level/效果，不执行")]
+public void CmdCheckRoll(Caller caller)
+{
+    // pawn 可能为 null（未选英雄、观战、服务器控制台），交给 SimulateRoll 处理
+    var pawn = caller.Player?.GetHeroPawn();
+    EffectList.SimulateRoll(pawn, caller);
+}
 
         [Command("rand", Description = "设置抽卡模式：1=纯随机，0=按蛋孵化时间等级")]
     public void CmdRandMode(Caller caller, int mode)
