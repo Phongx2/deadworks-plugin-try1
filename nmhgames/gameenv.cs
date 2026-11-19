@@ -18,6 +18,8 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
     // PreGameWait 的后续流程是否已经启动过（防止重复触发）
     private bool _preGameFlowStarted = false;
 
+    private IHandle? _trooperClearTimer;
+
     public override void OnStartupServer()
     {
         // 重置标志
@@ -113,16 +115,20 @@ var hud = new CCitadelUserMsg_HudGameAnnouncement
     // 全服 HUD 公告
     
     // 跳回等待玩家加入，让引擎自己往后走
-    Timer.Once(4.Seconds(), () =>
-    {
-
+Timer.Once(4.Seconds(), () =>
+{
     _rTriggered = true;
     _stageLocked = false;
     _lockedStage = EGameState.Invalid;
-        if (!GameRules.IsValid) return;
-        GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
-        Console.WriteLine("[ServerDefaults] HUD 展示结束，跳到 WaitingForPlayersToJoin。");
-    });
+
+    // 停止每秒清兵
+    _trooperClearTimer?.Cancel();
+    _trooperClearTimer = null;
+
+    if (!GameRules.IsValid) return;
+    GameRules.ChangeGameState(EGameState.WaitingForPlayersToJoin);
+    Console.WriteLine("[ServerDefaults] HUD 展示结束，跳到 WaitingForPlayersToJoin。");
+});
 }
 
 [Command("win", Description = "测试胜利：/win <队伍编号>，例如 /win 1 或 /win 2")]
@@ -164,9 +170,23 @@ public void CmdWin(Caller caller, int team)
             _lockedStage = EGameState.PreGameWait;
             _stageLocked = true;
             Console.WriteLine("[ServerDefaults] 未执行 /r，锁定在 PreGameWait。");
-            return;
-        }
+           if (dev == 0)
+    {
+        _trooperClearTimer?.Cancel();
+        _trooperClearTimer = Timer.Every(1.Seconds(), () =>
+        {
+            if (!GameRules.IsValid) return;
+            if (_rTriggered) return; // 已经 /r 了就不再清
+            if (GameRules.GameState != EGameState.PreGameWait) return;
 
+            Server.ExecuteCommand("sv_cheats 1");
+            Server.ExecuteCommand("citadel_force_kill troopers");
+            Server.ExecuteCommand("sv_cheats 0");
+        });
+    }
+    return;
+        }
+        
         // 已经 /r：只启动一次后续流程
         if (_preGameFlowStarted) return;
         _preGameFlowStarted = true;
@@ -190,21 +210,27 @@ public void CmdWin(Caller caller, int team)
             Console.WriteLine("[ServerDefaults] PreGameWait 结束，已挂运镜 Modifier（7.25 秒）。");
 
             // 7.25 秒后 Modifier 自然结束，同时进入 GameInProgress
-            Timer.Once(7250.Milliseconds(), () =>
-            {
-                if (!GameRules.IsValid) return;
-                
-                // 保险起见再移除一次（Modifier 到期一般会自动消失）
-                foreach (var controller in Players.GetAll())
-                {
-                    var pawn = controller.GetHeroPawn();
-                    if (pawn == null || !pawn.IsValid) continue;
-                    pawn.RemoveModifier("modifier_cinematic_intro_player");
-                }
+           Timer.Once(7250.Milliseconds(), () =>
+{
+    if (!GameRules.IsValid) return;
 
-                GameRules.ChangeGameState(EGameState.GameInProgress);
-                Console.WriteLine("[ServerDefaults] 运镜结束，进入 GameInProgress。");
-            });
+    foreach (var controller in Players.GetAll())
+    {
+        var pawn = controller.GetHeroPawn();
+        if (pawn == null || !pawn.IsValid) continue;
+        pawn.RemoveModifier("modifier_cinematic_intro_player");
+    }
+
+    // 运镜结束后刷一波兵
+    Server.ExecuteCommand("sv_cheats 1");
+    Server.ExecuteCommand("citadel_spawn_trooper_wav");
+Server.ExecuteCommand("sv_cheats 0");
+Console.WriteLine("[ServerDefaults] 已刷兵并关闭 sv_cheats。");
+
+
+    GameRules.ChangeGameState(EGameState.GameInProgress);
+    Console.WriteLine("[ServerDefaults] 运镜结束，进入 GameInProgress。");
+});
         });
     }
 
