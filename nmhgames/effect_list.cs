@@ -158,10 +158,10 @@ public static class EffectList
         int roll = Random.Shared.Next(100);
         int level;
 
-        if (roll < 50) level = 1;
-        else if (roll < 80) level = 2;
-        else if (roll < 95) level = 3;
-        else level = 4;
+        if (roll < 40) level = 1;
+    else if (roll < 65) level = 2;
+    else if (roll < 85) level = 3;
+    else level = 4;
 
         Console.WriteLine($"[抽卡测试] 随机数 Roll: {roll}, 判定等级: {level}");
         return level;   // 🌟 恢复为正常概率返回（原来临时改的 return 1 已移除）
@@ -235,9 +235,9 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
     // 复制 RollLevel 的逻辑，但要把 roll 原始值也拿到
     int roll = Random.Shared.Next(100);
     int level;
-    if (roll < 50) level = 1;
-    else if (roll < 80) level = 2;
-    else if (roll < 95) level = 3;
+    if (roll < 40) level = 1;
+    else if (roll < 65) level = 2;
+    else if (roll < 85) level = 3;
     else level = 4;
 
     var levelPool = Pool.Where(e => e.Level == level).ToArray();
@@ -254,15 +254,15 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
     var effect = levelPool[index];
 
     string result =
-        $"========== 模拟抽卡（/rand 1）==========\n" +
+        $"\n========== 模拟抽卡（/rand 1）==========\n" +
         $"玩家: {playerName}\n" +
         $"Roll: {roll}\n" +
         $"Level: {level}\n" +
         $"抽中效果: {effect.DisplayName} ({effect.Id})，持续 {effect.Duration} 秒\n" +
-        $"======================================";
+        $"======================================\n";
 
     Console.WriteLine(result);
-    caller.Reply(result);
+   caller.Player?.PrintToConsole(result);
 }
 }
 
