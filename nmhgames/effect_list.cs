@@ -25,7 +25,16 @@ public static class EffectList
 {
     public static bool IsRandomMode = true;   // 🌟 默认纯随机模式（等同 /rand 1）
 
-    private static string? _lastResultId = null;
+    private static readonly Queue<string> _recentResults = new Queue<string>();
+private const int RecentKeep = 3;
+
+// 记录一次结果，保持最多 RecentKeep 个
+private static void RecordResult(string id)
+{
+    _recentResults.Enqueue(id);
+    while (_recentResults.Count > RecentKeep)
+        _recentResults.Dequeue();
+}
 
     public static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
@@ -82,7 +91,6 @@ public static class EffectList
 {
     if (pawn == null) return;
 
-    // /rand 1 时，鹅蛋也走纯随机（先随机等级再在该等级抽）
     if (IsRandomMode)
     {
         Chouka(pawn, timer);
@@ -108,15 +116,14 @@ public static class EffectList
         return;
     }
 
-    // 🌟 严格排除上一次结果；如果池里只剩上一次那个效果，就退回全集
-    var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
+    var candidates = levelPool.Where(e => !_recentResults.Contains(e.Id)).ToArray();
     var pickPool = candidates.Length > 0 ? candidates : levelPool;
 
     int index = Random.Shared.Next(pickPool.Length);
     var effect = pickPool[index];
-    _lastResultId = effect.Id;
+    RecordResult(effect.Id);
 
-    Console.WriteLine($"[抽卡] {playerName} 触发了 {level} 级蛋，poolLen={levelPool.Length}, candidateLen={pickPool.Length}, index={index}, 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
+    Console.WriteLine($"[抽卡] {playerName} 触发了 {level} 级蛋，poolLen={levelPool.Length}, candidateLen={pickPool.Length}, index={index}, 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id}), recent=[{string.Join(",", _recentResults)}]");
 
     Effects.Execute(effect, pawn, timer);
 }
@@ -124,7 +131,7 @@ public static class EffectList
     // ==========================================
     // /rand 1：先随机等级，再在该等级里抽
     // ==========================================
-    public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
+   public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
 {
     if (pawn == null) return;
     string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
@@ -147,15 +154,15 @@ public static class EffectList
         return;
     }
 
-    // 🌟 严格排除上一次结果；如果池里只剩上一次那个效果，就退回全集
-    var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
+    // 🌟 排除最近三次；如果排完为空，退回全集
+    var candidates = levelPool.Where(e => !_recentResults.Contains(e.Id)).ToArray();
     var pickPool = candidates.Length > 0 ? candidates : levelPool;
 
     int index = Random.Shared.Next(pickPool.Length);
     var effect = pickPool[index];
-    _lastResultId = effect.Id;
+    RecordResult(effect.Id);
 
-    Console.WriteLine($"[抽卡] {playerName} 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id}), poolLen={levelPool.Length}, candidateLen={pickPool.Length}, index={index}");
+    Console.WriteLine($"[抽卡] {playerName} 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id}), poolLen={levelPool.Length}, candidateLen={pickPool.Length}, index={index}, recent=[{string.Join(",", _recentResults)}]");
 
     Effects.Execute(effect, pawn, timer);
 }
@@ -243,7 +250,7 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
 
     int roll = Random.Shared.Next(100);
     int level;
-        if (roll < 50) level = 1;
+    if (roll < 50) level = 1;
     else if (roll < 80) level = 2;
      else level = 3;
 
@@ -257,15 +264,12 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
         return;
     }
 
-    // 排除上一次结果（真实或模拟）
-    var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
+    var candidates = levelPool.Where(e => !_recentResults.Contains(e.Id)).ToArray();
     var pickPool = candidates.Length > 0 ? candidates : levelPool;
 
     int index = Random.Shared.Next(pickPool.Length);
     var effect = pickPool[index];
-
-    // 🌟 关键：模拟也更新 _lastResultId，下一次 /ck 才能避开这次
-    _lastResultId = effect.Id;
+    RecordResult(effect.Id);   // 模拟也记录，连续 /ck 之间互相避让
 
     string result =
         $"\n========== 模拟抽卡（/rand 1）==========\n" +
