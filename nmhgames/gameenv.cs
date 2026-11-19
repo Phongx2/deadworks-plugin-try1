@@ -226,7 +226,7 @@ public void CmdWin(Caller caller, int team)
 
     // 运镜结束后刷一波兵
     Server.ExecuteCommand("sv_cheats 1");
-    Server.ExecuteCommand("citadel_spawn_trooper_wav");
+    Server.ExecuteCommand("citadel_spawn_trooper_wave");
 Server.ExecuteCommand("sv_cheats 0");
 Console.WriteLine("[ServerDefaults] 已刷兵并关闭 sv_cheats。");
 
