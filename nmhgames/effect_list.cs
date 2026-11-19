@@ -51,24 +51,22 @@ public static class EffectList
     // ==========================================
     public static readonly EffectInfo[] Pool = new EffectInfo[]
     {
-        new EffectInfo("speed_boost", "加速", 60.0f,1),
-        new EffectInfo("yoshiban", "大手的力量", 5.0f, 2), 
+        new EffectInfo("yoshiban", "大手的力量", 5.0f, 1), 
+        new EffectInfo("speed_boost", "加速", 60.0f, 1),
         new EffectInfo("infbullet", "无限子弹", 30.0f, 1), 
-
-        new EffectInfo("UAV", "无人侦察机", 30.0f, 2), // 🌟 新加的 UAV
-        new EffectInfo("1v1", "单挑", 3.0f,2), 
-        new EffectInfo("wolfdance", "狼人派对", 30.0f, 2),
+        new EffectInfo("1v1", "单挑", 3.0f, 1), 
+        new EffectInfo("UAV", "无人侦察机", 30.0f, 1), // 🌟 新加的 UAV
         
-        
-        
-        new EffectInfo("antman", "蚁人去哪了", 20.0f, 3),
-        new EffectInfo("unstop", "霸体", 20.0f, 3), // 你可以自己调整时长和等级
-        new EffectInfo("undie", "幸免遇难", 20.0f, 3), // 🌟 新加的 undie     
+        new EffectInfo("gurden", "移动堡垒", 30.0f, 2),
+        new EffectInfo("wolfdance", "狼人派对", 25.0f, 2),
+        new EffectInfo("pianodrop", "钢琴快递", 1.0f, 2),        
+        new EffectInfo("antman", "蚁人去哪了", 20.0f, 2),      
         
 
-        new EffectInfo("pianodrop", "钢琴快递", 1.0f, 4),
-        new EffectInfo("deadnote", "死亡笔记", 1.0f, 4),
-        new EffectInfo("gurden", "移动堡垒", 60.0f, 4),
+        new EffectInfo("unstop", "霸体", 30.0f, 3), // 你可以自己调整时长和等级
+        new EffectInfo("undie", "幸免遇难", 30.0f, 3), // 🌟 新加的 undie     
+        new EffectInfo("deadnote", "死亡笔记", 1.0f, 3),
+
         
 
 
@@ -169,10 +167,10 @@ public static class EffectList
         int roll = Random.Shared.Next(100);
         int level;
 
-        if (roll < 40) level = 1;
-    else if (roll < 65) level = 2;
-    else if (roll < 85) level = 3;
-    else level = 4;
+        if (roll < 50) level = 1;
+    else if (roll < 80) level = 2;
+     else level = 3;
+   
 
         Console.WriteLine($"[抽卡测试] 随机数 Roll: {roll}, 判定等级: {level}");
         return level;   // 🌟 恢复为正常概率返回（原来临时改的 return 1 已移除）
@@ -245,10 +243,9 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
 
     int roll = Random.Shared.Next(100);
     int level;
-    if (roll < 40) level = 1;
-    else if (roll < 65) level = 2;
-    else if (roll < 85) level = 3;
-    else level = 4;
+        if (roll < 50) level = 1;
+    else if (roll < 80) level = 2;
+     else level = 3;
 
     var levelPool = Pool.Where(e => e.Level == level).ToArray();
 
