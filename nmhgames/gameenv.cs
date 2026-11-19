@@ -74,6 +74,9 @@ public class ServerDefaultsPlugin : DeadworksPluginBase
         _bebopWatcherTimer = null;
         _aliveWalkers.Clear();
         _walkerTeams.Clear();
+    _trooperClearTimer?.Cancel();   // 加这行
+    _trooperClearTimer = null;      // 加这行
+
 
         GameRules.SetWaitingForPlayersRoster(0, 0);
         GameRules.MatchStartOnAnyMap = false;
