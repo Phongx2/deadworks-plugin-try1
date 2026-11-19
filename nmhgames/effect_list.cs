@@ -25,6 +25,8 @@ public static class EffectList
 {
     public static bool IsRandomMode = true;   // 🌟 默认纯随机模式（等同 /rand 1）
 
+    private static string? _lastResultId = null;
+
     public static void SendDrawNotification(CCitadelPlayerController controller, EffectInfo effect)
     {
         string text = $"你抽到了\n{effect.DisplayName} (持续 {effect.Duration} 秒)";
@@ -79,77 +81,86 @@ public static class EffectList
     // 鹅蛋统一入口：/rand 0 走这里（按孵化时间 level 抽）
     // ==========================================
     public static void ChoukaByLevel(CCitadelPlayerPawn pawn, int level, ITimer timer)
+{
+    if (pawn == null) return;
+
+    // /rand 1 时，鹅蛋也走纯随机（先随机等级再在该等级抽）
+    if (IsRandomMode)
     {
-        if (pawn == null) return;
-
-        // /rand 1 时，鹅蛋也走纯随机（先随机等级再在该等级抽）
-        if (IsRandomMode)
-        {
-            Chouka(pawn, timer);
-            return;
-        }
-
-        string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
-
-        var levelPool = Pool.Where(e => e.Level == level).ToArray();
-
-        if (levelPool.Length == 0)
-        {
-            if (pawn.Controller != null)
-            {
-                NetMessages.Send(new CCitadelUserMsg_ChatMsg
-                {
-                    PlayerSlot = pawn.Controller.Slot,
-                    Text = $"❌ 触发了 {level} 级效果，但该等级下暂无效果配置！",
-                    AllChat = false
-                }, RecipientFilter.All);
-            }
-            Console.WriteLine($"[抽卡] 等级 {level} 的效果池为空，取消执行。");
-            return;
-        }
-
-        int index = Random.Shared.Next(levelPool.Length);
-        var effect = levelPool[index];
-
-        Console.WriteLine($"[抽卡] {playerName} 触发了 {level} 级蛋，poolLen={levelPool.Length}, index={index}, 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
-
-        Effects.Execute(effect, pawn, timer);
+        Chouka(pawn, timer);
+        return;
     }
+
+    string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
+
+    var levelPool = Pool.Where(e => e.Level == level).ToArray();
+
+    if (levelPool.Length == 0)
+    {
+        if (pawn.Controller != null)
+        {
+            NetMessages.Send(new CCitadelUserMsg_ChatMsg
+            {
+                PlayerSlot = pawn.Controller.Slot,
+                Text = $"❌ 触发了 {level} 级效果，但该等级下暂无效果配置！",
+                AllChat = false
+            }, RecipientFilter.All);
+        }
+        Console.WriteLine($"[抽卡] 等级 {level} 的效果池为空，取消执行。");
+        return;
+    }
+
+    // 🌟 严格排除上一次结果；如果池里只剩上一次那个效果，就退回全集
+    var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
+    var pickPool = candidates.Length > 0 ? candidates : levelPool;
+
+    int index = Random.Shared.Next(pickPool.Length);
+    var effect = pickPool[index];
+    _lastResultId = effect.Id;
+
+    Console.WriteLine($"[抽卡] {playerName} 触发了 {level} 级蛋，poolLen={levelPool.Length}, candidateLen={pickPool.Length}, index={index}, 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id})");
+
+    Effects.Execute(effect, pawn, timer);
+}
 
     // ==========================================
     // /rand 1：先随机等级，再在该等级里抽
     // ==========================================
     public static void Chouka(CCitadelPlayerPawn pawn, ITimer timer)
+{
+    if (pawn == null) return;
+    string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
+
+    int rolledLevel = RollLevel();
+    Console.WriteLine($"[抽卡] {playerName} 抽到了等级: {rolledLevel}");
+
+    var levelPool = Pool.Where(e => e.Level == rolledLevel).ToArray();
+
+    if (levelPool.Length == 0)
     {
-        if (pawn == null) return;
-        string playerName = pawn.Controller?.PlayerName ?? "未知玩家";
-
-        int rolledLevel = RollLevel();
-        Console.WriteLine($"[抽卡] {playerName} 抽到了等级: {rolledLevel}");
-
-        var levelPool = Pool.Where(e => e.Level == rolledLevel).ToArray();
-
-        if (levelPool.Length == 0)
+        NetMessages.Send(new CCitadelUserMsg_ChatMsg
         {
-            NetMessages.Send(new CCitadelUserMsg_ChatMsg
-            {
-                PlayerSlot = pawn.Controller.Slot,
-                Text = $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！",
-                AllChat = false
-            }, RecipientFilter.All);
+            PlayerSlot = pawn.Controller.Slot,
+            Text = $"❌ 抽到了 {rolledLevel} 级，但该等级下暂无效果配置！",
+            AllChat = false
+        }, RecipientFilter.All);
 
-            Console.WriteLine($"[抽卡] 等级 {rolledLevel} 的效果池为空，取消执行。");
-            return;
-        }
-
-        int index = Random.Shared.Next(levelPool.Length);
-        var effect = levelPool[index];
-
-        Console.WriteLine($"[抽卡] {playerName} 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id}), poolLen={levelPool.Length}, index={index}");
-
-        Effects.Execute(effect, pawn, timer);
+        Console.WriteLine($"[抽卡] 等级 {rolledLevel} 的效果池为空，取消执行。");
+        return;
     }
 
+    // 🌟 严格排除上一次结果；如果池里只剩上一次那个效果，就退回全集
+    var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
+    var pickPool = candidates.Length > 0 ? candidates : levelPool;
+
+    int index = Random.Shared.Next(pickPool.Length);
+    var effect = pickPool[index];
+    _lastResultId = effect.Id;
+
+    Console.WriteLine($"[抽卡] {playerName} 抽到了: [{effect.Level}级] {effect.DisplayName} ({effect.Id}), poolLen={levelPool.Length}, candidateLen={pickPool.Length}, index={index}");
+
+    Effects.Execute(effect, pawn, timer);
+}
     // ==========================================
     // 等级概率计算
     // ==========================================
@@ -232,7 +243,6 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
                         ?? caller.Player?.PlayerName
                         ?? "未知玩家";
 
-    // 复制 RollLevel 的逻辑，但要把 roll 原始值也拿到
     int roll = Random.Shared.Next(100);
     int level;
     if (roll < 40) level = 1;
@@ -246,12 +256,16 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
     {
         string emptyMsg = $"❌ 模拟抽卡：等级 {level} 的效果池为空，无法抽取。";
         Console.WriteLine(emptyMsg);
-        caller.Reply(emptyMsg);
+        caller.Player?.PrintToConsole(emptyMsg);
         return;
     }
 
-    int index = Random.Shared.Next(levelPool.Length);
-    var effect = levelPool[index];
+    // 🌟 模拟也排除上一次真实结果（只读 _lastResultId，不写回）
+    var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
+    var pickPool = candidates.Length > 0 ? candidates : levelPool;
+
+    int index = Random.Shared.Next(pickPool.Length);
+    var effect = pickPool[index];
 
     string result =
         $"\n========== 模拟抽卡（/rand 1）==========\n" +
@@ -262,7 +276,7 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
         $"======================================\n";
 
     Console.WriteLine(result);
-   caller.Player?.PrintToConsole(result);
+    caller.Player?.PrintToConsole(result);
 }
 }
 
