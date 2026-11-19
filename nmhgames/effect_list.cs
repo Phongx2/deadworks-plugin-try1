@@ -260,12 +260,15 @@ public static void SimulateRoll(CCitadelPlayerPawn? pawn, Caller caller)
         return;
     }
 
-    // 🌟 模拟也排除上一次真实结果（只读 _lastResultId，不写回）
+    // 排除上一次结果（真实或模拟）
     var candidates = levelPool.Where(e => e.Id != _lastResultId).ToArray();
     var pickPool = candidates.Length > 0 ? candidates : levelPool;
 
     int index = Random.Shared.Next(pickPool.Length);
     var effect = pickPool[index];
+
+    // 🌟 关键：模拟也更新 _lastResultId，下一次 /ck 才能避开这次
+    _lastResultId = effect.Id;
 
     string result =
         $"\n========== 模拟抽卡（/rand 1）==========\n" +
